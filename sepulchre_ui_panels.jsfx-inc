@@ -1,0 +1,210 @@
+// sepulchre_ui_panels.jsfx-inc
+// Layout: header with wordmark, then eight numbered stages left-to-right in signal order:
+// I INPUT -> II..V (four swappable slots) -> VI AMP -> VII CABINET -> VIII OUTPUT.
+// Bypassed stages are drawn at reduced alpha so the live chain reads at a glance.
+@init
+
+UI_DIM = 0.3;
+
+function roman(i) ( i == 0 ? "II" : i == 1 ? "III" : i == 2 ? "IV" : "V"; );
+
+// ---------- Wordmark: spaced serif capitals with symmetric thorns ----------
+function ui_logo(x, y) local(i, cx, lw, m, up, dn, k) (
+  strcpy(#logo, "SEPULCHRE");
+  i = 0; cx = x;
+  loop(strlen(#logo),
+    f_logo(); c_bone();
+    sprintf(#lc, "%c", str_getchar(#logo, i));
+    u_text(cx, y, #lc);
+    lw = u_tw(#lc);
+    k = min(i, 8 - i);                                    // distance from the centre letter
+    up = k == 4 ? 20 : k == 3 ? 13 : k == 2 ? 6 : k == 1 ? 10 : 4;
+    dn = k == 4 ? 0 : k == 3 ? 5 : k == 2 ? 12 : k == 1 ? 4 : 9;
+    m = cx + lw * 0.5;
+    u_tri(m - 1.3, y + 8, m + 1.3, y + 8, m, y + 8 - up);
+    dn > 0 ? u_tri(m - 1.3, y + 33, m + 1.3, y + 33, m, y + 33 + dn);
+    cx += lw + 7;
+    i += 1;
+  );
+  f_label(); c_ash();
+  u_text(cx + 10, y + 13, "S  O  U  N  D");
+);
+
+// ---------- Header ----------
+function ui_header() (
+  ui_alpha = 1;
+  ui_logo(22, 22);
+  f_label(); c_ash(); u_text_r(920, 26, "PRESET");
+  draw_preset_dropdown_bar(930, 19, 260, 26);
+  f_small(); c_ash();
+  pdc_delay > 0 ? sprintf(#hdr, "4x OVERSAMPLED   /   IR LATENCY %d SPL (%.1f MS)", pdc_delay, pdc_delay * 1000 / srate)
+                : strcpy(#hdr, "4x OVERSAMPLED   /   ZERO LATENCY");
+  u_text_r(1190, 56, #hdr);
+  c_rule(); u_rect(14, 80, UI_DW - 28, 1);
+  u_tri(14, 77, 14, 84, 26, 80.5); u_tri(UI_DW - 14, 77, UI_DW - 14, 84, UI_DW - 26, 80.5);
+);
+
+// ---------- Panel shell ----------
+function ui_panel(x, y, w, h, numeral, title) (
+  c_panel(); u_rect(x, y, w, h);
+  c_head(); u_rect(x, y, w, 34);
+  c_rule(); u_frame(x, y, w, h); u_rect(x, y + 34, w, 1);
+  f_title(); c_ash(); u_text(x + 10, y + 8, numeral);
+  c_bone(); u_text(x + 18 + u_tw(numeral), y + 8, title);
+);
+function ui_power(x, y, w, on) ( ui_alpha = 1; ui_toggle(x + w - 44, y + 9, 34, 17, on ? "ON" : "OFF", on); );
+function ui_flow_arrow(gx, yy) ( ui_alpha = 1; c_rule(); u_tri(gx - 3, yy - 4, gx - 3, yy + 4, gx + 3, yy); );
+
+function ui_move(slot_idx, x, y, w, h) local(fy) (
+  ui_alpha = 1; fy = y + h - 28;
+  c_rule(); u_rect(x + 10, fy - 8, w - 20, 1);
+  f_small(); c_ash(); u_text_cc(x + w * 0.5, fy + 9, "MOVE");
+  slot_idx > 0 ? ( ui_seg(x + 10, fy, 28, 18, "<", 0) ? swap_routing_slots(slot_idx - 1, slot_idx); );
+  slot_idx < 3 ? ( ui_seg(x + w - 38, fy, 28, 18, ">", 0) ? swap_routing_slots(slot_idx, slot_idx + 1); );
+);
+
+// ---------- I: Input & gate ----------
+function panel_input(x, y, w, h) local(ix, iw, cy, gate_on) (
+  ui_alpha = 1; ui_panel(x, y, w, h, "I", "INPUT");
+  ix = x + 10; iw = w - 20; cy = y + 48;
+  slider1 = ui_hslider(1, ix, cy, iw, "TRIM", slider1, -12, 18, 0, 0.1, "%+.1f dB", 0); cy += 44;
+  slider2 = ui_hslider(2, ix, cy, iw, "LOW CUT", slider2, 40, 180, 105, 1, "%d Hz", 0); cy += 46;
+  gate_on = slider4 > 0.5;
+  ui_toggle(ix, cy, iw, 20, gate_on ? "NOISE GATE  ON" : "NOISE GATE  OFF", gate_on) ? set_param(4, !gate_on); cy += 32;
+  ui_alpha = gate_on ? 1 : UI_DIM;
+  slider3 = ui_hslider(3, ix, cy, iw, "THRESHOLD", slider3, -80, -30, -52, 0.5, "%.1f dB", 0); cy += 42;
+  ui_led(ix, cy, gate_gain > 0.5, gate_gain > 0.5 ? "GATE OPEN" : "GATE SHUT"); cy += 26;
+  ui_alpha = 1;
+  ui_meter(ix, cy, iw, "INPUT", meter_in_peak, gate_on ? slider3 : -999, 0); cy += 58;
+  ui_meter(ix, cy, iw, "POST-DRIVE", meter_dist_peak, -999, 0);
+);
+
+// ---------- II..V: swappable slots ----------
+function panel_slot(mod_id, slot_idx, x, y, w, h) local(ix, iw, cy, en, bw, div) (
+  ix = x + 10; iw = w - 20;
+  en = mod_id == 0 ? slider10 > 0.5 : mod_id == 1 ? slider20 > 0.5 : mod_id == 2 ? slider30 > 0.5 : slider40 > 0.5;
+  ui_alpha = en ? 1 : UI_DIM;
+  ui_panel(x, y, w, h, roman(slot_idx), mod_id == 0 ? "DISTORTION" : mod_id == 1 ? "CHORUS" : mod_id == 2 ? "DELAY" : "REVERB");
+  ui_power(x, y, w, en) ? set_param(mod_id == 0 ? 10 : mod_id == 1 ? 20 : mod_id == 2 ? 30 : 40, !en);
+  ui_alpha = en ? 1 : UI_DIM;
+  cy = y + 46;
+
+  mod_id == 0 ? (
+    bw = (iw - 8) / 3;
+    ui_seg(ix, cy, bw, 20, "RAT", slider11 == 0) ? set_param(11, 0);
+    ui_seg(ix + bw + 4, cy, bw, 20, "MODERN", slider11 == 1) ? set_param(11, 1);
+    ui_seg(ix + 2 * (bw + 4), cy, bw, 20, "HM-2", slider11 == 2) ? set_param(11, 2);
+    cy += 36;
+    slider12 = ui_hslider(12, ix, cy, iw, "DRIVE", slider12, 0, 100, 76, 1, "%d%%", 0); cy += 42;
+    slider13 = ui_hslider(13, ix, cy, iw, "LOW", slider13, 0, 100, 50, 1, "%+.1f dB", 0.24); cy += 42;
+    slider14 = ui_hslider(14, ix, cy, iw, "MID", slider14, 0, 100, 50, 1, "%+.1f dB", 0.28); cy += 42;
+    slider15 = ui_hslider(15, ix, cy, iw, "HIGH", slider15, 0, 100, 50, 1, "%+.1f dB", 0.24); cy += 42;
+    slider16 = ui_hslider(16, ix, cy, iw, "GRIT", slider16, 0, 100, 15, 1, "%d%%", 0); cy += 42;
+    slider17 = ui_hslider(17, ix, cy, iw, "LEVEL", slider17, -18, 12, 0, 0.1, "%+.1f dB", 0);
+  ) : mod_id == 1 ? (
+    bw = (iw - 4) / 2;
+    ui_seg(ix, cy, bw, 20, "BBD", slider21 == 0) ? set_param(21, 0);
+    ui_seg(ix + bw + 4, cy, bw, 20, "DIMENSION", slider21 == 1) ? set_param(21, 1);
+    cy += 36;
+    slider22 = ui_hslider(22, ix, cy, iw, "RATE", slider22, 0.1, 4.0, 0.45, 0.05, "%.2f Hz", 0); cy += 46;
+    slider23 = ui_hslider(23, ix, cy, iw, "DEPTH", slider23, 0, 100, 58, 1, "%d%%", 0); cy += 46;
+    slider24 = ui_hslider(24, ix, cy, iw, "TONE", slider24, 0, 100, 44, 1, "%d%%", 0); cy += 46;
+    slider25 = ui_hslider(25, ix, cy, iw, "MIX", slider25, 0, 100, 38, 1, "%d%%", 0);
+  ) : mod_id == 2 ? (
+    bw = (iw - 4) / 2;
+    ui_seg(ix, cy, bw, 20, "TAPE", slider31 == 0) ? set_param(31, 0);
+    ui_seg(ix + bw + 4, cy, bw, 20, "DIGITAL", slider31 == 1) ? set_param(31, 1);
+    cy += 32;
+    ui_toggle(ix, cy, iw, 18, "TEMPO SYNC", slider36 > 0.5) ? set_param(36, !(slider36 > 0.5)); cy += 30;
+    slider36 > 0.5 ? (
+      div = get_delay_sync_div(slider32);
+      bw = (iw - 9) / 4;
+      ui_seg(ix, cy, bw, 18, "1/8", div < 0.55) ? set_param(32, 120);
+      ui_seg(ix + (bw + 3), cy, bw, 18, "1/4T", div >= 0.55 && div < 0.70) ? set_param(32, 260);
+      ui_seg(ix + 2 * (bw + 3), cy, bw, 18, "1/8.", div >= 0.70 && div < 0.85) ? set_param(32, 420);
+      ui_seg(ix + 3 * (bw + 3), cy, bw, 18, "1/4", div >= 0.85) ? set_param(32, 650);
+      f_value(); c_bone(); sprintf(#sync_lbl, "= %d ms", floor(delay_eff_ms + 0.5));
+      u_text_r(ix + iw, cy + 24, #sync_lbl); cy += 48;
+    ) : (
+      slider32 = ui_hslider(32, ix, cy, iw, "TIME", slider32, 20, 800, 390, 1, "%d ms", 0); cy += 48;
+    );
+    slider33 = ui_hslider(33, ix, cy, iw, "FEEDBACK", slider33, 0, 105, 42, 1, "%d%%", 0); cy += 42;
+    slider34 = ui_hslider(34, ix, cy, iw, "TONE", slider34, 0, 100, 36, 1, "%d%%", 0); cy += 42;
+    slider35 = ui_hslider(35, ix, cy, iw, "MIX", slider35, 0, 100, 28, 1, "%d%%", 0);
+  ) : (
+    bw = (iw - 8) / 3;
+    ui_seg(ix, cy, bw, 20, "HALL", slider41 == 0) ? set_param(41, 0);
+    ui_seg(ix + bw + 4, cy, bw, 20, "PLATE", slider41 == 1) ? set_param(41, 1);
+    ui_seg(ix + 2 * (bw + 4), cy, bw, 20, "AMBIENT", slider41 == 2) ? set_param(41, 2);
+    cy += 36;
+    slider42 = ui_hslider(42, ix, cy, iw, "DECAY", slider42, 0.5, 10.0, 3.2, 0.1, "%.1f s", 0); cy += 46;
+    slider43 = ui_hslider(43, ix, cy, iw, "PRE-DELAY", slider43, 0, 60, 22, 1, "%d ms", 0); cy += 46;
+    slider44 = ui_hslider(44, ix, cy, iw, "DAMPING", slider44, 0, 100, 62, 1, "%d%%", 0); cy += 46;
+    slider45 = ui_hslider(45, ix, cy, iw, "MIX", slider45, 0, 100, 26, 1, "%d%%", 0);
+  );
+  ui_move(slot_idx, x, y, w, h);
+  ui_alpha = 1;
+);
+
+// ---------- VI: Amp ----------
+function panel_amp(x, y, w, h) local(ix, iw, cy, on, bw) (
+  ix = x + 10; iw = w - 20; on = slider54 > 0.5;
+  ui_alpha = on ? 1 : UI_DIM; ui_panel(x, y, w, h, "VI", "AMP");
+  ui_alpha = 1; cy = y + 46; bw = (iw - 8) / 3;
+  ui_seg(ix, cy, bw, 20, "OFF", slider54 == 0) ? set_param(54, 0);
+  ui_seg(ix + bw + 4, cy, bw, 20, "TUBE", slider54 == 1) ? set_param(54, 1);
+  ui_seg(ix + 2 * (bw + 4), cy, bw, 20, "SOLID", slider54 == 2) ? set_param(54, 2);
+  ui_alpha = on ? 1 : UI_DIM; cy += 36;
+  slider55 = ui_hslider(55, ix, cy, iw, "BASS", slider55, 0, 100, 50, 1, "%+.1f dB", 0.20); cy += 46;
+  slider56 = ui_hslider(56, ix, cy, iw, "MID", slider56, 0, 100, 50, 1, "%+.1f dB", 0.22); cy += 46;
+  slider57 = ui_hslider(57, ix, cy, iw, "TREBLE", slider57, 0, 100, 50, 1, "%+.1f dB", 0.20);
+  ui_alpha = 1;
+);
+
+// ---------- VII: Cabinet + VIII: Output ----------
+function panel_cab_out(x, y, w, h) local(ix, iw, cy, on, bw) (
+  ix = x + 10; iw = w - 20; on = slider49 > 0.5;
+  ui_alpha = on ? 1 : UI_DIM; ui_panel(x, y, w, h, "VII", "CABINET");
+  ui_power(x, y, w, on) ? set_param(49, !on);
+  ui_alpha = on ? 1 : UI_DIM; cy = y + 46; bw = (iw - 4) / 2;
+  ui_seg(ix, cy, bw, 20, "IIR CAB", slider52 < 0.5) ? set_param(52, 0);
+  ui_seg(ix + bw + 4, cy, bw, 20, "WAV IR", slider52 > 0.5) ? set_param(52, 1);
+  cy += 28;
+  slider52 < 0.5 ? (
+    bw = (iw - 8) / 3;
+    ui_seg(ix, cy, bw, 20, "4x12", slider50 == 0) ? set_param(50, 0);
+    ui_seg(ix + bw + 4, cy, bw, 20, "2x12", slider50 == 1) ? set_param(50, 1);
+    ui_seg(ix + 2 * (bw + 4), cy, bw, 20, "DAMPED", slider50 == 2) ? set_param(50, 2);
+  ) : (
+    ui_seg(ix, cy, 22, 20, "<", 0) ? set_param(53, max(0, floor(slider53 + 0.5) - 1));
+    ui_seg(ix + iw - 22, cy, 22, 20, ">", 0) ? set_param(53, min(9, floor(slider53 + 0.5) + 1));
+    f_small(); c_bone();
+    u_text_cc(ix + iw * 0.5, cy + 10, get_ir_slot_name(floor(slider53 + 0.5)));
+  );
+
+  // VIII: Output (never dimmed)
+  ui_alpha = 1; cy += 40;
+  c_head(); u_rect(x + 1, cy, w - 2, 34);
+  c_rule(); u_rect(x, cy, w, 1); u_rect(x, cy + 34, w, 1);
+  f_title(); c_ash(); u_text(x + 10, cy + 8, "VIII"); c_bone(); u_text(x + 18 + u_tw("VIII"), cy + 8, "OUTPUT");
+  cy += 48;
+  slider58 = ui_hslider(58, ix, cy, iw, "AIR", slider58, 0, 100, 50, 1, "%+.1f dB", 0.24); cy += 46;
+  slider51 = ui_hslider(51, ix, cy, iw, "MASTER", slider51, -24, 6, -0.5, 0.1, "%+.1f dB", 0); cy += 50;
+  ui_meter(ix, cy, iw, "OUTPUT", meter_out_peak, -999, 1); cy += 52;
+  f_small(); c_ash(); u_text(ix, cy, "TARGET  -10 / -8 dBFS");
+);
+
+// ---------- Whole frame ----------
+function ui_draw_all() local(py, ph) (
+  py = 92; ph = UI_DH - py - 12;
+  ui_header();
+  panel_input(14, py, 150, ph);
+  ui_flow_arrow(169, py + 17);
+  panel_slot(slider5, 0, 174, py, 162, ph); ui_flow_arrow(341, py + 17);
+  panel_slot(slider6, 1, 346, py, 162, ph); ui_flow_arrow(513, py + 17);
+  panel_slot(slider7, 2, 518, py, 162, ph); ui_flow_arrow(685, py + 17);
+  panel_slot(slider8, 3, 690, py, 162, ph); ui_flow_arrow(857, py + 17);
+  panel_amp(862, py, 150, ph); ui_flow_arrow(1017, py + 17);
+  panel_cab_out(1022, py, 168, ph);
+  draw_preset_dropdown_menu(930, 46, 260, 24);
+);

@@ -22,71 +22,18 @@ function sync_all_DSP() (
   update_amp_cab_coeffs();
 );
 
-// Module 1: Distortion local presets (0, 1, 2)
-function recall_dist_preset(idx) (
-  dist_preset_idx = idx;
-  idx == 0 ? ( // P1: RAT Crunch
-    slider10 = 1; slider11 = 0; slider12 = 74;
-    slider13 = 45; slider14 = 68; slider15 = 62;
-    slider16 = 18; slider17 = 0.5;
-  ) : idx == 1 ? ( // P2: Tight High-Gain
-    slider10 = 1; slider11 = 1; slider12 = 82;
-    slider13 = 56; slider14 = 38; slider15 = 76;
-    slider16 = 10; slider17 = 1.0;
-  ) : ( // P3: HM-2 Grind (calibrated for -10 to -8 dBFS parity)
-    slider10 = 1; slider11 = 2; slider12 = 86;
-    slider13 = 74; slider14 = 84; slider15 = 68;
-    slider16 = 20; slider17 = 1.5;
-  );
-  ui_need_sync = 1;
-);
-
-// Module 2: Chorus local presets (0, 1, 2)
-function recall_chorus_preset(idx) (
-  chorus_preset_idx = idx;
-  idx == 0 ? ( // P1: Subtle BBD
-    slider20 = 1; slider21 = 0; slider22 = 0.45;
-    slider23 = 52; slider24 = 48; slider25 = 34;
-  ) : idx == 1 ? ( // P2: Wide Dimension
-    slider20 = 1; slider21 = 1; slider22 = 0.80;
-    slider23 = 65; slider24 = 68; slider25 = 42;
-  ) : ( // P3: Fast Mod
-    slider20 = 1; slider21 = 0; slider22 = 2.40;
-    slider23 = 70; slider24 = 36; slider25 = 46;
-  );
-  ui_need_sync = 1;
-);
-
-// Module 3: Delay local presets (0, 1, 2)
-function recall_delay_preset(idx) (
-  delay_preset_idx = idx;
-  idx == 0 ? ( // P1: Slapback
-    slider30 = 1; slider31 = 0; slider32 = 165;
-    slider33 = 25; slider34 = 42; slider35 = 24; slider36 = 0;
-  ) : idx == 1 ? ( // P2: Tape Lead
-    slider30 = 1; slider31 = 0; slider32 = 420;
-    slider33 = 48; slider34 = 36; slider35 = 32; slider36 = 0;
-  ) : ( // P3: Long Echo
-    slider30 = 1; slider31 = 1; slider32 = 560;
-    slider33 = 58; slider34 = 52; slider35 = 36; slider36 = 0;
-  );
-  ui_need_sync = 1;
-);
-
-// Module 4: Reverb local presets (0, 1, 2)
-function recall_reverb_preset(idx) (
-  reverb_preset_idx = idx;
-  idx == 0 ? ( // P1: Room / Hall
-    slider40 = 1; slider41 = 0; slider42 = 2.6;
-    slider43 = 20; slider44 = 60; slider45 = 22;
-  ) : idx == 1 ? ( // P2: Bright Plate
-    slider40 = 1; slider41 = 1; slider42 = 1.9;
-    slider43 = 10; slider44 = 30; slider45 = 28;
-  ) : ( // P3: Ambient Wash
-    slider40 = 1; slider41 = 2; slider42 = 6.5;
-    slider43 = 35; slider44 = 65; slider45 = 38;
-  );
-  ui_need_sync = 1;
+// Name table matching %APPDATA%\REAPER\Data\sepulchre_irs\ (EEL2 file sliders expose numeric index only)
+function get_ir_slot_name(idx) (
+  idx == 0 ? "01 BlackWizard C" :
+  idx == 1 ? "02 BlackWizard E" :
+  idx == 2 ? "03 Destroyer C" :
+  idx == 3 ? "04 Destroyer E" :
+  idx == 4 ? "05 LordOfGoats C" :
+  idx == 5 ? "06 LordOfGoats E" :
+  idx == 6 ? "07 MystSatan C" :
+  idx == 7 ? "08 Swordman C" :
+  idx == 8 ? "09 HeadKrush C" :
+             "10 PlagueBearer C";
 );
 
 function get_global_preset_name(idx) (
@@ -115,7 +62,6 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 0; slider42 = 2.0; slider43 = 18; slider44 = 64; slider45 = 15;
     slider49 = 1; slider50 = 0; slider51 = -0.5;
     slider54 = 1; slider55 = 54; slider56 = 44; slider57 = 62; slider58 = 64;
-    dist_preset_idx = 1; reverb_preset_idx = 0;
   ) : idx == 1 ? ( // 02: Cold Lead (RAT + Tube Amp + Analog BBD + Tape Delay + Plate Reverb)
     slider1 = 0.0; slider2 = 105; slider3 = -52; slider4 = 1;
     slider10 = 1; slider11 = 0; slider12 = 76; slider13 = 42; slider14 = 70; slider15 = 64; slider16 = 16; slider17 = 1.0;
@@ -124,7 +70,6 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 1; slider42 = 3.0; slider43 = 24; slider44 = 48; slider45 = 24;
     slider49 = 1; slider50 = 1; slider51 = -0.5;
     slider54 = 1; slider55 = 48; slider56 = 56; slider57 = 64; slider58 = 66;
-    dist_preset_idx = 0; chorus_preset_idx = 0; delay_preset_idx = 1; reverb_preset_idx = 1;
   ) : idx == 2 ? ( // 03: Doom Wall (HM-2 + Tube Amp + Dimension + Tape Delay + Ambient Reverb)
     slider1 = 0.0; slider2 = 85; slider3 = -52; slider4 = 1;
     slider10 = 1; slider11 = 2; slider12 = 84; slider13 = 72; slider14 = 82; slider15 = 66; slider16 = 18; slider17 = 0.0;
@@ -133,7 +78,6 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 2; slider42 = 6.0; slider43 = 32; slider44 = 62; slider45 = 34;
     slider49 = 1; slider50 = 2; slider51 = -1.0;
     slider54 = 1; slider55 = 62; slider56 = 52; slider57 = 58; slider58 = 60;
-    dist_preset_idx = 2; chorus_preset_idx = 1; delay_preset_idx = 2; reverb_preset_idx = 2;
   ) : idx == 3 ? ( // 04: Raw 4-Track (High-grit RAT + Solid-State Combo + 2x12, short slap)
     slider1 = 0.0; slider2 = 135; slider3 = -50; slider4 = 1;
     slider10 = 1; slider11 = 0; slider12 = 80; slider13 = 36; slider14 = 78; slider15 = 70; slider16 = 48; slider17 = 1.5;
@@ -142,7 +86,6 @@ function recall_global_preset(idx) (
     slider40 = 0; slider41 = 0; slider42 = 1.5; slider43 = 10; slider44 = 70; slider45 = 0;
     slider49 = 1; slider50 = 1; slider51 = -0.5;
     slider54 = 2; slider55 = 42; slider56 = 60; slider57 = 68; slider58 = 70;
-    dist_preset_idx = 0; delay_preset_idx = 0;
   ) : idx == 4 ? ( // 05: Swedish Chainsaw (HM-2 + Solid-State Amp + 4x12 V30)
     slider1 = 0.0; slider2 = 95; slider3 = -48; slider4 = 1;
     slider10 = 1; slider11 = 2; slider12 = 88; slider13 = 78; slider14 = 88; slider15 = 72; slider16 = 15; slider17 = 0.0;
@@ -151,7 +94,6 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 1; slider42 = 1.6; slider43 = 12; slider44 = 45; slider45 = 14;
     slider49 = 1; slider50 = 0; slider51 = -1.8;
     slider52 = 0; slider54 = 2; slider55 = 64; slider56 = 58; slider57 = 64; slider58 = 68;
-    dist_preset_idx = 2; reverb_preset_idx = 1;
   ) : idx == 5 ? ( // 06: Freezing Clean (Distortion bypassed + Tube Amp + BBD Chorus + Digital Delay + Hall)
     slider1 = 3.5; slider2 = 75; slider3 = -62; slider4 = 1;
     slider10 = 0; slider11 = 0; slider12 = 50; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0; slider17 = 0.0;
@@ -160,7 +102,6 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 0; slider42 = 4.2; slider43 = 25; slider44 = 42; slider45 = 34;
     slider49 = 1; slider50 = 1; slider51 = -1.0;
     slider54 = 1; slider55 = 52; slider56 = 50; slider57 = 64; slider58 = 62;
-    chorus_preset_idx = 0; delay_preset_idx = 1; reverb_preset_idx = 0;
   ) : ( // 07: Ambient Swell (RAT + Tube Amp + Dimension + 580ms Tape Delay + 7.8s Ambient Reverb)
     slider1 = 0.0; slider2 = 100; slider3 = -54; slider4 = 1;
     slider10 = 1; slider11 = 0; slider12 = 68; slider13 = 48; slider14 = 64; slider15 = 58; slider16 = 12; slider17 = 0.5;
@@ -169,7 +110,6 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 2; slider42 = 7.8; slider43 = 40; slider44 = 55; slider45 = 46;
     slider49 = 1; slider50 = 2; slider51 = -1.0;
     slider54 = 1; slider55 = 50; slider56 = 54; slider57 = 58; slider58 = 60;
-    dist_preset_idx = 0; chorus_preset_idx = 1; delay_preset_idx = 2; reverb_preset_idx = 2;
   );
   ui_need_sync = 1;
 );

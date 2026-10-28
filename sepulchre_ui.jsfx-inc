@@ -1,32 +1,79 @@
 // sepulchre_ui.jsfx-inc
-// Dark industrial pedalboard UI: strictly horizontal sliders, click toggles, meters, and preset dropdown
+// Necro-monochrome theme, resolution-independent drawing primitives, and widgets
+// (horizontal sliders with bipolar dB mode, segment/toggle buttons, meters, LED, preset dropdown).
+// All widget coordinates are in a fixed design space (UI_DW x UI_DH) scaled to the window by ui_begin().
 @init
 
-function set_rgb(r, g, b) (
-  gfx_r = r / 255.0; gfx_g = g / 255.0; gfx_b = b / 255.0; gfx_a = 1.0;
+UI_DW = 1204; UI_DH = 500;
+gfx_ext_retina = 1;
+
+// ---------- Theme: near-black + bone/ash; blood only for "engaged", bright red only for clip ----------
+function u_rgb(r, g, b) ( gfx_r = r / 255; gfx_g = g / 255; gfx_b = b / 255; gfx_a = ui_alpha; );
+function c_void()  ( u_rgb(9, 9, 9); );        // #090909 window
+function c_panel() ( u_rgb(17, 17, 17); );     // #111111 panel body
+function c_head()  ( u_rgb(24, 24, 24); );     // #181818 panel header / hover
+function c_track() ( u_rgb(36, 36, 36); );     // #242424 slider/meter track
+function c_rule()  ( u_rgb(70, 70, 70); );     // #464646 borders, dividers
+function c_ash()   ( u_rgb(160, 156, 148); );  // #A09C94 labels
+function c_bone()  ( u_rgb(232, 227, 215); );  // #E8E3D7 values, selected
+function c_blood() ( u_rgb(132, 18, 22); );    // #841216 engaged toggles
+function c_clip()  ( u_rgb(218, 40, 40); );    // #DA2828 clip / over
+
+function f_label() ( gfx_setfont(1, "Arial", 11 * ui_S, 'b'); );
+function f_value() ( gfx_setfont(2, "Consolas", 12 * ui_S); );
+function f_title() ( gfx_setfont(3, "Times New Roman", 16 * ui_S, 'b'); );
+function f_logo()  ( gfx_setfont(4, "Times New Roman", 36 * ui_S, 'b'); );
+function f_small() ( gfx_setfont(5, "Arial", 9 * ui_S); );
+
+// ---------- Scaling ----------
+function ui_begin() (
+  ui_S = max(0.5, min(gfx_w / UI_DW, gfx_h / UI_DH));
+  ui_ox = floor((gfx_w - UI_DW * ui_S) * 0.5);
+  ui_oy = floor((gfx_h - UI_DH * ui_S) * 0.5);
+  ui_mx = (mouse_x - ui_ox) / ui_S;
+  ui_my = (mouse_y - ui_oy) / ui_S;
+  ui_alpha = 1;
 );
 
-function col_bg()      ( set_rgb(17, 17, 19); );    // #111113 Charcoal/Obsidian
-function col_chassis() ( set_rgb(26, 26, 30); );    // #1A1A1E Dark Chassis
-function col_header()  ( set_rgb(33, 33, 39); );    // #212127 Header Bar
-function col_steel()   ( set_rgb(46, 46, 54); );    // #2E2E36 Steel Border
-function col_crimson() ( set_rgb(168, 32, 40); );   // #A82028 Crimson Highlight
-function col_bone()    ( set_rgb(208, 206, 200); ); // #D0CEC8 Bone-Silver Text
-function col_dim()     ( set_rgb(122, 120, 116); ); // #7A7874 Dimmed Label
+function u_px(x) ( floor(ui_ox + x * ui_S + 0.5); );
+function u_py(y) ( floor(ui_oy + y * ui_S + 0.5); );
+function u_rect(x, y, w, h) local(x0, y0) (
+  x0 = u_px(x); y0 = u_py(y);
+  gfx_rect(x0, y0, max(1, u_px(x + w) - x0), max(1, u_py(y + h) - y0));
+);
+function u_frame(x, y, w, h) local(x0, y0, x1, y1) (
+  x0 = u_px(x); y0 = u_py(y); x1 = u_px(x + w) - 1; y1 = u_py(y + h) - 1;
+  gfx_line(x0, y0, x1, y0, 0); gfx_line(x1, y0, x1, y1, 0);
+  gfx_line(x1, y1, x0, y1, 0); gfx_line(x0, y1, x0, y0, 0);
+);
+function u_tri(x1, y1, x2, y2, x3, y3) (
+  gfx_triangle(ui_ox + x1 * ui_S, ui_oy + y1 * ui_S, ui_ox + x2 * ui_S, ui_oy + y2 * ui_S, ui_ox + x3 * ui_S, ui_oy + y3 * ui_S);
+);
+function u_tw(s) local(w, h) ( gfx_measurestr(s, w, h); w / ui_S; );
+function u_text(x, y, s) ( gfx_x = ui_ox + x * ui_S; gfx_y = ui_oy + y * ui_S; gfx_drawstr(s); );
+function u_text_r(xr, y, s) ( u_text(xr - u_tw(s), y, s); );
+function u_text_cc(cx, cy, s) local(w, h) (
+  gfx_measurestr(s, w, h);
+  gfx_x = ui_ox + cx * ui_S - w * 0.5; gfx_y = ui_oy + cy * ui_S - h * 0.5;
+  gfx_drawstr(s);
+);
+function mouse_in(x, y, w, h) ( ui_mx >= x && ui_mx <= x + w && ui_my >= y && ui_my <= y + h; );
+function ui_hit(x, y, w, h) ( ui_mouse_clicked && !ui_dropdown_open && mouse_in(x, y, w, h); );
 
-function draw_box(x, y, w, h, fill_mode) (
-  fill_mode ? gfx_rect(x, y, w, h) : (
-    gfx_line(x, y, x + w - 1, y);
-    gfx_line(x + w - 1, y, x + w - 1, y + h - 1);
-    gfx_line(x + w - 1, y + h - 1, x, y + h - 1);
-    gfx_line(x, y + h - 1, x, y);
+// Static film grain (deterministic positions, so it doesn't flicker)
+function ui_grain() local(i, gx, gy) (
+  ui_alpha = 0.6; u_rgb(28, 28, 28);
+  i = 0;
+  loop(900,
+    gx = sin(i * 12.9898) * 43758.5453; gx -= floor(gx);
+    gy = sin(i * 78.233) * 12543.1459; gy -= floor(gy);
+    gfx_rect(floor(gx * gfx_w), floor(gy * gfx_h), 1, 1);
+    i += 1;
   );
+  ui_alpha = 1;
 );
 
-function mouse_in(x, y, w, h) (
-  mouse_x >= x && mouse_x <= (x + w) && mouse_y >= y && mouse_y <= (y + h);
-);
-
+// ---------- Automation ----------
 // Bitmask for sliders 1..30; direct sliderN reference for sliders >30 to avoid 32-bit mask overflow (Fixes R2-5)
 function auto_slider(id, end_touch) (
   id <= 30 ? slider_automate(2 ^ (id - 1), end_touch) :
@@ -44,113 +91,12 @@ function auto_slider(id, end_touch) (
   id == 58 ? slider_automate(slider58, end_touch) : id == 60 ? slider_automate(slider60, end_touch);
 );
 
-function ui_button(x, y, w, h, label, active) local(clicked, tw, th) (
-  clicked = ui_mouse_clicked && !ui_dropdown_open && mouse_in(x, y, w, h);
-  active ? col_crimson() : col_bg();
-  draw_box(x, y, w, h, 1);
-  col_steel();
-  draw_box(x, y, w, h, 0);
-  active ? col_bone() : col_dim();
-  gfx_measurestr(label, tw, th);
-  gfx_x = x + (w - tw) * 0.5;
-  gfx_y = y + (h - th) * 0.5;
-  gfx_drawstr(label);
-  clicked;
-);
-
-// Horizontal slider with double-click reset, Shift fine-drag, mouse-wheel, and bitmask slider_automate()
-function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt) local(track_y, track_h, norm, fill_w, thumb_x, new_val, tw, th, d_norm, now_t) (
-  gfx_setfont(1, "Consolas", 11, 'b');
-  col_dim(); gfx_x = x; gfx_y = y; gfx_drawstr(label);
-
-  col_bone();
-  sprintf(#val_str, fmt, val);
-  gfx_measurestr(#val_str, tw, th);
-  gfx_x = x + w - tw; gfx_y = y; gfx_drawstr(#val_str);
-
-  track_y = y + 13; track_h = 9;
-  new_val = val;
-
-  ui_mouse_clicked && !ui_dropdown_open && mouse_in(x - 2, track_y - 3, w + 4, track_h + 6) ? (
-    time_precise(now_t);
-    (ui_last_click_id == id && (now_t - ui_last_click_t) < 0.32) ? (
-      // Double-click resets to default value
-      new_val = dflt_v;
-      slider(id) = new_val;
-      auto_slider(id, 1);
-      ui_need_sync = 1; preset_dirty = 1;
-      ui_drag_id = 0; ui_last_click_id = 0;
-    ) : (
-      ui_drag_id = id;
-      ui_drag_start_x = mouse_x;
-      ui_drag_start_v = val;
-      ui_last_click_id = id;
-      ui_last_click_t = now_t;
-    );
-  );
-
-  // Mouse wheel fine step when hovering
-  !ui_dropdown_open && mouse_wheel != 0 && mouse_in(x, y, w, 24) ? (
-    new_val = clamp(val + (mouse_wheel > 0 ? 1 : -1) * max(step_v, (max_v - min_v) * 0.01), min_v, max_v);
-    mouse_wheel = 0;
-    new_val != val ? (
-      slider(id) = new_val;
-      auto_slider(id, 1);
-      ui_need_sync = 1; preset_dirty = 1;
-    );
-  );
-
-  ui_drag_id == id && (mouse_cap & 1) ? (
-    (mouse_cap & 8) ? (
-      d_norm = (mouse_x - ui_drag_start_x) / (w * 5.0);
-      new_val = ui_drag_start_v + d_norm * (max_v - min_v);
-      ui_drag_start_x = mouse_x;
-      ui_drag_start_v = new_val;
-    ) : (
-      norm = clamp((mouse_x - x) / w, 0.0, 1.0);
-      new_val = min_v + norm * (max_v - min_v);
-    );
-    step_v > 0 ? new_val = floor(new_val / step_v + 0.5) * step_v;
-    new_val = clamp(new_val, min_v, max_v);
-    new_val != val ? (
-      slider(id) = new_val;
-      auto_slider(id, 0);
-      ui_need_sync = 1; preset_dirty = 1;
-    );
-  );
-
-  norm = clamp((new_val - min_v) / (max_v - min_v), 0.0, 1.0);
-  fill_w = floor(norm * w);
-  col_bg(); draw_box(x, track_y, w, track_h, 1);
-  fill_w > 0 ? ( col_crimson(); draw_box(x + 1, track_y + 1, max(1, fill_w - 1), track_h - 2, 1); );
-  col_steel(); draw_box(x, track_y, w, track_h, 0);
-
-  thumb_x = clamp(x + fill_w - 2, x, x + w - 4);
-  col_bone(); draw_box(thumb_x, track_y - 1, 4, track_h + 2, 1);
-  new_val;
-);
-
-function draw_level_meter(x, y, w, label, peak_lin) local(db, norm, fill_w, t10_x, t8_x, tw, th) (
-  db = peak_lin > 0.00003 ? (20.0 * log10(peak_lin)) : -90.0;
-  col_dim(); gfx_x = x; gfx_y = y; gfx_drawstr(label);
-  col_bone();
-  db > -80.0 ? sprintf(#m_str, "%+.1f dB", db) : strcpy(#m_str, "-INF");
-  gfx_measurestr(#m_str, tw, th);
-  gfx_x = x + w - tw; gfx_y = y; gfx_drawstr(#m_str);
-
-  norm = clamp((db + 60.0) / 60.0, 0.0, 1.0);
-  fill_w = floor(norm * w);
-  col_bg(); draw_box(x, y + 13, w, 9, 1);
-  fill_w > 0 ? (
-    db > -1.2 ? set_rgb(235, 55, 45) : col_crimson();
-    draw_box(x + 1, y + 14, max(1, fill_w - 1), 7, 1);
-  );
-  col_steel(); draw_box(x, y + 13, w, 9, 0);
-  t10_x = x + floor((50.0 / 60.0) * w);
-  t8_x  = x + floor((52.0 / 60.0) * w);
-  col_bone();
-  gfx_line(t10_x, y + 12, t10_x, y + 22);
-  gfx_line(t8_x,  y + 12, t8_x,  y + 22);
+// Write a parameter from the UI: value, host notification, DSP resync, preset-modified flag, IR reload
+function set_param(id, v) (
+  slider(id) = v;
+  auto_slider(id, 1);
+  ui_need_sync = 1; preset_dirty = 1;
+  (id == 52 || id == 53) && slider52 > 0.5 ? ir_reload_req = 1;
 );
 
 function swap_routing_slots(slot_a, slot_b) local(tmp) (
@@ -160,137 +106,135 @@ function swap_routing_slots(slot_a, slot_b) local(tmp) (
   ui_need_sync = 1; preset_dirty = 1;
 );
 
-function draw_middle_module(mod_id, slot_idx, x, y, w, h) local(inner_x, inner_w, cy, en, div, bw) (
-  col_chassis(); draw_box(x, y, w, h, 1);
-  col_header();  draw_box(x, y, w, 28, 1);
-  col_steel();   draw_box(x, y, w, h, 0);
-  gfx_line(x, y + 28, x + w, y + 28);
-  inner_x = x + 10; inner_w = w - 20;
+// ---------- Widgets ----------
+// Choice/segment button: selected = bone text on raised fill with bone underline
+function ui_seg(x, y, w, h, label, sel) local(hit) (
+  hit = ui_hit(x, y, w, h);
+  sel ? ( c_track(); u_rect(x, y, w, h); c_bone(); u_rect(x, y + h - 2, w, 2); )
+      : ( mouse_in(x, y, w, h) && !ui_dropdown_open ? ( c_head(); u_rect(x, y, w, h); ); c_rule(); u_frame(x, y, w, h); );
+  f_label(); sel ? c_bone() : c_ash();
+  u_text_cc(x + w * 0.5, y + h * 0.5, label);
+  hit;
+);
 
-  slot_idx > 0 ? ( ui_button(x + 6, y + 5, 20, 18, "<", 0) ? swap_routing_slots(slot_idx - 1, slot_idx); );
-  slot_idx < 3 ? ( ui_button(x + w - 26, y + 5, 20, 18, ">", 0) ? swap_routing_slots(slot_idx, slot_idx + 1); );
+// Engaged toggle: blood fill when on
+function ui_toggle(x, y, w, h, label, on) local(hit) (
+  hit = ui_hit(x, y, w, h);
+  on ? ( c_blood(); u_rect(x, y, w, h); ) : ( c_rule(); u_frame(x, y, w, h); );
+  f_label(); on ? c_bone() : c_ash();
+  u_text_cc(x + w * 0.5, y + h * 0.5, label);
+  hit;
+);
 
-  mod_id == 0 ? ( // DISTORTION
-    en = slider10 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "DISTORTION [ON]" : "DISTORTION [BYP]", en) ? ( slider10 = !en; auto_slider(10, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy = y + 36;
-    ui_button(inner_x, cy, 38, 18, "RAT", slider11 == 0) ? ( slider11 = 0; auto_slider(11, 1); ui_need_sync = 1; preset_dirty = 1; );
-    ui_button(inner_x + 41, cy, 74, 18, "MODERN HG", slider11 == 1) ? ( slider11 = 1; auto_slider(11, 1); ui_need_sync = 1; preset_dirty = 1; );
-    ui_button(inner_x + 118, cy, inner_w - 118, 18, "HM-2", slider11 == 2) ? ( slider11 = 2; auto_slider(11, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy += 24;
-    ui_button(inner_x, cy, 46, 16, "P1:RAT", dist_preset_idx == 0) ? recall_dist_preset(0);
-    ui_button(inner_x + 50, cy, 52, 16, "P2:TIGHT", dist_preset_idx == 1) ? recall_dist_preset(1);
-    ui_button(inner_x + 106, cy, inner_w - 106, 16, "P3:HM-2", dist_preset_idx == 2) ? recall_dist_preset(2);
-    cy += 24;
-    slider12 = ui_hslider(12, inner_x, cy, inner_w, "DRIVE (4x OS)", slider12, 0, 100, 76, 1, "%d%%"); cy += 34;
-    slider13 = ui_hslider(13, inner_x, cy, inner_w, "PRE-LOW", slider13, 0, 100, 50, 1, "%d%%"); cy += 34;
-    slider14 = ui_hslider(14, inner_x, cy, inner_w, "PRE-MID", slider14, 0, 100, 50, 1, "%d%%"); cy += 34;
-    slider15 = ui_hslider(15, inner_x, cy, inner_w, "PRE-HIGH", slider15, 0, 100, 50, 1, "%d%%"); cy += 34;
-    slider16 = ui_hslider(16, inner_x, cy, inner_w, "GRIT (DEGRADE)", slider16, 0, 100, 15, 1, "%d%%"); cy += 34;
-    slider17 = ui_hslider(17, inner_x, cy, inner_w, "LEVEL", slider17, -18, 12, 0.0, 0.1, "%+.1f dB");
-  ) : mod_id == 1 ? ( // CHORUS
-    en = slider20 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "CHORUS [ON]" : "CHORUS [BYP]", en) ? ( slider20 = !en; auto_slider(20, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy = y + 36;
-    ui_button(inner_x, cy, inner_w * 0.5 - 2, 18, "ANALOG BBD", slider21 == 0) ? ( slider21 = 0; auto_slider(21, 1); ui_need_sync = 1; preset_dirty = 1; );
-    ui_button(inner_x + inner_w * 0.5 + 2, cy, inner_w * 0.5 - 2, 18, "DIMENSION", slider21 == 1) ? ( slider21 = 1; auto_slider(21, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy += 24;
-    ui_button(inner_x, cy, 46, 16, "P1:SLOW", chorus_preset_idx == 0) ? recall_chorus_preset(0);
-    ui_button(inner_x + 50, cy, 48, 16, "P2:WIDE", chorus_preset_idx == 1) ? recall_chorus_preset(1);
-    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:FAST", chorus_preset_idx == 2) ? recall_chorus_preset(2);
-    cy += 28;
-    slider22 = ui_hslider(22, inner_x, cy, inner_w, "RATE", slider22, 0.1, 4.0, 0.45, 0.05, "%.2f Hz"); cy += 42;
-    slider23 = ui_hslider(23, inner_x, cy, inner_w, "DEPTH", slider23, 0, 100, 58, 1, "%d%%"); cy += 42;
-    slider24 = ui_hslider(24, inner_x, cy, inner_w, "TONE (DAMP)", slider24, 0, 100, 44, 1, "%d%%"); cy += 42;
-    slider25 = ui_hslider(25, inner_x, cy, inner_w, "MIX", slider25, 0, 100, 38, 1, "%d%%");
-  ) : mod_id == 2 ? ( // DELAY
-    en = slider30 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "DELAY [ON]" : "DELAY [BYP]", en) ? ( slider30 = !en; auto_slider(30, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy = y + 36;
-    ui_button(inner_x, cy, inner_w * 0.5 - 2, 18, "TAPE", slider31 == 0) ? ( slider31 = 0; auto_slider(31, 1); ui_need_sync = 1; preset_dirty = 1; );
-    ui_button(inner_x + inner_w * 0.5 + 2, cy, inner_w * 0.5 - 2, 18, "DIGITAL", slider31 == 1) ? ( slider31 = 1; auto_slider(31, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy += 24;
-    ui_button(inner_x, cy, 46, 16, "P1:SLAP", delay_preset_idx == 0) ? recall_delay_preset(0);
-    ui_button(inner_x + 50, cy, 48, 16, "P2:LEAD", delay_preset_idx == 1) ? recall_delay_preset(1);
-    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:LONG", delay_preset_idx == 2) ? recall_delay_preset(2);
-    cy += 24;
-    slider36 > 0.5 ? (
-      div = get_delay_sync_div(slider32);
-      bw = 38;
-      ui_button(inner_x,      cy, bw, 18, "1/8",  div < 0.55) ? ( slider32 = 120; auto_slider(32, 1); ui_need_sync = 1; preset_dirty = 1; );
-      ui_button(inner_x + 41, cy, bw, 18, "1/4T", div >= 0.55 && div < 0.70) ? ( slider32 = 260; auto_slider(32, 1); ui_need_sync = 1; preset_dirty = 1; );
-      ui_button(inner_x + 82, cy, bw, 18, "1/8.", div >= 0.70 && div < 0.85) ? ( slider32 = 420; auto_slider(32, 1); ui_need_sync = 1; preset_dirty = 1; );
-      ui_button(inner_x + 123, cy, inner_w - 123, 18, "1/4", div >= 0.85) ? ( slider32 = 650; auto_slider(32, 1); ui_need_sync = 1; preset_dirty = 1; );
-      cy += 22;
-      sprintf(#sync_lbl, "SYNC TIME: %d ms", floor(delay_eff_ms + 0.5));
-      ui_button(inner_x, cy, inner_w, 18, #sync_lbl, 1) ? ( slider36 = 0; auto_slider(36, 1); ui_need_sync = 1; preset_dirty = 1; );
-      cy += 24;
+// Horizontal slider. bip_k > 0: value shown as (val - 50) * bip_k (e.g. dB) and filled from the centre detent.
+function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, bip_k)
+  local(track_y, norm, new_val, d_norm, now_t, cx, fx) (
+  f_label(); c_ash(); u_text(x, y, label);
+  f_value(); c_bone();
+  bip_k > 0 ? sprintf(#val_str, fmt, (val - 50) * bip_k) : sprintf(#val_str, fmt, val);
+  u_text_r(x + w, y - 1, #val_str);
+
+  track_y = y + 18;
+  new_val = val;
+  ui_hit(x - 3, y + 11, w + 6, 16) ? (
+    time_precise(now_t);
+    (ui_last_click_id == id && (now_t - ui_last_click_t) < 0.32) ? (
+      new_val = dflt_v; set_param(id, new_val);      // double-click: reset to default
+      ui_drag_id = 0; ui_last_click_id = 0;
     ) : (
-      slider32 = ui_hslider(32, inner_x, cy, inner_w, "TIME", slider32, 20, 800, 390, 1, "%d ms"); cy += 32;
-      ui_button(inner_x, cy, inner_w, 18, "TEMPO SYNC: OFF", 0) ? ( slider36 = 1; auto_slider(36, 1); ui_need_sync = 1; preset_dirty = 1; );
-      cy += 24;
+      ui_drag_id = id; ui_drag_start_x = ui_mx; ui_drag_start_v = val;
+      ui_last_click_id = id; ui_last_click_t = now_t;
     );
-    slider33 = ui_hslider(33, inner_x, cy, inner_w, "FEEDBACK", slider33, 0, 105, 42, 1, "%d%%"); cy += 38;
-    slider34 = ui_hslider(34, inner_x, cy, inner_w, "TONE", slider34, 0, 100, 36, 1, "%d%%"); cy += 38;
-    slider35 = ui_hslider(35, inner_x, cy, inner_w, "MIX", slider35, 0, 100, 28, 1, "%d%%");
-  ) : ( // REVERB
-    en = slider40 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "REVERB [ON]" : "REVERB [BYP]", en) ? ( slider40 = !en; auto_slider(40, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy = y + 36;
-    ui_button(inner_x, cy, 46, 18, "HALL", slider41 == 0) ? ( slider41 = 0; auto_slider(41, 1); ui_need_sync = 1; preset_dirty = 1; );
-    ui_button(inner_x + 49, cy, 48, 18, "PLATE", slider41 == 1) ? ( slider41 = 1; auto_slider(41, 1); ui_need_sync = 1; preset_dirty = 1; );
-    ui_button(inner_x + 100, cy, inner_w - 100, 18, "AMBIENT", slider41 == 2) ? ( slider41 = 2; auto_slider(41, 1); ui_need_sync = 1; preset_dirty = 1; );
-    cy += 24;
-    ui_button(inner_x, cy, 46, 16, "P1:HALL", reverb_preset_idx == 0) ? recall_reverb_preset(0);
-    ui_button(inner_x + 50, cy, 50, 16, "P2:PLATE", reverb_preset_idx == 1) ? recall_reverb_preset(1);
-    ui_button(inner_x + 104, cy, inner_w - 104, 16, "P3:WASH", reverb_preset_idx == 2) ? recall_reverb_preset(2);
-    cy += 28;
-    slider42 = ui_hslider(42, inner_x, cy, inner_w, "DECAY (RT60)", slider42, 0.5, 10.0, 3.2, 0.1, "%.1f s"); cy += 42;
-    slider43 = ui_hslider(43, inner_x, cy, inner_w, "PRE-DELAY", slider43, 0, 60, 22, 1, "%d ms"); cy += 42;
-    slider44 = ui_hslider(44, inner_x, cy, inner_w, "DAMPENING", slider44, 0, 100, 62, 1, "%d%%"); cy += 42;
-    slider45 = ui_hslider(45, inner_x, cy, inner_w, "MIX", slider45, 0, 100, 26, 1, "%d%%");
   );
+  !ui_dropdown_open && mouse_wheel != 0 && mouse_in(x, y, w, 28) ? (
+    new_val = clamp(val + (mouse_wheel > 0 ? 1 : -1) * max(step_v, (max_v - min_v) * 0.01), min_v, max_v);
+    mouse_wheel = 0;
+    new_val != val ? set_param(id, new_val);
+  );
+  ui_drag_id == id && (mouse_cap & 1) ? (
+    (mouse_cap & 8) ? (                                // Shift: fine relative drag
+      d_norm = (ui_mx - ui_drag_start_x) / (w * 5.0);
+      new_val = ui_drag_start_v + d_norm * (max_v - min_v);
+      ui_drag_start_x = ui_mx; ui_drag_start_v = new_val;
+    ) : (
+      new_val = min_v + clamp((ui_mx - x) / w, 0, 1) * (max_v - min_v);
+    );
+    step_v > 0 ? new_val = floor(new_val / step_v + 0.5) * step_v;
+    new_val = clamp(new_val, min_v, max_v);
+    new_val != val ? ( slider(id) = new_val; auto_slider(id, 0); ui_need_sync = 1; preset_dirty = 1; );
+  );
+
+  norm = clamp((new_val - min_v) / (max_v - min_v), 0, 1);
+  fx = x + norm * w;
+  c_track(); u_rect(x, track_y, w, 4);
+  bip_k > 0 ? (
+    cx = x + w * (50 - min_v) / (max_v - min_v);
+    c_ash(); u_rect(min(cx, fx), track_y, max(1, abs(fx - cx)), 4);
+    c_rule(); u_rect(cx - 0.5, track_y - 3, 1, 10);
+  ) : (
+    c_ash(); u_rect(x, track_y, max(0, fx - x), 4);
+  );
+  c_bone(); u_rect(fx - 1.5, track_y - 4, 3, 12);
+  new_val;
 );
 
-function draw_preset_dropdown_bar(x, y, w, h) local(tw, th) (
-  col_bg(); draw_box(x, y, w, h, 1);
-  col_steel(); draw_box(x, y, w, h, 0);
-  col_crimson(); draw_box(x + w - 26, y, 26, h, 1);
-  col_steel(); draw_box(x + w - 26, y, 26, h, 0);
-  col_bone();
+function m_db_x(db, x, w) ( x + w * clamp((db + 60) / 60, 0, 1); );
+function m_tick(t, x, w, y, s) ( u_rect(m_db_x(t, x, w) - 0.5, y, 1, 3); u_text_cc(m_db_x(t, x, w), y + 9, s); );
+
+// Peak meter, -60..0 dBFS, with optional gate threshold marker and -10..-8 dBFS target band
+function ui_meter(x, y, w, label, peak_lin, thr_db, target) local(db, fx, tx) (
+  db = peak_lin > 0.00003 ? 20 * log10(peak_lin) : -90;
+  f_label(); c_ash(); u_text(x, y, label);
+  f_value(); c_bone();
+  db > -80 ? sprintf(#m_str, "%+.1f", db) : strcpy(#m_str, "-INF");
+  u_text_r(x + w, y - 1, #m_str);
+  y += 17;
+  c_track(); u_rect(x, y, w, 9);
+  target ? ( u_rgb(74, 20, 22); u_rect(m_db_x(-10, x, w), y, m_db_x(-8, x, w) - m_db_x(-10, x, w), 9); );
+  fx = m_db_x(db, x, w);
+  fx > x ? ( db > -1 ? c_clip() : c_bone(); u_rect(x, y + 2, fx - x, 5); );
+  thr_db > -100 ? (
+    tx = m_db_x(thr_db, x, w);
+    c_blood(); u_rect(tx - 1, y - 3, 2, 15);
+    u_tri(tx - 4, y - 8, tx + 4, y - 8, tx, y - 3);
+  );
+  f_small(); c_ash();
+  m_tick(-48, x, w, y + 11, "-48"); m_tick(-24, x, w, y + 11, "-24"); m_tick(-12, x, w, y + 11, "-12");
+  m_tick(-6, x, w, y + 11, "-6"); m_tick(0, x, w, y + 11, "0");
+);
+
+function ui_led(x, y, on, label) (
+  on ? c_bone() : c_blood(); u_rect(x, y, 7, 7);
+  f_small(); c_ash(); u_text(x + 12, y - 2, label);
+);
+
+// ---------- Global preset dropdown ----------
+function draw_preset_dropdown_bar(x, y, w, h) (
+  c_track(); u_rect(x, y, w, h);
+  c_rule(); u_frame(x, y, w, h);
   strcpy(#dd_lbl, get_global_preset_name(slider60));
-  preset_dirty ? strcat(#dd_lbl, " *");
-  gfx_x = x + 10; gfx_y = y + 6;
-  gfx_drawstr(#dd_lbl);
-  gfx_measurestr("v", tw, th);
-  gfx_x = x + w - 13 - tw * 0.5; gfx_y = y + 5;
-  gfx_drawstr("v");
-  ui_mouse_clicked && mouse_in(x, y, w, h) ? (
-    ui_dropdown_open = !ui_dropdown_open;
-    ui_mouse_clicked = 0;
-  );
+  preset_dirty ? strcat(#dd_lbl, "  *");
+  f_value(); c_bone(); u_text(x + 10, y + (h - 13) * 0.5, #dd_lbl);
+  c_ash(); u_tri(x + w - 18, y + h * 0.5 - 2, x + w - 8, y + h * 0.5 - 2, x + w - 13, y + h * 0.5 + 3);
+  ui_mouse_clicked && mouse_in(x, y, w, h) ? ( ui_dropdown_open = !ui_dropdown_open; ui_mouse_clicked = 0; );
 );
 
-function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, num_p, menu_h, hovered) (
+function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, hovered) (
   ui_dropdown_open ? (
-    num_p = 7; menu_h = num_p * row_h;
-    col_chassis(); draw_box(x, y, w, menu_h, 1);
-    col_steel(); draw_box(x, y, w, menu_h, 0);
+    ui_alpha = 1;
+    c_panel(); u_rect(x, y, w, 7 * row_h);
+    c_rule(); u_frame(x, y, w, 7 * row_h);
     i = 0;
-    loop(num_p,
+    loop(7,
       ry = y + i * row_h;
       hovered = mouse_in(x, ry, w, row_h);
-      i == slider60 ? ( col_crimson(); draw_box(x + 1, ry + 1, w - 2, row_h - 2, 1); )
-      : hovered ? ( col_header(); draw_box(x + 1, ry + 1, w - 2, row_h - 2, 1); );
-      col_steel(); gfx_line(x, ry + row_h - 1, x + w - 1, ry + row_h - 1);
-      (i == slider60 || hovered) ? col_bone() : col_dim();
-      gfx_x = x + 10; gfx_y = ry + 6;
-      gfx_drawstr(get_global_preset_name(i));
+      hovered ? ( c_head(); u_rect(x + 1, ry + 1, w - 2, row_h - 2); );
+      i == slider60 ? ( c_blood(); u_rect(x + 1, ry + 1, 3, row_h - 2); );
+      f_value(); (i == slider60 || hovered) ? c_bone() : c_ash();
+      u_text(x + 12, ry + (row_h - 13) * 0.5, get_global_preset_name(i));
       ui_mouse_clicked && hovered ? (
-        recall_global_preset(i);
-        auto_slider(60, 1);
-        ui_dropdown_open = 0;
-        ui_mouse_clicked = 0;
+        recall_global_preset(i); auto_slider(60, 1);
+        ui_dropdown_open = 0; ui_mouse_clicked = 0;
       );
       i += 1;
     );

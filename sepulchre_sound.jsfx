@@ -69,6 +69,7 @@ import sepulchre_dsp_fx.jsfx-inc
 import sepulchre_dsp_amp_cab.jsfx-inc
 import sepulchre_presets.jsfx-inc
 import sepulchre_ui.jsfx-inc
+import sepulchre_ui_panels.jsfx-inc
 
 @init
 ext_noinit = 1;
@@ -77,10 +78,6 @@ ext_noinit = 1;
   init_core_dsp();
   init_fx_dsp();
   init_amp_cab_dsp();
-  dist_preset_idx = 1;
-  chorus_preset_idx = 0;
-  delay_preset_idx = 1;
-  reverb_preset_idx = 0;
   last_global_preset = slider60;
   dsp_initialized = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
@@ -140,9 +137,11 @@ dispatch_slot(slider7);
 dispatch_slot(slider8);
 proc_cab_master();
 
-@gfx 1140 430
-col_bg();
-gfx_rect(0, 0, gfx_w, gfx_h);
+@gfx 1204 500
+// Resolution-independent necro-monochrome UI (see sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)
+ui_begin();
+ui_alpha = 1; c_void(); gfx_rect(0, 0, gfx_w, gfx_h);
+ui_grain();
 
 ui_mouse_down = mouse_cap & 1;
 ui_mouse_clicked = ui_mouse_down && !ui_last_mouse_down;
@@ -154,75 +153,4 @@ ui_mouse_clicked = ui_mouse_down && !ui_last_mouse_down;
 !ui_mouse_down ? ui_drag_id = 0;
 ui_last_mouse_down = ui_mouse_down;
 
-// Top Banner & Global Presets
-col_header(); draw_box(12, 10, 1116, 42, 1);
-col_steel();  draw_box(12, 10, 1116, 42, 0);
-
-gfx_setfont(1, "Consolas", 18, 'b');
-col_bone(); gfx_x = 26; gfx_y = 21; gfx_drawstr("SEPULCHRE SOUND");
-gfx_setfont(1, "Consolas", 11, 'b');
-col_crimson(); gfx_x = 200; gfx_y = 25; gfx_drawstr("// 4x OVERSAMPLED BLACK METAL RIG");
-
-col_dim(); gfx_x = 760; gfx_y = 25; gfx_drawstr("PRESET:");
-draw_preset_dropdown_bar(825, 19, 292, 24);
-
-// Module 0: Input & Gate (Left Column)
-col_chassis(); draw_box(12, 62, 168, 354, 1);
-col_header();  draw_box(12, 62, 168, 28, 1);
-col_steel();   draw_box(12, 62, 168, 354, 0);
-gfx_line(12, 90, 180, 90);
-col_bone(); gfx_x = 42; gfx_y = 70; gfx_drawstr("00: INPUT / GATE");
-
-slider1 = ui_hslider(1, 22, 102, 148, "INPUT TRIM", slider1, -12.0, 18.0, 0.0, 0.1, "%+.1f dB");
-slider2 = ui_hslider(2, 22, 148, 148, "PRE-CUT HPF", slider2, 40.0, 180.0, 105.0, 1.0, "%d Hz");
-ui_button(22, 194, 148, 20, slider4 > 0.5 ? "NOISE GATE: ON" : "NOISE GATE: OFF", slider4 > 0.5) ? ( slider4 = !(slider4 > 0.5); auto_slider(4, 1); ui_need_sync = 1; preset_dirty = 1; );
-slider3 = ui_hslider(3, 22, 224, 148, "GATE THRESH", slider3, -80.0, -30.0, -52.0, 0.5, "%.1f dB");
-
-col_dim(); gfx_x = 22; gfx_y = 272; gfx_drawstr("GATE CLAMP:");
-col_bg(); draw_box(22, 286, 148, 9, 1);
-gate_gain > 0.05 ? ( col_crimson(); draw_box(23, 287, floor(146 * gate_gain), 7, 1); );
-col_steel(); draw_box(22, 286, 148, 9, 0);
-
-draw_level_meter(22, 310, 148, "INPUT LEVEL", meter_in_peak);
-draw_level_meter(22, 352, 148, "POST-DIST LEVEL", meter_dist_peak);
-
-// 4 Swappable Middle Pedalboard Slots
-draw_middle_module(slider5, 0, 190, 62, 182, 354);
-draw_middle_module(slider6, 1, 380, 62, 182, 354);
-draw_middle_module(slider7, 2, 570, 62, 182, 354);
-draw_middle_module(slider8, 3, 760, 62, 182, 354);
-
-// Module 5: Amp Stage, IR / Cab Shaper & Master (Right Column)
-col_chassis(); draw_box(952, 62, 176, 354, 1);
-col_header();  draw_box(952, 62, 176, 28, 1);
-col_steel();   draw_box(952, 62, 176, 354, 0);
-gfx_line(952, 90, 1128, 90);
-ui_button(962, 67, 156, 18, slider49 > 0.5 ? "05: AMP / CAB [ON]" : "05: AMP / CAB [BYP]", slider49 > 0.5) ? ( slider49 = !(slider49 > 0.5); auto_slider(49, 1); ui_need_sync = 1; preset_dirty = 1; );
-
-ui_button(962, 96, 44, 18, "OFF", slider54 == 0) ? ( slider54 = 0; auto_slider(54, 1); ui_need_sync = 1; preset_dirty = 1; );
-ui_button(1009, 96, 52, 18, "TUBE", slider54 == 1) ? ( slider54 = 1; auto_slider(54, 1); ui_need_sync = 1; preset_dirty = 1; );
-ui_button(1064, 96, 54, 18, "SOLID", slider54 == 2) ? ( slider54 = 2; auto_slider(54, 1); ui_need_sync = 1; preset_dirty = 1; );
-
-ui_button(962, 118, 48, 18, "4x12", slider50 == 0 && slider52 == 0) ? ( slider52 = 0; slider50 = 0; auto_slider(52, 1); auto_slider(50, 1); ui_need_sync = 1; preset_dirty = 1; );
-ui_button(1013, 118, 48, 18, "2x12", slider50 == 1 && slider52 == 0) ? ( slider52 = 0; slider50 = 1; auto_slider(52, 1); auto_slider(50, 1); ui_need_sync = 1; preset_dirty = 1; );
-ui_button(1064, 118, 54, 18, "DAMPED", slider50 == 2 && slider52 == 0) ? ( slider52 = 0; slider50 = 2; auto_slider(52, 1); auto_slider(50, 1); ui_need_sync = 1; preset_dirty = 1; );
-
-ui_button(962, 140, 62, 18, slider52 > 0.5 ? "WAV IR:ON" : "WAV IR:OFF", slider52 > 0.5) ? (
-  slider52 = !(slider52 > 0.5);
-  slider52 > 0.5 ? ir_reload_req = 1;
-  auto_slider(52, 1); ui_need_sync = 1; preset_dirty = 1;
-);
-prev_ir = slider53;
-slider53 = ui_hslider(53, 1028, 138, 90, "IR FILE", slider53, 0, 9, 0, 1, "#%d");
-slider53 != prev_ir && slider52 > 0.5 ? ir_reload_req = 1;
-
-slider55 = ui_hslider(55, 962, 174, 156, "AMP BASS", slider55, 0, 100, 54, 1, "%d%%");
-slider56 = ui_hslider(56, 962, 208, 156, "AMP MID", slider56, 0, 100, 44, 1, "%d%%");
-slider57 = ui_hslider(57, 962, 242, 156, "AMP TREBLE", slider57, 0, 100, 62, 1, "%d%%");
-slider58 = ui_hslider(58, 962, 276, 156, "PRESENCE / AIR", slider58, 0, 100, 64, 1, "%d%%");
-slider51 = ui_hslider(51, 962, 312, 156, "MASTER OUTPUT", slider51, -24.0, 6.0, -0.5, 0.1, "%+.1f dB");
-
-draw_level_meter(962, 354, 156, "MASTER (-10..-8)", meter_out_peak);
-
-// Draw preset dropdown menu overlay last so it renders on top of all modules
-draw_preset_dropdown_menu(825, 43, 292, 24);
+ui_draw_all();

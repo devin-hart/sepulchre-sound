@@ -31,6 +31,7 @@ EXPECTED_FILES = [
     "sepulchre_dsp_amp_cab.jsfx-inc",
     "sepulchre_presets.jsfx-inc",
     "sepulchre_ui.jsfx-inc",
+    "sepulchre_ui_panels.jsfx-inc",
 ]
 
 
