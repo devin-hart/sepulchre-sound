@@ -21,6 +21,10 @@
   ```powershell
   python D:\VSTs\sepulchre_sound\tests\verify_jsfx.py
   ```
+- **Run Live REAPER CLI Batch Render Harness (`reaper.exe -newinst -nosplash -renderproject`):**
+  ```powershell
+  python D:\VSTs\sepulchre_sound\tests\render\run_reaper_render.py
+  ```
 - **Deploy to REAPER Effects Folder (Windows):**
   ```powershell
   New-Item -ItemType Directory -Force -Path "$env:APPDATA\REAPER\Effects\sepulchre_sound" | Out-Null

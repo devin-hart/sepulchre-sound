@@ -16,8 +16,8 @@ function init_amp_cab_dsp() (
   bq_cab_f2 = alloc_buf(9);
   bq_cab_f3 = alloc_buf(9);
 
-  // Align FFT & IR convolution buffers to 65536 boundary
-  mem_top = ((mem_top + 65535) & ~65535);
+  // Align FFT & IR convolution buffers to 65536 boundary (EEL2 has no unary ~; ~ is binary XOR)
+  mem_top = floor((mem_top + 65535) / 65536) * 65536;
   ir_raw_buf = alloc_buf(32768);
   ir_fft_kern = alloc_buf(32768);
   ir_blk_cur = alloc_buf(32768);
@@ -45,7 +45,7 @@ function reset_amp_cab_state() (
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
 );
 
-// Called from @slider / @init ONLY (never from @block audio thread — fixes R2-6)
+// Called on one-shot ir_reload_req from @init / @slider / @gfx (Fixes R2-6 & R3-1)
 function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
   ir_loaded_slot = slot_idx;
   ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;

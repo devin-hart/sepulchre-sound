@@ -84,12 +84,11 @@ ext_noinit = 1;
   last_global_preset = slider60;
   dsp_initialized = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
-  slider52 > 0.5 ? load_ir_slot(floor(slider53 + 0.001));
+  slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
 );
 sync_all_DSP();
 
 @slider
-// Load WAV IR file in @slider (not in @block audio thread — Fixes R2-6)
 slider52 > 0.5 ? (
   tmp_ir_idx = clamp(floor(slider53 + 0.001), 0, 9);
   tmp_ir_idx != ir_loaded_slot ? load_ir_slot(tmp_ir_idx);
@@ -97,6 +96,18 @@ slider52 > 0.5 ? (
 ui_need_sync = 1;
 
 @block
+// One-shot IR WAV load when @gfx changes slider52 or slider53 (Fixes R3-1)
+ir_reload_req ? (
+  ir_reload_req = 0;
+  slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+);
+
+(last_srate != srate || ui_need_sync) ? (
+  last_srate = srate;
+  ui_need_sync = 0;
+  sync_all_DSP();
+);
+
 // Clear stale tails when transport starts playback or rendering
 (play_state & 1) && !(last_play_state & 1) ? (
   reset_core_state();
@@ -105,11 +116,6 @@ ui_need_sync = 1;
 );
 last_play_state = play_state;
 
-(last_srate != srate || ui_need_sync) ? (
-  last_srate = srate;
-  ui_need_sync = 0;
-  sync_all_DSP();
-);
 ir_need_refft ? prepare_ir_fft();
 
 // Report overlap-add convolution latency to REAPER PDC when WAV IR is active (Fixes R2-3)
@@ -203,12 +209,12 @@ ui_button(1064, 118, 54, 18, "DAMPED", slider50 == 2 && slider52 == 0) ? ( slide
 
 ui_button(962, 140, 62, 18, slider52 > 0.5 ? "WAV IR:ON" : "WAV IR:OFF", slider52 > 0.5) ? (
   slider52 = !(slider52 > 0.5);
-  slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+  slider52 > 0.5 ? ir_reload_req = 1;
   auto_slider(52, 1); ui_need_sync = 1; preset_dirty = 1;
 );
 prev_ir = slider53;
 slider53 = ui_hslider(53, 1028, 138, 90, "IR FILE", slider53, 0, 9, 0, 1, "#%d");
-slider53 != prev_ir && slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+slider53 != prev_ir && slider52 > 0.5 ? ir_reload_req = 1;
 
 slider55 = ui_hslider(55, 962, 174, 156, "AMP BASS", slider55, 0, 100, 54, 1, "%d%%");
 slider56 = ui_hslider(56, 962, 208, 156, "AMP MID", slider56, 0, 100, 44, 1, "%d%%");

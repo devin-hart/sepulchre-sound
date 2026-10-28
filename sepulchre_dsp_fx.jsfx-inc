@@ -94,7 +94,9 @@ function reset_fx_state() (
   memset(ap_r1, 0, ap_max);     memset(ap_r2, 0, ap_max);
   memset(rev_state, 0, 32);
   bq_clear(bq_chorus_lp); bq_clear(bq_delay_lp); bq_clear(bq_delay_hp); bq_clear(bq_rev_shelf);
-  delay_smooth_init = 0;
+  chorus_wpos = 0; chorus_phase = 0.0; chorus_drift = 0.0; chorus_rng = 22222;
+  delay_wpos = 0; delay_phase = 0.0; delay_smooth = 0.0; delay_smooth_init = 0;
+  rev_pre_wpos = 0;
 );
 
 function get_delay_sync_div(time_ms) (

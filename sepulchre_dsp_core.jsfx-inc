@@ -132,9 +132,9 @@ function reset_core_state() (
   bq_clear(bq_os_up1); bq_clear(bq_os_up2); bq_clear(bq_os_up3); bq_clear(bq_os_up4);
   bq_clear(bq_os_dn1); bq_clear(bq_os_dn2); bq_clear(bq_os_dn3); bq_clear(bq_os_dn4);
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
-  dist_slew_l = 0.0; dist_slew_r = 0.0;
-  dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
+  dist_slew_l = 0.0; dist_slew_r = 0.0; dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
+  in_trim_s = in_trim_t; dist_drive_s = dist_drive_t; dist_out_s = dist_out_t; master_out_s = master_out_t;
 );
 
 function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_fc) (
@@ -164,9 +164,9 @@ function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_
   bq_peak(bq_dist_mid, 850.0, 1.1, mid_db);
   bq_hshelf(bq_dist_high, 2600.0, high_db);
 
-  // 8th-order Butterworth (48 dB/oct) steep oversampling filters at 8.5 kHz (above guitar cab passband)
+  // 8th-order Butterworth (48 dB/oct) steep oversampling filters at 16.5 kHz (Fixes R3-2)
   os_sr = srate * 4.0;
-  os_fc = min(8500.0, srate * 0.20);
+  os_fc = min(16500.0, srate * 0.36);
   bq_lp_sr(bq_os_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_up2, os_fc, 0.6013, os_sr);
   bq_lp_sr(bq_os_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_up4, os_fc, 2.5629, os_sr);
   bq_lp_sr(bq_os_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_dn2, os_fc, 0.6013, os_sr);

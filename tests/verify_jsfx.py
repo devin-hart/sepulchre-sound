@@ -95,19 +95,23 @@ def check_syntax_and_r2_fixes():
         if depth != 0:
             raise AssertionError(f"Unbalanced parentheses in {fname} (depth={depth})")
 
-    # Verify Round 2 invariants in cleaned EEL2 code:
+    # Verify Round 2 & Round 3 invariants in cleaned EEL2 code:
     main_c = cleaned_by_file["sepulchre_sound.jsfx"]
     init_sec = main_c.split("@init")[1].split("@slider")[0]
     block_sec = main_c.split("@block")[1].split("@sample")[0]
     assert "recall_global_preset" not in init_sec, "R2-1 regression: recall_global_preset called in @init!"
     assert "pdc_delay = ir_chunk_size" in block_sec, "R2-3 regression: pdc_delay not set in @block!"
-    assert "load_ir_slot" not in block_sec, "R2-6 regression: load_ir_slot called in @block!"
+    assert "ir_reload_req ?" in block_sec, "R3-1 regression: ir_reload_req handler missing in @block!"
     assert "load_ir_slot" not in cleaned_by_file["sepulchre_dsp_amp_cab.jsfx-inc"].split("update_amp_cab_coeffs")[1], \
         "R2-6 regression: load_ir_slot called inside update_amp_cab_coeffs!"
     assert "!en ? fb = min(fb, 0.75)" in cleaned_by_file["sepulchre_dsp_fx.jsfx-inc"], \
         "R2-2 regression: bypass feedback clamp missing in proc_delay!"
     assert "slider_automate(2 ^ (id - 1), end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
         "R2-5 regression: bitmask slider_automate missing in sepulchre_ui.jsfx-inc!"
+    assert "slider_automate(slider51, end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
+        "R2-5 regression: direct sliderN reference for id > 30 missing in sepulchre_ui.jsfx-inc!"
+    for fname, cl in cleaned_by_file.items():
+        assert "& ~" not in cl, f"Invalid EEL2 unary '~' operator in {fname} ('~' is binary XOR in EEL2)!"
 
     # Dynamically parse alloc_buf() and constant assignments from the actual JSFX source
     combined_src = "\n".join(raw_by_file[f] for f in [
@@ -121,8 +125,8 @@ def check_syntax_and_r2_fixes():
             m_const = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*(\d+)$", stmt)
             if m_const:
                 consts[m_const.group(1)] = int(m_const.group(2))
-            if "mem_top = ((mem_top + 65535) & ~65535)" in stmt:
-                consts["mem_top"] = (consts["mem_top"] + 65535) & ~65535
+            if "mem_top = floor((mem_top + 65535) / 65536) * 65536" in stmt:
+                consts["mem_top"] = ((consts["mem_top"] + 65535) // 65536) * 65536
             m_alloc = re.match(r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*alloc_buf\(([a-zA-Z0-9_]+)\)$", stmt)
             if m_alloc:
                 var_name, sz_tok = m_alloc.group(1), m_alloc.group(2)
@@ -280,7 +284,7 @@ def clip_dist(x, d1, mode):
 
 def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
     os_sr = sr * 4.0
-    os_fc = min(8500.0, sr * 0.20)
+    os_fc = min(16500.0, sr * 0.36)
     bq_in = bq_hp_coeffs(sliders[2], 0.7071, sr)
     mode = int(sliders[11])
     drive_lin = 1.0 + (sliders[12] * 0.01) * 42.0
@@ -427,7 +431,7 @@ def check_presets_dc_and_levels(presets_src):
 
 
 def check_pre_cab_aliasing_all_bins(presets_src):
-    print("[4/5] Measuring PRE-CABINET 4x oversampling (8th-order @ 8.5kHz) aliasing across ALL non-harmonic bins...")
+    print("[4/5] Measuring PRE-CABINET 4x oversampling (8th-order @ 16.5kHz) aliasing & passband response...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
@@ -440,20 +444,26 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
 
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
-    harm_energy = 0.0
-    alias_energy = 0.0
+    bin_8k = int(8000.0 * n / sr)
+    harm_energy = alias_energy = harm_8k = alias_8k = 0.0
     for k in range(1, n // 2):
         re_s = sum(out[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
         im_s = sum(out[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
         pwr = (re_s * re_s + im_s * im_s) / (n * n)
         if k in harmonic_bins:
             harm_energy += pwr
+            if k <= bin_8k:
+                harm_8k += pwr
         else:
             alias_energy += pwr
+            if k <= bin_8k:
+                alias_8k += pwr
 
     ratio_db = 10.0 * math.log10(max(1e-18, alias_energy) / max(1e-18, harm_energy))
-    print(f"  - Pre-cabinet total integrated non-harmonic alias ratio (all bins): {ratio_db:+.1f} dB")
-    if ratio_db > -36.0:
+    ratio_8k_db = 10.0 * math.log10(max(1e-18, alias_8k) / max(1e-18, harm_8k))
+    print(f"  - Pre-cabinet alias ratio (ALL non-harmonic bins 0-24kHz): {ratio_db:+.2f} dB")
+    print(f"  - Pre-cabinet alias ratio (in-band 20Hz-8kHz only):        {ratio_8k_db:+.2f} dB")
+    if ratio_db > -36.0 or ratio_8k_db > -36.0:
         raise AssertionError(f"Pre-cabinet aliasing {ratio_db:+.1f} dB exceeds -36.0 dB threshold")
 
 
