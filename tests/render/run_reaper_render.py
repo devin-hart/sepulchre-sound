@@ -79,18 +79,19 @@ def make_track(name, sliders_dict, wav_file, pos):
     >
   >"""
 
+test_preset_indices = [0, 1, 2, 3, 4, 6]
 tracks_xml = []
-for idx in range(5):
+for slot, idx in enumerate(test_preset_indices):
     p = dict(presets[idx])
     # Disable time-based FX tail bleed across sequential slots while keeping Gate + Dist + Amp + Cab active
     p[20] = 0; p[30] = 0; p[40] = 0
-    tracks_xml.append(make_track(f"Preset_{idx}", p, di_path, round(idx * 0.5, 2)))
+    tracks_xml.append(make_track(f"Preset_{idx}", p, di_path, round(slot * 0.5, 2)))
 
-# Track 6: Pre-cabinet 4x oversampling sine aliasing test (Gate off, FX off, Amp off, Cab off, Grit=0, Master=0dB)
+# Track: Pre-cabinet 8x oversampling sine aliasing test (Gate off, FX off, Amp off, Cab off, Grit=0, Master=0dB)
 p_alias = dict(presets[0])
 p_alias[4] = 0; p_alias[16] = 0; p_alias[20] = 0; p_alias[30] = 0; p_alias[40] = 0
 p_alias[49] = 0; p_alias[51] = 0.0; p_alias[52] = 0; p_alias[54] = 0; p_alias[58] = 50.0
-tracks_xml.append(make_track("PreCab_Alias", p_alias, sine_path, 2.5))
+tracks_xml.append(make_track("PreCab_Alias", p_alias, sine_path, 3.0))
 
 for out_p in [out1_path, out2_path]:
     if os.path.exists(out_p):
@@ -101,7 +102,7 @@ for out_p in [out1_path, out2_path]:
   RENDER_FILE "{out_p}"
   RENDER_FMT 0 2 48000
   RENDER_1X 0
-  RENDER_RANGE 1 0.0 3.0 0 1000
+  RENDER_RANGE 1 0.0 3.5 0 1000
 {chr(10).join(tracks_xml)}
 >
 """
@@ -120,8 +121,8 @@ null_diff = max(abs(a - b) for a, b in zip(w1, w2))
 print(f"Render-twice-and-null max difference: {null_diff:.2e}")
 assert null_diff == 0.0, f"Render-twice-and-null failed: max_diff={null_diff}"
 
-for idx in range(5):
-    seg = w1[int((idx * 0.5 + 0.03) * sr) : int((idx * 0.5 + 0.44) * sr)]
+for slot, idx in enumerate(test_preset_indices):
+    seg = w1[int((slot * 0.5 + 0.03) * sr) : int((slot * 0.5 + 0.44) * sr)]
     pk = max(abs(x) for x in seg)
     pk_db = 20 * math.log10(pk)
     dc = abs(sum(seg) / len(seg))
@@ -129,8 +130,8 @@ for idx in range(5):
     assert -10.0 <= pk_db <= -8.0, f"Live REAPER Preset {idx} peak {pk_db:.2f} outside [-10, -8] dBFS"
     assert dc < 0.004, f"Live REAPER Preset {idx} DC {dc:.5f} >= 0.004"
 
-# Pre-cab aliasing from live REAPER render (window starting 4096 samples into slot at 2.5s)
-start_s = int(2.5 * sr) + 4096
+# Pre-cab aliasing from live REAPER render (window starting 4096 samples into slot at 3.0s)
+start_s = int(3.0 * sr) + 4096
 n = 1024
 seg_a = w1[start_s : start_s + n]
 hb = {55 * k for k in range(1, (n // 2) // 55 + 1)}

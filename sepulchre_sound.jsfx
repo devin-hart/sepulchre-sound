@@ -14,15 +14,31 @@ slider6:1<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot B Module
 slider7:2<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot C Module
 slider8:3<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot D Module
 
-// Module 1: Distortion
+// Module 1: Distortion — four pedal models, each with only its real knobs (0..10 like the hardware)
 slider10:1<0,1,1{Bypass,On}>-Distortion Enable
-slider11:1<0,2,1{RAT,Modern High-Gain,HM-2}>-Distortion Mode
-slider12:82<0,100,1>-Distortion Drive (%)
-slider13:52<0,100,1>-Distortion Pre-Low (%)
-slider14:36<0,100,1>-Distortion Pre-Mid (%)
-slider15:76<0,100,1>-Distortion Pre-High (%)
-slider16:10<0,100,1>-Distortion Grit (%)
-slider17:1.0<-18.0,12.0,0.1>-Distortion Output (dB)
+slider11:2<0,3,1{RAT,DS-1,Metal Zone,HM-2}>-Distortion Pedal
+slider26:8.0<0,10,0.1>-RAT Distortion
+slider27:3.5<0,10,0.1>-RAT Filter
+slider28:6.0<0,10,0.1>-RAT Volume
+slider29:9.0<0,10,0.1>-DS-1 Dist
+slider37:6.5<0,10,0.1>-DS-1 Tone
+slider38:6.0<0,10,0.1>-DS-1 Level
+slider39:7.5<0,10,0.1>-Metal Zone Dist
+slider46:6.5<0,10,0.1>-Metal Zone High
+slider47:4.5<0,10,0.1>-Metal Zone Low
+slider48:6.0<0,10,0.1>-Metal Zone Middle
+slider59:4.5<0,10,0.1>-Metal Zone Mid Freq
+slider61:5.0<0,10,0.1>-Metal Zone Level
+slider62:10.0<0,10,0.1>-HM-2 Distortion
+slider63:10.0<0,10,0.1>-HM-2 Low
+slider64:10.0<0,10,0.1>-HM-2 High
+slider9:6.0<0,10,0.1>-HM-2 Level
+
+// Pre-EQ (Input column, before every pedal) and Lo-Fi Grit (Output column)
+slider13:50<0,100,1>-Pre-EQ Low (%)
+slider14:50<0,100,1>-Pre-EQ Mid (%)
+slider15:50<0,100,1>-Pre-EQ High (%)
+slider16:0<0,100,1>-Lo-Fi Grit (%)
 
 // Module 2: Chorus
 slider20:0<0,1,1{Bypass,On}>-Chorus Enable

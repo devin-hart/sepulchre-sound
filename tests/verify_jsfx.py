@@ -279,50 +279,129 @@ def limit_sample(x, L=0.89125):
     return s if x >= 0.0 else -s
 
 
-def clip_hard(x):
-    # Mirrors clip_hard() in sepulchre_dsp_dist.jsfx-inc
-    return x / ((1.0 + abs(x) ** 2.5) ** 0.4)
+# ---------- Pedal models: line-for-line mirror of sepulchre_dsp_dist.jsfx-inc (8x oversampled) ----------
+DIST_OS = 8
+SLIDER_DEFAULTS = {}
 
 
-def clip_tube(x, bias):
-    # Mirrors clip_tube() in sepulchre_dsp_dist.jsfx-inc
-    return soft_tanh(x + bias) - soft_tanh(bias)
+def load_slider_defaults():
+    src = open(os.path.join(ROOT, "sepulchre_sound.jsfx"), "r", encoding="utf-8").read()
+    for m in re.finditer(r"^slider(\d+):([-+]?\d+(?:\.\d+)?)<", src, flags=re.MULTILINE):
+        SLIDER_DEFAULTS[int(m.group(1))] = float(m.group(2))
 
 
-# Voicings mirrored from update_dist_coeffs(): pre HPF, tight-boost hump, 3 stages (gain share, HPF, LPF, tube?, bias), post LPF
-DIST_VOICINGS = {
-    0: dict(pre=140.0, tb=(1100.0, 0.8, 6.0), post=7000.0,
-            st=[(0.40, 30.0, 9000.0, 0, 0.0), (0.35, 180.0, 7500.0, 0, 0.0), (0.25, 300.0, 6500.0, 0, 0.0)]),
-    1: dict(pre=170.0, tb=(1300.0, 0.9, 5.0), post=7500.0,
-            st=[(0.34, 40.0, 10000.0, 1, 0.25), (0.36, 220.0, 8000.0, 1, 0.18), (0.30, 350.0, 6500.0, 0, 0.0)]),
-    2: dict(pre=110.0, tb=(900.0, 0.8, 3.0), post=6500.0,
-            st=[(0.40, 40.0, 9000.0, 0, 0.0), (0.35, 150.0, 8000.0, 0, 0.0), (0.25, 220.0, 7000.0, 1, 0.10)]),
-}
+def a_taper(k):
+    return (10.0 ** (2.0 * k) - 1.0) / 99.0
 
 
-def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
-    os_sr = sr * 4.0
+def sclip(x, v):
+    y = x / v
+    return v * y / (1.0 + y * y * y * y) ** 0.25
+
+
+def dclip(x, v, p):
+    y = x / v
+    return v * y / (1.0 + abs(y) ** p) ** (1.0 / p)
+
+
+def aclip(x, vp, vn):
+    return sclip(x, vp) if x >= 0 else sclip(x, vn)
+
+
+def unity():
+    return [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+
+def pedal_setup(s, sr):
+    os_sr = sr * DIST_OS
+    c1x = lambda fc: math.exp(-2 * math.pi * min(fc, 0.45 * os_sr) / os_sr)
+    c1b = lambda fc: math.exp(-2 * math.pi * min(fc, 0.45 * sr) / sr)
+    P = {"ped": int(s[11] + 0.5), "post": [unity() for _ in range(6)]}
+    if P["ped"] == 0:
+        rd = 100000 * a_taper(s[26] * 0.1)
+        P.update(kA=rd / 560, kB=rd / 47, a60=c1x(60), a15=c1x(1540), slew=300000 / os_sr,
+                 aA=c1x(min(316000 / (1 + rd / 560), 1 / (2 * math.pi * rd * 1e-10)) if rd > 0 else 1e9),
+                 aB=c1x(min(316000 / (1 + rd / 43), 1 / (2 * math.pi * rd * 1e-10)) if rd > 0 else 1e9),
+                 af=c1b(1 / (2 * math.pi * (1500 + 100000 * a_taper(s[27] * 0.1)) * 3.3e-9)),
+                 mk=1.6 * a_taper(s[28] * 0.1))
+    elif P["ped"] == 1:
+        rd = 100000 * s[29] * 0.1
+        P.update(k=rd / 4700, a33=c1x(33), a72=c1x(72), aC7=c1x(1 / (2 * math.pi * max(rd, 1) * 1e-10)), a72k=c1x(7200),
+                 alp=c1b(234), ahp=c1b(1063), tone=s[37] * 0.1, mk=3.96 * a_taper(s[38] * 0.1))
+    elif P["ped"] == 2:
+        rd = 1000 + 250000 * a_taper(s[39] * 0.1)
+        P.update(G=1 + rd / 1000, a106=c1x(106), a72k=c1x(7200), a48=c1x(48), aC28=c1x(1 / (2 * math.pi * rd * 47e-12)),
+                 hump=bq_peak_coeffs(1000, 1.2, 30, os_sr), mk=1.155 * a_taper(s[61] * 0.1))
+        P["post"] = [bq_lp_coeffs(8000, 0.6, sr), bq_peak_coeffs(105, 2.0, 8, sr), bq_peak_coeffs(4900, 2.2, 7, sr),
+                     bq_peak_coeffs(105, 3.1, (s[47] - 5) * 4, sr), bq_shelf_coeffs(3200, (s[46] - 5) * 4, sr, True),
+                     bq_peak_coeffs(240 * (4700 / 240) ** (s[59] * 0.1), 0.9, (s[48] - 5) * 3, sr)]
+    else:
+        t = a_taper(s[62] * 0.1)
+        P.update(g1=2 + 12 * t, g2=3 + 60 * t, a40=c1x(40), aL=c1x(7000), mk=1.98 * a_taper(s[9] * 0.1))
+        P["post"] = [bq_peak_coeffs(420, 0.8, -4, sr), bq_peak_coeffs(90, 1.0, -12 + 3 * s[63], sr),
+                     bq_peak_coeffs(900, 2.0, -10 + 2.5 * s[64], sr), bq_peak_coeffs(1250, 2.5, -10 + 2.5 * s[64], sr),
+                     unity(), unity()]
+    return P
+
+
+def pedal_os(P, st, x):
+    ped = P["ped"]
+    if ped == 0:
+        st[1] = (1 + P["a60"]) * 0.5 * (x - st[0]) + P["a60"] * st[1]; st[0] = x
+        st[3] = (1 + P["a15"]) * 0.5 * (x - st[2]) + P["a15"] * st[3]; st[2] = x
+        st[4] = st[1] * P["kA"] + P["aA"] * (st[4] - st[1] * P["kA"])
+        st[5] = st[3] * P["kB"] + P["aB"] * (st[5] - st[3] * P["kB"])
+        v = sclip(x + st[4] + st[5], 4.0)
+        st[6] += max(-P["slew"], min(P["slew"], v - st[6]))
+        return dclip(st[6], 0.6, 2.5)
+    if ped == 1:
+        st[1] = (1 + P["a33"]) * 0.5 * (x - st[0]) + P["a33"] * st[1]; st[0] = x
+        b = aclip(st[1] * 56, 4.0, 3.0)
+        st[3] = (1 + P["a72"]) * 0.5 * (b - st[2]) + P["a72"] * st[3]; st[2] = b
+        v = b + P["k"] * st[3]
+        st[4] = v + P["aC7"] * (st[4] - v)
+        v = sclip(st[4], 4.0)
+        st[5] = v + P["a72k"] * (st[5] - v)
+        return dclip(st[5], 0.7, 2.5)
+    if ped == 2:
+        h = P["hump"]
+        st[1] = (1 + P["a106"]) * 0.5 * (x - st[0]) + P["a106"] * st[1]; st[0] = x
+        y = h[0] * st[1] + st[2]; st[2] = h[1] * st[1] - h[3] * y + st[3]; st[3] = h[2] * st[1] - h[4] * y
+        st[4] = y + P["a72k"] * (st[4] - y)
+        v = sclip(st[4], 4.0) * 0.5
+        st[6] = (1 + P["a48"]) * 0.5 * (v - st[5]) + P["a48"] * st[6]; st[5] = v
+        w = v + (P["G"] - 1) * st[6]
+        st[7] = w + P["aC28"] * (st[7] - w)
+        return dclip(sclip(st[7], 4.0), 0.65, 1.8)
+    st[1] = (1 + P["a40"]) * 0.5 * (x - st[0]) + P["a40"] * st[1]; st[0] = x
+    v = aclip(st[1] * P["g1"], 3.5, 2.5)
+    st[2] = v + P["aL"] * (st[2] - v)
+    v = aclip(st[2] * P["g2"], 0.65, 0.45)
+    st[3] = v + P["aL"] * (st[3] - v)
+    v = dclip(dclip(st[3] * 1.5, 0.6, 2.5) * 1.5, 0.35, 1.6)
+    st[4] = v + P["aL"] * (st[4] - v)
+    return st[4] - 0.012 * soft_tanh(st[4] / 0.012)
+
+
+def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
+    if not SLIDER_DEFAULTS:
+        load_slider_defaults()
+    sliders = dict(SLIDER_DEFAULTS)
+    sliders.update(sliders_in)
+    os_sr = sr * DIST_OS
     os_fc = min(16500.0, sr * 0.36)
     bq_in = bq_hp_coeffs(sliders[2], 0.7071, sr)
-    mode = int(sliders[11])
-    v = DIST_VOICINGS[mode]
-    total_db = 20.0 + sliders[12] * 0.55
-    dist_out = 10.0 ** (sliders[17] * 0.05)
     bq_low = bq_shelf_coeffs(160.0, (sliders[13] - 50.0) * 0.24, sr, False)
     bq_mid = bq_peak_coeffs(850.0, 1.1, (sliders[14] - 50.0) * 0.28, sr)
     bq_high = bq_shelf_coeffs(2600.0, (sliders[15] - 50.0) * 0.24, sr, True)
-    bq_pre = bq_hp_coeffs(v["pre"], 0.8, sr)
-    bq_tb = bq_peak_coeffs(v["tb"][0], v["tb"][1], v["tb"][2], sr)
-    bq_post = bq_lp_coeffs(v["post"], 0.70, sr)
-    bq_g1 = bq_peak_coeffs(115.0, 2.2, 10.0, os_sr) if mode == 2 else None
-    bq_g2 = bq_peak_coeffs(1020.0, 2.6, 14.0, os_sr) if mode == 2 else None
-    stages = [(10.0 ** (total_db * fr * 0.05), math.exp(-2 * math.pi * hp / os_sr), math.exp(-2 * math.pi * lp / os_sr), t, bias)
-              for fr, hp, lp, t, bias in v["st"]]
-    st_state = [[0.0, 0.0, 0.0] for _ in stages]
-
+    P = pedal_setup(sliders, sr)
+    pst = [0.0] * 8
+    tone_st = [0.0, 0.0, 0.0]
     qs = [0.5098, 0.6013, 0.9000, 2.5629]
     up_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
     dn_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
+    grit = sliders[16] * 0.01
+    grit_phase = grit_h = 0.0
 
     amp_mode = int(sliders[54])
     bq_amp_hp = bq_hp_coeffs(75.0, 0.707, sr)
@@ -351,28 +430,27 @@ def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
 
     for x in signal:
         l = bq_step(bq_in, x * (10.0 ** (sliders[1] * 0.05)))
+        l = bq_step(bq_high, bq_step(bq_mid, bq_step(bq_low, l)))
         if sliders[10] > 0.5:
-            l = bq_step(bq_tb, bq_step(bq_high, bq_step(bq_mid, bq_step(bq_low, bq_step(bq_pre, l)))))
-            for k in range(4):
-                xl = (l * 4.0) if k == 0 else 0.0
+            for k in range(DIST_OS):
+                xl = (l * DIST_OS) if k == 0 else 0.0
                 for uf in up_f:
                     xl = bq_step(uf, xl)
-                for i, (g, hc, lc, tube, bias) in enumerate(stages):
-                    hx, hy, ly = st_state[i]
-                    h = (1.0 + hc) * 0.5 * (xl - hx) + hc * hy
-                    hx, hy = xl, h
-                    h = clip_tube(h * g, bias) if tube else clip_hard(h * g)
-                    ly = h + lc * (ly - h)
-                    st_state[i] = [hx, hy, ly]
-                    xl = ly
-                if mode == 2:
-                    xl = clip_hard(bq_step(bq_g2, bq_step(bq_g1, xl)) * 0.5)
+                xl = pedal_os(P, pst, xl)
                 for df in dn_f:
                     xl = bq_step(df, xl)
             l = xl
+            if P["ped"] == 0:
+                tone_st[0] = l + P["af"] * (tone_st[0] - l); l = tone_st[0]
+            elif P["ped"] == 1:
+                tone_st[0] = l + P["alp"] * (tone_st[0] - l)
+                tone_st[2] = (1 + P["ahp"]) * 0.5 * (l - tone_st[1]) + P["ahp"] * tone_st[2]; tone_st[1] = l
+                l = ((1 - P["tone"]) * tone_st[0] + P["tone"] * tone_st[2]) * 0.25
+            for b in P["post"]:
+                l = bq_step(b, l)
             dc_out = l - dc_x1 + dc_r * dc_y1
             dc_x1, dc_y1 = l, dc_out
-            l = bq_step(bq_post, dc_out) * dist_out * 0.30
+            l = dc_out * P["mk"]
 
         if not include_amp_cab:
             out.append(l)
@@ -391,6 +469,13 @@ def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
         if sliders[49] > 0.5:
             l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp
 
+        if grit > 0.02:
+            grit_phase += 48000.0 / (1.0 + grit * 5.0) / sr
+            if grit_phase >= 1.0:
+                grit_phase -= math.floor(grit_phase)
+                steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ** 2)) / 0.35
+                grit_h = math.floor(l * steps + 0.5) / steps
+            l = l * (1.0 - grit * 0.65) + grit_h * grit * 0.65
         l = limit_sample(bq_step(bq_amp_p, l) * master_lin, 0.89125)
         out.append(l)
     return out
@@ -419,7 +504,7 @@ def parse_global_presets(presets_src):
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[3/5] Running offline DSP simulation across all 5 high-gain presets (Target: [-10.0, -8.0] dBFS)...")
+    print("[3/5] Running offline DSP simulation across the 6 distorted presets (Target: [-10.0, -8.0] dBFS)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n_samples = int(0.45 * sr)
@@ -430,7 +515,7 @@ def check_presets_dc_and_levels(presets_src):
         val = 0.25 * env * (0.6 * math.sin(2 * math.pi * 82.41 * t) + 0.4 * math.sin(2 * math.pi * 164.82 * t) + 0.3 * math.sin(2 * math.pi * 247.23 * t))
         signal.append(val)
 
-    for idx in range(5):
+    for idx in (0, 1, 2, 3, 4, 6):
         out = simulate_chain(presets[idx], signal, sr, include_amp_cab=True)
         steady = out[int(0.03 * sr):]
         peak = max(abs(x) for x in steady)
@@ -444,44 +529,38 @@ def check_presets_dc_and_levels(presets_src):
 
 
 def check_pre_cab_aliasing_all_bins(presets_src):
-    print("[4/5] Measuring PRE-CABINET 4x oversampling (8th-order @ 16.5kHz) aliasing & passband response...")
+    # Round 9: every pedal model, at its preset settings (grit off), 8x oversampled. In-band (20 Hz - 8 kHz)
+    # limit -40 dB; HM-2 with every knob on 10 (preset 4) is allowed -34 dB (it is the harshest case by design).
+    print("[4/6] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
-    # Exact bin-centered frequency near 2.6 kHz so zero spectral leakage occurs
-    bin_f0 = 55  # 55 * 48000 / 1024 = 2578.125 Hz
+    bin_f0 = 55  # 55 * 48000 / 1024 = 2578.125 Hz, bin-centred
     f0 = bin_f0 * sr / n
-    p = dict(presets[0])
-    p[16] = 0.0  # Grit = 0
     sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 4096)]
-    out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
-
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
     bin_8k = int(8000.0 * n / sr)
-    harm_energy = alias_energy = harm_8k = alias_8k = 0.0
-    for k in range(1, n // 2):
-        re_s = sum(out[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
-        im_s = sum(out[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
-        pwr = (re_s * re_s + im_s * im_s) / (n * n)
-        if k in harmonic_bins:
-            harm_energy += pwr
-            if k <= bin_8k:
+    for idx, name, limit in ((1, "RAT", -40.0), (3, "DS-1", -40.0), (0, "Metal Zone", -40.0), (4, "HM-2 (all 10)", -34.0)):
+        p = dict(presets[idx])
+        p[16] = 0.0
+        out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
+        harm_8k = alias_8k = 0.0
+        for k in range(1, bin_8k + 1):
+            re_s = sum(out[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
+            im_s = sum(out[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
+            pwr = (re_s * re_s + im_s * im_s) / (n * n)
+            if k in harmonic_bins:
                 harm_8k += pwr
-        else:
-            alias_energy += pwr
-            if k <= bin_8k:
+            else:
                 alias_8k += pwr
-
-    ratio_db = 10.0 * math.log10(max(1e-18, alias_energy) / max(1e-18, harm_energy))
-    ratio_8k_db = 10.0 * math.log10(max(1e-18, alias_8k) / max(1e-18, harm_8k))
-    print(f"  - Pre-cabinet alias ratio (ALL non-harmonic bins 0-24kHz): {ratio_db:+.2f} dB")
-    print(f"  - Pre-cabinet alias ratio (in-band 20Hz-8kHz only):        {ratio_8k_db:+.2f} dB")
-    if ratio_8k_db > -40.0:
-        raise AssertionError(f"Pre-cabinet in-band aliasing {ratio_8k_db:+.1f} dB exceeds -40.0 dB threshold (Round 7 target)")
+        ratio = 10.0 * math.log10(max(1e-18, alias_8k) / max(1e-18, harm_8k))
+        print(f"  - {name:<14} in-band alias ratio: {ratio:+.2f} dB (limit {limit:+.0f})")
+        if ratio > limit:
+            raise AssertionError(f"{name} in-band aliasing {ratio:+.1f} dB exceeds {limit:+.0f} dB")
 
 
 def check_delay_bypass_clamp():
-    print("[5/5] Verifying bypassed Delay at 105% feedback decays to silence (R2-2 verification)...")
+    print("[6/6] Verifying bypassed Delay at 105% feedback decays to silence (R2-2 verification)...")
     fb_slider = 105.0
     en = False
     fb = fb_slider * 0.01
@@ -498,7 +577,7 @@ def check_delay_bypass_clamp():
 def check_distortion_gain_curve(presets_src):
     # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
     # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
-    print("[6/6] Verifying high-gain saturation curve (distortion output vs input level)...")
+    print("[5/6] Verifying high-gain saturation curve (distortion output vs input level)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = int(0.25 * sr)

@@ -55,9 +55,9 @@ function recall_global_preset(idx) (
   slider5 = 0; slider6 = 1; slider7 = 2; slider8 = 3;
   slider52 = 0;
 
-  idx == 0 ? ( // 01: Tight Rhythm (Modern HG + Tube Amp + 4x12 V30)
+  idx == 0 ? ( // 01: Tight Rhythm (Metal Zone + Tube Amp + 4x12 V30)
     slider1 = 0.0; slider2 = 120; slider3 = -48; slider4 = 1;
-    slider10 = 1; slider11 = 1; slider12 = 82; slider13 = 52; slider14 = 36; slider15 = 76; slider16 = 10; slider17 = 1.1;
+    slider10 = 1; slider11 = 2; slider39 = 7.0; slider46 = 6.0; slider47 = 4.0; slider48 = 6.5; slider59 = 4.5; slider61 = 7.9; slider13 = 52; slider14 = 45; slider15 = 60; slider16 = 0;
     slider20 = 0; slider21 = 0; slider22 = 0.6; slider23 = 45; slider24 = 55; slider25 = 0;
     slider30 = 0; slider31 = 1; slider32 = 340; slider33 = 30; slider34 = 60; slider35 = 18; slider36 = 0;
     slider40 = 1; slider41 = 0; slider42 = 2.0; slider43 = 18; slider44 = 64; slider45 = 15;
@@ -65,7 +65,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 54; slider56 = 44; slider57 = 62; slider58 = 64;
   ) : idx == 1 ? ( // 02: Cold Lead (RAT + Tube Amp + Analog BBD + Tape Delay + Plate Reverb)
     slider1 = 0.0; slider2 = 105; slider3 = -52; slider4 = 1;
-    slider10 = 1; slider11 = 0; slider12 = 76; slider13 = 42; slider14 = 70; slider15 = 64; slider16 = 16; slider17 = -4.5;
+    slider10 = 1; slider11 = 0; slider26 = 7.5; slider27 = 3.0; slider28 = 6.4; slider13 = 45; slider14 = 62; slider15 = 58; slider16 = 0;
     slider20 = 1; slider21 = 0; slider22 = 0.38; slider23 = 58; slider24 = 46; slider25 = 36;
     slider30 = 1; slider31 = 0; slider32 = 390; slider33 = 44; slider34 = 38; slider35 = 28; slider36 = 0;
     slider40 = 1; slider41 = 1; slider42 = 3.0; slider43 = 24; slider44 = 48; slider45 = 24;
@@ -73,23 +73,23 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 48; slider56 = 56; slider57 = 64; slider58 = 66;
   ) : idx == 2 ? ( // 03: Doom Wall (HM-2 + Tube Amp + Dimension + Tape Delay + Ambient Reverb)
     slider1 = 0.0; slider2 = 85; slider3 = -52; slider4 = 1;
-    slider10 = 1; slider11 = 2; slider12 = 84; slider13 = 72; slider14 = 82; slider15 = 66; slider16 = 18; slider17 = 2.6;
+    slider10 = 1; slider11 = 3; slider62 = 8.5; slider63 = 8.0; slider64 = 7.5; slider9 = 6.5; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
     slider20 = 1; slider21 = 1; slider22 = 0.35; slider23 = 55; slider24 = 52; slider25 = 28;
     slider30 = 1; slider31 = 0; slider32 = 520; slider33 = 50; slider34 = 38; slider35 = 28; slider36 = 0;
     slider40 = 1; slider41 = 2; slider42 = 6.0; slider43 = 32; slider44 = 62; slider45 = 34;
     slider49 = 1; slider50 = 2; slider51 = -1.0;
     slider54 = 1; slider55 = 62; slider56 = 52; slider57 = 58; slider58 = 60;
-  ) : idx == 3 ? ( // 04: Raw 4-Track (High-grit RAT + Solid-State Combo + 2x12, short slap)
+  ) : idx == 3 ? ( // 04: Raw 4-Track (DS-1 + Solid-State Combo + 2x12, lo-fi grit, short slap)
     slider1 = 0.0; slider2 = 135; slider3 = -50; slider4 = 1;
-    slider10 = 1; slider11 = 0; slider12 = 80; slider13 = 36; slider14 = 78; slider15 = 70; slider16 = 48; slider17 = -4.7;
+    slider10 = 1; slider11 = 1; slider29 = 8.5; slider37 = 7.0; slider38 = 8.1; slider13 = 40; slider14 = 62; slider15 = 66; slider16 = 40;
     slider20 = 0; slider21 = 0; slider22 = 0.5; slider23 = 40; slider24 = 40; slider25 = 0;
     slider30 = 1; slider31 = 0; slider32 = 140; slider33 = 18; slider34 = 30; slider35 = 18; slider36 = 0;
     slider40 = 0; slider41 = 0; slider42 = 1.5; slider43 = 10; slider44 = 70; slider45 = 0;
     slider49 = 1; slider50 = 1; slider51 = -0.5;
     slider54 = 2; slider55 = 42; slider56 = 60; slider57 = 68; slider58 = 70;
-  ) : idx == 4 ? ( // 05: Swedish Chainsaw (HM-2 + Solid-State Amp + 4x12 V30)
+  ) : idx == 4 ? ( // 05: Swedish Chainsaw (HM-2 everything on 10 + Solid-State Amp + 4x12 V30)
     slider1 = 0.0; slider2 = 95; slider3 = -48; slider4 = 1;
-    slider10 = 1; slider11 = 2; slider12 = 88; slider13 = 78; slider14 = 88; slider15 = 72; slider16 = 15; slider17 = 1.5;
+    slider10 = 1; slider11 = 3; slider62 = 10.0; slider63 = 10.0; slider64 = 10.0; slider9 = 5.5; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
     slider20 = 0; slider21 = 0; slider22 = 0.5; slider23 = 50; slider24 = 50; slider25 = 0;
     slider30 = 0; slider31 = 0; slider32 = 300; slider33 = 30; slider34 = 50; slider35 = 0; slider36 = 0;
     slider40 = 1; slider41 = 1; slider42 = 1.6; slider43 = 12; slider44 = 45; slider45 = 14;
@@ -97,7 +97,7 @@ function recall_global_preset(idx) (
     slider52 = 0; slider54 = 2; slider55 = 64; slider56 = 58; slider57 = 64; slider58 = 68;
   ) : idx == 5 ? ( // 06: Freezing Clean (Distortion bypassed + Tube Amp + BBD Chorus + Digital Delay + Hall)
     slider1 = 3.5; slider2 = 75; slider3 = -62; slider4 = 1;
-    slider10 = 0; slider11 = 0; slider12 = 50; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0; slider17 = 0.0;
+    slider10 = 0; slider11 = 0; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
     slider20 = 1; slider21 = 0; slider22 = 0.55; slider23 = 68; slider24 = 65; slider25 = 48;
     slider30 = 1; slider31 = 1; slider32 = 440; slider33 = 42; slider34 = 68; slider35 = 32; slider36 = 0;
     slider40 = 1; slider41 = 0; slider42 = 4.2; slider43 = 25; slider44 = 42; slider45 = 34;
@@ -105,7 +105,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 52; slider56 = 50; slider57 = 64; slider58 = 62;
   ) : ( // 07: Ambient Swell (RAT + Tube Amp + Dimension + 580ms Tape Delay + 7.8s Ambient Reverb)
     slider1 = 0.0; slider2 = 100; slider3 = -54; slider4 = 1;
-    slider10 = 1; slider11 = 0; slider12 = 68; slider13 = 48; slider14 = 64; slider15 = 58; slider16 = 12; slider17 = 2.4;
+    slider10 = 1; slider11 = 0; slider26 = 6.5; slider27 = 4.0; slider28 = 7.5; slider13 = 48; slider14 = 58; slider15 = 55; slider16 = 8;
     slider20 = 1; slider21 = 1; slider22 = 0.42; slider23 = 64; slider24 = 58; slider25 = 40;
     slider30 = 1; slider31 = 0; slider32 = 580; slider33 = 58; slider34 = 44; slider35 = 38; slider36 = 0;
     slider40 = 1; slider41 = 2; slider42 = 7.8; slider43 = 40; slider44 = 55; slider45 = 46;

@@ -1,143 +1,168 @@
 // sepulchre_dsp_dist.jsfx-inc
-// Module 1: Distortion — cascaded 3-stage high-gain preamp, 4x oversampled.
-//   pre HPF (tighten) -> user LOW/MID/HIGH -> tight-boost mid hump ->
-//   [ coupling HPF -> gain -> clipper -> Miller LPF ] x 3 -> (HM-2 post gyrators + clip) -> DC block -> GRIT -> post LPF
-// DRIVE 0..100% maps to 20..75 dB of total small-signal gain, split across the three stages per voicing.
-// Uses biquads allocated in init_core_dsp(): bq_dist_pre_hp/low/mid/high/tb/gyr1/gyr2/post, bq_os_up1..4, bq_os_dn1..4.
+// Module 1: Distortion — four pedal models, 8x oversampled (8th-order Butterworth @ 16.5 kHz up/down).
+// Signal units: 1.0 = 1 V. Each pedal has only its real knobs (0..10). Nonlinear stages run at 8x via
+// per-channel instance functions (pdL.* / pdR.*); linear tone stacks run at the base rate.
+//   0 RAT        LM308 stage (60 Hz / 1.54 kHz gain shelves, GBW + 0.3 V/us slew) -> 1N914 pair -> Filter -> Volume
+//   1 DS-1       35 dB transistor booster -> op-amp (0..26.5 dB) -> 7.2 kHz LPF -> 1N4148 pair -> Big-Muff tone -> Level
+//   2 Metal Zone ~1 kHz gyrator hump (+30 dB, overdriven) -> op-amp x2..x252 -> Si pair -> 105 Hz / 4.9 kHz peaks -> Low/High/Middle -> Level
+//   3 HM-2       transistor pregain -> asymmetric clipping amp -> 2 clipper pairs -> gate dead band -> Color Mix Low/High -> Level
+// Uses biquads allocated in init_core_dsp(): bq_os_up1..4, bq_os_dn1..4, bq_dist_tb (MT-2 hump @ 8x), bq_dist_p1..p6 (post EQ).
 @init
 
-// Firm op-amp/diode style clipper (knee sharpness p = 2.5)
-function clip_hard(x) ( x / ((1 + abs(x) ^ 2.5) ^ 0.4); );
-// Asymmetric triode-style clipper (bias shifts the knee; offset removed so silence stays at 0)
-function clip_tube(x, bias) ( soft_tanh(x + bias) - soft_tanh(bias); );
-function hp1_c(fc) ( exp(-2 * $pi * fc / (srate * 4)); );   // 1-pole coeffs at the 4x rate
-function lp1_c(fc) ( exp(-2 * $pi * fc / (srate * 4)); );
+DIST_OS = 8;
+function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
+function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
+function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
+function sclip(x, v) local(y) ( y = x / v; v * y / ((1 + y * y * y * y) ^ 0.25); );           // smooth rail
+function dclip(x, v, p) local(y) ( y = x / v; v * y / ((1 + abs(y) ^ p) ^ (1 / p)); );       // diode pair
+function aclip(x, vp, vn) ( x >= 0 ? sclip(x, vp) : sclip(x, vn); );
+function bq_unity(b) ( b[0] = 1; b[1] = 0; b[2] = 0; b[3] = 0; b[4] = 0; );
 
-function update_dist_coeffs() local(os_sr, os_fc, low_db, mid_db, high_db) (
-  os_sr = srate * 4.0;
-  os_fc = min(16500.0, srate * 0.36);
+function update_dist_coeffs() local(os_sr, os_fc, rd, t) (
+  os_sr = srate * DIST_OS; os_fc = min(16500.0, srate * 0.36);
   bq_lp_sr(bq_os_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_up2, os_fc, 0.6013, os_sr);
   bq_lp_sr(bq_os_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_up4, os_fc, 2.5629, os_sr);
   bq_lp_sr(bq_os_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_dn2, os_fc, 0.6013, os_sr);
   bq_lp_sr(bq_os_dn3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_dn4, os_fc, 2.5629, os_sr);
+  bq_unity(bq_dist_p1); bq_unity(bq_dist_p2); bq_unity(bq_dist_p3);
+  bq_unity(bq_dist_p4); bq_unity(bq_dist_p5); bq_unity(bq_dist_p6);
+  dist_ped = floor(slider11 + 0.5);
 
-  dist_db_t = 20.0 + slider12 * 0.55;          // total gain, dB
-  dist_out_t = db2lin(slider17);
-  low_db = (slider13 - 50.0) * 0.24;
-  mid_db = (slider14 - 50.0) * 0.28;
-  high_db = (slider15 - 50.0) * 0.24;
-  bq_lshelf(bq_dist_low, 160.0, low_db);
-  bq_peak(bq_dist_mid, 850.0, 1.1, mid_db);
-  bq_hshelf(bq_dist_high, 2600.0, high_db);
-
-  // Voicings: pre HPF, tight-boost hump, per-stage (gain share, coupling HPF, Miller LPF, clipper 0=hard 1=tube, bias), post LPF
-  slider11 == 0 ? ( // RAT: three firm op-amp stages, fizzy and mid-forward
-    bq_hp(bq_dist_pre_hp, 140.0, 0.8); bq_peak(bq_dist_tb, 1100.0, 0.8, 6.0);
-    ds1_f = 0.40; ds1_hp = 30;  ds1_lp = 9000; ds1_t = 0; ds1_b = 0;
-    ds2_f = 0.35; ds2_hp = 180; ds2_lp = 7500; ds2_t = 0; ds2_b = 0;
-    ds3_f = 0.25; ds3_hp = 300; ds3_lp = 6500; ds3_t = 0; ds3_b = 0;
-    bq_lp(bq_dist_post, 7000.0, 0.70);
-  ) : slider11 == 1 ? ( // MODERN: two biased triode stages into a firm third, tightest low end
-    bq_hp(bq_dist_pre_hp, 170.0, 0.8); bq_peak(bq_dist_tb, 1300.0, 0.9, 5.0);
-    ds1_f = 0.34; ds1_hp = 40;  ds1_lp = 10000; ds1_t = 1; ds1_b = 0.25;
-    ds2_f = 0.36; ds2_hp = 220; ds2_lp = 8000;  ds2_t = 1; ds2_b = 0.18;
-    ds3_f = 0.30; ds3_hp = 350; ds3_lp = 6500;  ds3_t = 0; ds3_b = 0;
-    bq_lp(bq_dist_post, 7500.0, 0.70);
-  ) : ( // HM-2: firm stages, then the dual-gyrator boost and a final clip
-    bq_hp(bq_dist_pre_hp, 110.0, 0.8); bq_peak(bq_dist_tb, 900.0, 0.8, 3.0);
-    ds1_f = 0.40; ds1_hp = 40;  ds1_lp = 9000; ds1_t = 0; ds1_b = 0;
-    ds2_f = 0.35; ds2_hp = 150; ds2_lp = 8000; ds2_t = 0; ds2_b = 0;
-    ds3_f = 0.25; ds3_hp = 220; ds3_lp = 7000; ds3_t = 1; ds3_b = 0.10;
-    bq_peak_sr(bq_dist_gyr1, 115.0, 2.2, 10.0, os_sr);
-    bq_peak_sr(bq_dist_gyr2, 1020.0, 2.6, 14.0, os_sr);
-    bq_lp(bq_dist_post, 6500.0, 0.70);
+  dist_ped == 0 ? ( // RAT
+    rd = 100000 * a_taper(slider26 * 0.1);
+    rat_kA = rd / 560; rat_kB = rd / 47;
+    rat_a60 = c1x(60); rat_a15 = c1x(1540);
+    rat_aA = c1x(rd > 0 ? min(316000 / (1 + rd / 560), 1 / (2 * $pi * rd * 0.0000000001)) : 1000000000);
+    rat_aB = c1x(rd > 0 ? min(316000 / (1 + rd / 43), 1 / (2 * $pi * rd * 0.0000000001)) : 1000000000);
+    rat_slew = 300000 / os_sr;
+    rat_af = c1b(1 / (2 * $pi * (1500 + 100000 * a_taper(slider27 * 0.1)) * 0.0000000033));
+    dist_mk_t = 1.6 * a_taper(slider28 * 0.1);
+  ) : dist_ped == 1 ? ( // DS-1
+    rd = 100000 * slider29 * 0.1;                               // B taper
+    ds_k = rd / 4700; ds_a33 = c1x(33); ds_a72 = c1x(72);
+    ds_aC7 = c1x(1 / (2 * $pi * max(rd, 1) * 0.0000000001)); ds_a72k = c1x(7200);
+    ds_alp = c1b(234); ds_ahp = c1b(1063); ds_tone = slider37 * 0.1;
+    dist_mk_t = 3.96 * a_taper(slider38 * 0.1);
+  ) : dist_ped == 2 ? ( // Metal Zone
+    rd = 1000 + 250000 * a_taper(slider39 * 0.1);
+    mt_G = 1 + rd / 1000; mt_a106 = c1x(106); mt_a72k = c1x(7200); mt_a48 = c1x(48);
+    mt_aC28 = c1x(1 / (2 * $pi * rd * 0.000000000047));
+    bq_peak_sr(bq_dist_tb, 1000, 1.2, 30, os_sr);
+    mt_b0 = bq_dist_tb[0]; mt_b1 = bq_dist_tb[1]; mt_b2 = bq_dist_tb[2]; mt_a1 = bq_dist_tb[3]; mt_a2 = bq_dist_tb[4];
+    bq_lp(bq_dist_p1, 8000, 0.6);
+    bq_peak(bq_dist_p2, 105, 2.0, 8); bq_peak(bq_dist_p3, 4900, 2.2, 7);          // fixed double peak
+    bq_peak(bq_dist_p4, 105, 3.1, (slider47 - 5) * 4);                            // LOW  +/-20 dB
+    bq_hshelf(bq_dist_p5, 3200, (slider46 - 5) * 4);                              // HIGH +/-20 dB
+    bq_peak(bq_dist_p6, 240 * (4700 / 240) ^ (slider59 * 0.1), 0.9, (slider48 - 5) * 3);  // MIDDLE +/-15 dB @ 240..4.7k
+    dist_mk_t = 1.155 * a_taper(slider61 * 0.1);
+  ) : ( // HM-2
+    t = a_taper(slider62 * 0.1);
+    hm_g1 = 2 + 12 * t; hm_g2 = 3 + 60 * t; hm_a40 = c1x(40); hm_aL = c1x(7000);
+    bq_peak(bq_dist_p1, 420, 0.8, -4);                                            // scoop between the humps
+    bq_peak(bq_dist_p2, 90, 1.0, -12 + 3 * slider63);                             // LOW  -12..+18 dB
+    bq_peak(bq_dist_p3, 900, 2.0, -10 + 2.5 * slider64);                          // HIGH twin peaks -10..+15 dB
+    bq_peak(bq_dist_p4, 1250, 2.5, -10 + 2.5 * slider64);
+    dist_mk_t = 1.98 * a_taper(slider9 * 0.1);
   );
-  ds1_hc = hp1_c(ds1_hp); ds2_hc = hp1_c(ds2_hp); ds3_hc = hp1_c(ds3_hp);
-  ds1_lc = lp1_c(ds1_lp); ds2_lc = lp1_c(ds2_lp); ds3_lc = lp1_c(ds3_lp);
+);
+
+// ---------- per-channel nonlinear cores (run at 8x) ----------
+function rat_reset() instance(hx60, hy60, hx15, hy15, lA, lB, pv) ( hx60 = 0; hy60 = 0; hx15 = 0; hy15 = 0; lA = 0; lB = 0; pv = 0; );
+function rat_os(x) instance(hx60, hy60, hx15, hy15, lA, lB, pv) local(v) (
+  hy60 = (1 + rat_a60) * 0.5 * (x - hx60) + rat_a60 * hy60; hx60 = x;
+  hy15 = (1 + rat_a15) * 0.5 * (x - hx15) + rat_a15 * hy15; hx15 = x;
+  lA = hy60 * rat_kA + rat_aA * (lA - hy60 * rat_kA);              // branch currents, GBW-limited
+  lB = hy15 * rat_kB + rat_aB * (lB - hy15 * rat_kB);
+  v = sclip(x + lA + lB, 4.0);                                     // LM308 rails
+  pv += clamp(v - pv, -rat_slew, rat_slew);                        // 0.3 V/us slew
+  dclip(pv, 0.6, 2.5);                                             // 1N914 pair
+);
+function ds_reset() instance(hx, hy, hx2, hy2, l7, l72) ( hx = 0; hy = 0; hx2 = 0; hy2 = 0; l7 = 0; l72 = 0; );
+function ds_os(x) instance(hx, hy, hx2, hy2, l7, l72) local(b, v) (
+  hy = (1 + ds_a33) * 0.5 * (x - hx) + ds_a33 * hy; hx = x;
+  b = aclip(hy * 56, 4.0, 3.0);                                    // Q2 booster, asymmetric supply clip
+  hy2 = (1 + ds_a72) * 0.5 * (b - hx2) + ds_a72 * hy2; hx2 = b;
+  v = b + ds_k * hy2;
+  l7 = v + ds_aC7 * (l7 - v);
+  v = sclip(l7, 4.0);
+  l72 = v + ds_a72k * (l72 - v);
+  dclip(l72, 0.7, 2.5);                                            // 1N4148 pair to ground
+);
+function mt_reset() instance(hx, hy, z1, z2, l72, hx48, hy48, lc) ( hx = 0; hy = 0; z1 = 0; z2 = 0; l72 = 0; hx48 = 0; hy48 = 0; lc = 0; );
+function mt_os(x) instance(hx, hy, z1, z2, l72, hx48, hy48, lc) local(y, v, w) (
+  hy = (1 + mt_a106) * 0.5 * (x - hx) + mt_a106 * hy; hx = x;
+  y = mt_b0 * hy + z1; z1 = mt_b1 * hy - mt_a1 * y + z2; z2 = mt_b2 * hy - mt_a2 * y;   // ~1 kHz hump
+  l72 = y + mt_a72k * (l72 - y);
+  v = sclip(l72, 4.0) * 0.5;
+  hy48 = (1 + mt_a48) * 0.5 * (v - hx48) + mt_a48 * hy48; hx48 = v;
+  w = v + (mt_G - 1) * hy48;
+  lc = w + mt_aC28 * (lc - w);
+  dclip(sclip(lc, 4.0), 0.65, 1.8);
+);
+function hm_reset() instance(hx, hy, l1, l2, l) ( hx = 0; hy = 0; l1 = 0; l2 = 0; l = 0; );
+function hm_os(x) instance(hx, hy, l1, l2, l) local(v) (
+  hy = (1 + hm_a40) * 0.5 * (x - hx) + hm_a40 * hy; hx = x;
+  v = aclip(hy * hm_g1, 3.5, 2.5);                                 // NPN/PNP pregain
+  l1 = v + hm_aL * (l1 - v);
+  v = aclip(l1 * hm_g2, 0.65, 0.45);                               // asymmetric clipping amp
+  l2 = v + hm_aL * (l2 - v);
+  v = dclip(dclip(l2 * 1.5, 0.6, 2.5) * 1.5, 0.35, 1.6);           // two clipper pairs
+  l = v + hm_aL * (l - v);
+  l - 0.012 * soft_tanh(l / 0.012);                                // noise-gate diode dead band (sputter)
+);
+// ---------- per-channel base-rate tone (RAT Filter, DS-1 Tone) ----------
+function rat_f_reset() instance(y) ( y = 0; );
+function rat_filt(x) instance(y) ( y = x + rat_af * (y - x); );
+function ds_f_reset() instance(ly, hx, hy) ( ly = 0; hx = 0; hy = 0; );
+function ds_tone_f(x) instance(ly, hx, hy) (
+  ly = x + ds_alp * (ly - x);
+  hy = (1 + ds_ahp) * 0.5 * (x - hx) + ds_ahp * hy; hx = x;
+  ((1 - ds_tone) * ly + ds_tone * hy) * 0.25;                      // passive tone stack loss (-12 dB)
 );
 
 function reset_dist_state() (
-  bq_clear(bq_dist_tb);
-  ds1_hx_l = 0; ds1_hy_l = 0; ds1_ly_l = 0; ds1_hx_r = 0; ds1_hy_r = 0; ds1_ly_r = 0;
-  ds2_hx_l = 0; ds2_hy_l = 0; ds2_ly_l = 0; ds2_hx_r = 0; ds2_hy_r = 0; ds2_ly_r = 0;
-  ds3_hx_l = 0; ds3_hy_l = 0; ds3_ly_l = 0; ds3_hx_r = 0; ds3_hy_r = 0; ds3_ly_r = 0;
-  dist_db_s = dist_db_t;
+  pdL.rat_reset(); pdR.rat_reset(); pdL.ds_reset(); pdR.ds_reset();
+  pdL.mt_reset(); pdR.mt_reset(); pdL.hm_reset(); pdR.hm_reset();
+  tfL.rat_f_reset(); tfR.rat_f_reset();
+  tfL.ds_f_reset(); tfR.ds_f_reset();
+  bq_clear(bq_dist_p1); bq_clear(bq_dist_p2); bq_clear(bq_dist_p3);
+  bq_clear(bq_dist_p4); bq_clear(bq_dist_p5); bq_clear(bq_dist_p6);
+  dist_mk_s = dist_mk_t;
 );
 
-// One preamp stage, left / right (state kept in globals per stage & channel)
-function stage1_l(x, g) local(h) ( h = (1 + ds1_hc) * 0.5 * (x - ds1_hx_l) + ds1_hc * ds1_hy_l; ds1_hx_l = x; ds1_hy_l = h;
-  h = ds1_t ? clip_tube(h * g, ds1_b) : clip_hard(h * g); ds1_ly_l = h + ds1_lc * (ds1_ly_l - h); );
-function stage1_r(x, g) local(h) ( h = (1 + ds1_hc) * 0.5 * (x - ds1_hx_r) + ds1_hc * ds1_hy_r; ds1_hx_r = x; ds1_hy_r = h;
-  h = ds1_t ? clip_tube(h * g, ds1_b) : clip_hard(h * g); ds1_ly_r = h + ds1_lc * (ds1_ly_r - h); );
-function stage2_l(x, g) local(h) ( h = (1 + ds2_hc) * 0.5 * (x - ds2_hx_l) + ds2_hc * ds2_hy_l; ds2_hx_l = x; ds2_hy_l = h;
-  h = ds2_t ? clip_tube(h * g, ds2_b) : clip_hard(h * g); ds2_ly_l = h + ds2_lc * (ds2_ly_l - h); );
-function stage2_r(x, g) local(h) ( h = (1 + ds2_hc) * 0.5 * (x - ds2_hx_r) + ds2_hc * ds2_hy_r; ds2_hx_r = x; ds2_hy_r = h;
-  h = ds2_t ? clip_tube(h * g, ds2_b) : clip_hard(h * g); ds2_ly_r = h + ds2_lc * (ds2_ly_r - h); );
-function stage3_l(x, g) local(h) ( h = (1 + ds3_hc) * 0.5 * (x - ds3_hx_l) + ds3_hc * ds3_hy_l; ds3_hx_l = x; ds3_hy_l = h;
-  h = ds3_t ? clip_tube(h * g, ds3_b) : clip_hard(h * g); ds3_ly_l = h + ds3_lc * (ds3_ly_l - h); );
-function stage3_r(x, g) local(h) ( h = (1 + ds3_hc) * 0.5 * (x - ds3_hx_r) + ds3_hc * ds3_hy_r; ds3_hx_r = x; ds3_hy_r = h;
-  h = ds3_t ? clip_tube(h * g, ds3_b) : clip_hard(h * g); ds3_ly_r = h + ds3_lc * (ds3_ly_r - h); );
-
-function proc_distortion() local(grit, g1, g2, g3, steps, hold_rate, k, xl, xr, l, r, dc_l, dc_r_out, gk) (
-  dist_db_s = param_smooth_c * dist_db_s + (1.0 - param_smooth_c) * dist_db_t;
-  dist_out_s = param_smooth_c * dist_out_s + (1.0 - param_smooth_c) * dist_out_t;
-
+function proc_distortion() local(k, xl, xr, l, r, gk) (
+  dist_mk_s = param_smooth_c * dist_mk_s + (1.0 - param_smooth_c) * dist_mk_t;
   slider10 > 0.5 ? (
-    l = bq_proc_l(bq_dist_pre_hp, spl0); r = bq_proc_r(bq_dist_pre_hp, spl1);
-    l = bq_proc_l(bq_dist_low, l);       r = bq_proc_r(bq_dist_low, r);
-    l = bq_proc_l(bq_dist_mid, l);       r = bq_proc_r(bq_dist_mid, r);
-    l = bq_proc_l(bq_dist_high, l);      r = bq_proc_r(bq_dist_high, r);
-    l = bq_proc_l(bq_dist_tb, l);        r = bq_proc_r(bq_dist_tb, r);
-
-    g1 = 10 ^ (dist_db_s * ds1_f * 0.05);
-    g2 = 10 ^ (dist_db_s * ds2_f * 0.05);
-    g3 = 10 ^ (dist_db_s * ds3_f * 0.05);
-
+    l = spl0; r = spl1;
     k = 0;
-    loop(4,
-      xl = (k == 0) ? (l * 4.0) : 0.0;
-      xr = (k == 0) ? (r * 4.0) : 0.0;
+    loop(DIST_OS,
+      xl = (k == 0) ? (l * DIST_OS) : 0.0;
+      xr = (k == 0) ? (r * DIST_OS) : 0.0;
       xl = bq_proc_l(bq_os_up4, bq_proc_l(bq_os_up3, bq_proc_l(bq_os_up2, bq_proc_l(bq_os_up1, xl))));
       xr = bq_proc_r(bq_os_up4, bq_proc_r(bq_os_up3, bq_proc_r(bq_os_up2, bq_proc_r(bq_os_up1, xr))));
-
-      xl = stage3_l(stage2_l(stage1_l(xl, g1), g2), g3);
-      xr = stage3_r(stage2_r(stage1_r(xr, g1), g2), g3);
-
-      slider11 == 2 ? (
-        xl = bq_proc_l(bq_dist_gyr2, bq_proc_l(bq_dist_gyr1, xl)); xl = clip_hard(xl * 0.5);
-        xr = bq_proc_r(bq_dist_gyr2, bq_proc_r(bq_dist_gyr1, xr)); xr = clip_hard(xr * 0.5);
-      );
-
+      dist_ped == 0 ? ( xl = pdL.rat_os(xl); xr = pdR.rat_os(xr); )
+      : dist_ped == 1 ? ( xl = pdL.ds_os(xl); xr = pdR.ds_os(xr); )
+      : dist_ped == 2 ? ( xl = pdL.mt_os(xl); xr = pdR.mt_os(xr); )
+      : ( xl = pdL.hm_os(xl); xr = pdR.hm_os(xr); );
       xl = bq_proc_l(bq_os_dn4, bq_proc_l(bq_os_dn3, bq_proc_l(bq_os_dn2, bq_proc_l(bq_os_dn1, xl))));
       xr = bq_proc_r(bq_os_dn4, bq_proc_r(bq_os_dn3, bq_proc_r(bq_os_dn2, bq_proc_r(bq_os_dn1, xr))));
       k += 1;
     );
     l = xl; r = xr;
-
-    // 10 Hz 1-pole DC blocker (tube stages are asymmetric)
+    dist_ped == 0 ? ( l = tfL.rat_filt(l); r = tfR.rat_filt(r); );
+    dist_ped == 1 ? ( l = tfL.ds_tone_f(l); r = tfR.ds_tone_f(r); );
+    l = bq_proc_l(bq_dist_p1, l); r = bq_proc_r(bq_dist_p1, r);
+    l = bq_proc_l(bq_dist_p2, l); r = bq_proc_r(bq_dist_p2, r);
+    l = bq_proc_l(bq_dist_p3, l); r = bq_proc_r(bq_dist_p3, r);
+    l = bq_proc_l(bq_dist_p4, l); r = bq_proc_r(bq_dist_p4, r);
+    l = bq_proc_l(bq_dist_p5, l); r = bq_proc_r(bq_dist_p5, r);
+    l = bq_proc_l(bq_dist_p6, l); r = bq_proc_r(bq_dist_p6, r);
+    // DC blocker (asymmetric stages), then pedal Level and post-gate keyed from the input gate
     dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
-    dc_r_out = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_r_out; r = dc_r_out;
-
-    grit = slider16 * 0.01;
-    grit > 0.02 ? (
-      hold_rate = 48000.0 / (1.0 + grit * 5.0);
-      dist_hold_phase += hold_rate / srate;
-      dist_hold_phase >= 1.0 ? (
-        dist_hold_phase -= floor(dist_hold_phase);
-        steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ^ 2));
-        dist_hold_l = floor(l * steps + 0.5) / steps;
-        dist_hold_r = floor(r * steps + 0.5) / steps;
-      );
-      l = l * (1.0 - grit * 0.65) + dist_hold_l * (grit * 0.65);
-      r = r * (1.0 - grit * 0.65) + dist_hold_r * (grit * 0.65);
-    );
-
-    l = bq_proc_l(bq_dist_post, l);
-    r = bq_proc_r(bq_dist_post, r);
-    // Post-gate: with 60+ dB of gain the hiss between notes must close fully, keyed from the input gate
+    dc_ro = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_ro; r = dc_ro;
     gk = slider4 > 0.5 ? gate_gain : 1.0;
-    spl0 = l * dist_out_s * 0.30 * gk;
-    spl1 = r * dist_out_s * 0.30 * gk;
+    spl0 = l * dist_mk_s * gk;
+    spl1 = r * dist_mk_s * gk;
   );
   meter_dist_peak = max(meter_dist_peak * meter_decay_c, max(abs(spl0), abs(spl1)));
 );

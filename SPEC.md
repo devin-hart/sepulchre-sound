@@ -47,16 +47,21 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular 
 - **Pre-Cut HPF:** 12 dB/oct Butterworth high-pass (`40`–`180 Hz`, `slider2`).
 - **Noise Gate:** `180 Hz` detector HPF (`bq_gate_det`) into peak envelope follower (`1.5 ms` attack, `45 ms` release), **5 dB hysteresis** (`gate_thresh_open` vs `gate_thresh_close`), **25 ms hold counter** (`gate_hold_samples`), `3 ms` open / `35 ms` exponential release, plus post-distortion hiss reduction keyed from `gate_gain`.
 
-### 3.2 Module 1 — Cascaded 3-Stage High-Gain Distortion (4x Oversampled) — `sepulchre_dsp_dist.jsfx-inc`
-- **Signal path:** pre HPF (voicing) → user Pre-EQ (Low Shelf `160 Hz`, Mid Peak `850 Hz Q=1.1`, High Shelf `2.6 kHz`, each ±12 dB) → tight-boost mid hump (`bq_dist_tb`) → 4x upsample (8th-order Butterworth @ `16.5 kHz`) → 3 × [1-pole coupling HPF → gain → clipper → 1-pole "Miller" LPF] → (HM-2: `+10 dB @ 115 Hz` / `+14 dB @ 1.02 kHz` gyrators at `4 * srate` → final clip) → 8th-order anti-alias + 4:1 decimation → 10 Hz DC blocker → GRIT (sample-hold/quantize) → post LPF → LEVEL × 0.30 × post-gate.
-- **Gain law:** DRIVE `0–100%` → `20–75 dB` total small-signal gain (dB-linear, `dist_db_t = 20 + 0.55 * drive`), smoothed in dB and split across the three stages by voicing (≈ 40/35/25 % or 34/36/30 %).
-- **Clippers:** firm op-amp/diode `x / (1 + |x|^2.5)^0.4`; asymmetric triode `soft_tanh(x + b) − soft_tanh(b)`.
-- **Voicings (`slider11`):**
-  - `0 = RAT` — pre HPF `140 Hz`, hump `+6 dB @ 1.1 kHz Q 0.8`, three firm stages (coupling HPF `30 / 180 / 300 Hz`, LPF `9 / 7.5 / 6.5 kHz`), post LPF `7 kHz`.
-  - `1 = MODERN` — pre HPF `170 Hz`, hump `+5 dB @ 1.3 kHz Q 0.9`, two triode stages (bias `0.25 / 0.18`) into a firm third (HPF `40 / 220 / 350 Hz`, LPF `10 / 8 / 6.5 kHz`), post LPF `7.5 kHz`.
-  - `2 = HM-2` — pre HPF `110 Hz`, hump `+3 dB @ 900 Hz`, firm / firm / triode stages (HPF `40 / 150 / 220 Hz`, LPF `9 / 8 / 7 kHz`), post gyrators + clip, post LPF `6.5 kHz`.
-- **Behaviour targets (Round 7):** output stays saturated as notes decay — distortion output RMS at −36 dBFS input within 6 dB of the −12 dBFS output (guarded by `check_distortion_gain_curve`). Pre-cabinet in-band (`20 Hz–8 kHz`) aliasing ≤ −40 dB. **No lowpass in front of the clippers.**
-- **Post-gate:** output multiplied by the input gate's `gate_gain` (closes fully; was `0.15 + 0.85 × gate_gain`).
+### 3.2 Module 1 — Four Pedal Models (8x Oversampled) — `sepulchre_dsp_dist.jsfx-inc`
+- **Principle:** each pedal follows its real circuit's topology and exposes only its real knobs (0..10, dedicated automatable sliders; the distortion column shows only the selected pedal's controls). Signal units are volts (1.0 = 1 V). Nonlinear stages run at 8x (8th-order Butterworth up/down @ 16.5 kHz); passive tone stacks run at 1x. Circuit sources: ElectroSmash (RAT, DS-1), Electric Druid (MT-2), mirosol / Premier Guitar / BOSS (HM-2). These are behavioural models, not SPICE-accurate.
+- **Pedal select (`slider11`):** `0 RAT`, `1 DS-1`, `2 Metal Zone`, `3 HM-2`.
+
+| Pedal | Topology modelled | Knobs (slider) |
+| :--- | :--- | :--- |
+| RAT | LM308 non-inverting stage: gain branches 1+Rd/560 above 60 Hz and +Rd/47 above 1.54 kHz (Rd 0–100k audio taper, 0–67 dB), GBW 316 kHz and 100 pF feedback limits, ±4 V rails, 0.3 V/µs slew → 1N914 pair (±0.6 V) → passive Filter LPF 32 kHz → 475 Hz | Distortion (26), Filter (27), Volume (28) |
+| DS-1 | 33 Hz HPF → Q2 booster ×56 (asymmetric supply clip) → op-amp 1+Rd/4.7k on a 72 Hz shelf (0–26.5 dB, B taper), 100 pF feedback LPF, ±4 V rails → 7.2 kHz LPF → 1N4148 pair (±0.7 V) → Big-Muff tone (234 Hz LP / 1063 Hz HP blend, −12 dB) | Dist (29), Tone (37), Level (38) |
+| Metal Zone | 106 Hz HPF → ~1 kHz gyrator hump (+30 dB, Q 1.2) into ±4 V rails → ½ divider → 48 Hz HPF → op-amp ×2..×252 with 47 pF LPF → rails → Si pair (±0.65 V, soft knee) → 8 kHz LPF → fixed peaks 105 Hz +8 dB / 4.9 kHz +7 dB → Low (105 Hz Q 3.1, ±20 dB), High (3.2 kHz shelf, ±20 dB), Middle (±15 dB, Q 0.9, 240 Hz–4.7 kHz log) | Dist (39), High (46), Low (47), Middle (48), Mid Freq (59), Level (61) |
+| HM-2 | 40 Hz HPF → NPN/PNP pregain ×2..14 (asymmetric) → asymmetric clipping amp ×3..63 → Si pair → softer low-knee pair (7 kHz stage bandwidth) → noise-gate diode dead band (sputter) → Color Mix: 420 Hz −4 dB scoop, Low 90 Hz (−12..+18 dB), High twin peaks 900 Hz / 1.25 kHz (−10..+15 dB) | Distortion (62), Low (63), High (64), Level (9) |
+
+- **Pre-EQ moved to INPUT (sliders 13–15):** Low shelf 160 Hz ±12 dB, Mid 850 Hz ±14 dB, High shelf 2.6 kHz ±12 dB, before every pedal.
+- **GRIT moved to OUTPUT (slider 16, "Lo-Fi Grit"):** sample-hold + quantize after the cabinet, before Air/Master.
+- **Post-gate:** pedal output × input gate's `gate_gain` (closes fully).
+- **Targets:** in-band (20 Hz–8 kHz) aliasing ≤ −40 dB for RAT / DS-1 / Metal Zone at preset settings; HM-2 with every knob on 10 ≤ −34 dB (model: RAT −54.7, DS-1 −49.2, MT-2 −64.0, HM-2 −36.2). Presets peak −10..−8 dBFS (model −8.8..−9.2).
 
 ### 3.3 Module 2 — Chorus
 - **Bypass Spillover:** Buffer and LFO run continuously; bypass smoothly crossfades `chorus_mix_s` to `0.0`.
@@ -83,13 +88,13 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular 
 
 | # | Preset Name | Distortion | Amp Stage | Chorus | Delay | Reverb | Cab / Peak |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 0 | **01: TIGHT RHYTHM** | Modern HG (82%) | Tube Head | Bypass | Bypass | Hall (15%) | 4x12 (model `-9.07 dBFS`) |
-| 1 | **02: COLD LEAD** | RAT (76%) | Tube Head | Analog BBD (36%) | Tape 390ms (28%) | Plate (24%) | 2x12 (model `-9.01 dBFS`) |
-| 2 | **03: DOOM WALL** | HM-2 (84%) | Tube Head | Dimension (28%) | Tape 520ms (28%) | Ambient (34%) | Damped (model `-9.07 dBFS`) |
-| 3 | **04: RAW 4-TRACK** | RAT (80%, 48% Grit) | Solid-State | Bypass | Tape 140ms (18%) | Bypass | 2x12 (model `-9.00 dBFS`) |
-| 4 | **05: SWEDISH CHAINSAW** | HM-2 (88%) | Solid-State | Bypass | Bypass | Plate (14%) | 4x12 (model `-9.06 dBFS`) |
+| 0 | **01: TIGHT RHYTHM** | Metal Zone (Dist 7, Mid 6.5 @ ~1 kHz) | Tube Head | Bypass | Bypass | Hall (15%) | 4x12 (model `-9.19 dBFS`) |
+| 1 | **02: COLD LEAD** | RAT (Dist 7.5, Filter 3) | Tube Head | Analog BBD (36%) | Tape 390ms (28%) | Plate (24%) | 2x12 (model `-9.18 dBFS`) |
+| 2 | **03: DOOM WALL** | HM-2 (8.5 / Low 8 / High 7.5) | Tube Head | Dimension (28%) | Tape 520ms (28%) | Ambient (34%) | Damped (model `-8.99 dBFS`) |
+| 3 | **04: RAW 4-TRACK** | DS-1 (Dist 8.5, Tone 7) + Grit 40% | Solid-State | Bypass | Tape 140ms (18%) | Bypass | 2x12 (model `-8.85 dBFS`) |
+| 4 | **05: SWEDISH CHAINSAW** | HM-2 (all on 10) | Solid-State | Bypass | Bypass | Plate (14%) | 4x12 (model `-8.83 dBFS`) |
 | 5 | **06: FREEZING CLEAN** | Bypass (+3.5 dB In) | Tube Head | Analog BBD (48%) | Digital 440ms (32%) | Hall (34%) | 2x12 |
-| 6 | **07: AMBIENT SWELL** | RAT (68%) | Tube Head | Dimension (40%) | Tape 580ms (38%) | Ambient (46%) | Damped |
+| 6 | **07: AMBIENT SWELL** | RAT (Dist 6.5, Filter 4) | Tube Head | Dimension (40%) | Tape 580ms (38%) | Ambient (46%) | Damped (model `-8.99 dBFS`) |
 
 ---
 
@@ -119,3 +124,4 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular 
 | 2026-10-28 | Upgrade 4x oversampler to 8th-order Butterworth (`16.5 kHz`) + `C^2` 2-stage saturation (`soft_tanh` clamped at `±3.0`) | Preserves full `10–16 kHz` passband for WAV IRs and Presence/Air while achieving `-48.39 dB` (`20 Hz–8 kHz`) and `-47.76 dB` (`0–24 kHz`) pre-cabinet aliasing. |
 | 2026-10-28 | Adopt Claude's Round 5/6 "Crypt" necro-monochrome UI (`1204×500` scaled via `ui_S`, 2x Retina `sepulchre_bg.jpg` + `sepulchre_titles.png`, numbered stages `I–VIII`, 28% alpha bypass dimming, bipolar `±dB` EQ) | Solves contrast, visual hierarchy, black-metal logo/stone-slab atmosphere, scaling on high-DPI displays, and right-column crowding while removing redundant per-module `P1..P3` preset rows. |
 | 2026-10-28 | Replace 2-stage soft distortion with cascaded 3-stage high-gain preamp (DRIVE → `20–75 dB`), remove pre-clip LPF, full-close post-gate; re-level preset LEVEL values (Claude Round 7) | Old stage had ~34 dB gain and a 2.9–5.4 kHz LPF before the clippers, so notes cleaned up as they decayed (blues-overdrive behaviour). New stage stays saturated to ~−36 dBFS input; in-band aliasing −41 to −46 dB. |
+| 2026-10-28 | Replace the 3-voicing distortion with four pedal models (RAT, DS-1, Metal Zone, HM-2), each with only its real knobs; move Pre-EQ to INPUT and Grit to OUTPUT; distortion oversampling 4x → 8x (Claude Round 9) | Devin couldn't hear RAT vs MODERN (1–2 dB band difference at 60+ dB gain). Modelling each real topology gives 7.6–23 dB band differences; 8x keeps the harsher pedals' aliasing in budget. |

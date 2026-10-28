@@ -109,7 +109,13 @@ function auto_slider(id, end_touch) (
   id == 52 ? slider_automate(slider52, end_touch) : id == 53 ? slider_automate(slider53, end_touch) :
   id == 54 ? slider_automate(slider54, end_touch) : id == 55 ? slider_automate(slider55, end_touch) :
   id == 56 ? slider_automate(slider56, end_touch) : id == 57 ? slider_automate(slider57, end_touch) :
-  id == 58 ? slider_automate(slider58, end_touch) : id == 60 ? slider_automate(slider60, end_touch);
+  id == 58 ? slider_automate(slider58, end_touch) : id == 60 ? slider_automate(slider60, end_touch) :
+  id == 37 ? slider_automate(slider37, end_touch) : id == 38 ? slider_automate(slider38, end_touch) :
+  id == 39 ? slider_automate(slider39, end_touch) : id == 46 ? slider_automate(slider46, end_touch) :
+  id == 47 ? slider_automate(slider47, end_touch) : id == 48 ? slider_automate(slider48, end_touch) :
+  id == 59 ? slider_automate(slider59, end_touch) : id == 61 ? slider_automate(slider61, end_touch) :
+  id == 62 ? slider_automate(slider62, end_touch) : id == 63 ? slider_automate(slider63, end_touch) :
+  id == 64 ? slider_automate(slider64, end_touch);
 );
 function set_param(id, v) (
   slider(id) = v; auto_slider(id, 1);
@@ -150,12 +156,14 @@ function ui_power_led(x, y, on) local(hit, a0) (
   hit;
 );
 
-// Horizontal slider (30 tall). bip_k > 0: shows (val - 50) * bip_k and fills from the centre detent.
+// Horizontal slider (30 tall). bip_k > 0: shows (val - centre) * bip_k, filled from the centre detent.
+// bip_k == -1: Metal Zone MID FREQ, shown as 240 Hz..4.7 kHz (log sweep of a 0..10 knob).
 function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, bip_k)
   local(ty, norm, new_val, d_norm, now_t, cx, fx) (
   f_label(); c_lab(); u_text_sp(x, y + 1, label, 1.6);
   f_value(); c_bone();
-  bip_k > 0 ? sprintf(#val_str, fmt, (val - 50) * bip_k) : sprintf(#val_str, fmt, val);
+  bip_k > 0 ? sprintf(#val_str, fmt, (val - (min_v + max_v) * 0.5) * bip_k)
+  : bip_k < 0 ? sprintf(#val_str, fmt, 240 * (4700 / 240) ^ (val * 0.1)) : sprintf(#val_str, fmt, val);
   u_text_r(x + w, y, #val_str);
 
   ty = y + 21; new_val = val;
@@ -188,7 +196,7 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
   fx = x + norm * w;
   c_track(); u_rect(x, ty, w, 3);
   bip_k > 0 ? (
-    cx = x + w * (50 - min_v) / (max_v - min_v);
+    cx = x + w * 0.5;
     c_fill(); u_rect(min(cx, fx), ty, max(1, abs(fx - cx)), 3);
     c_det(); u_rect(cx - 0.5, ty - 4, 1, 11);
   ) : ( c_fill(); u_rect(x, ty, max(0, fx - x), 3); );

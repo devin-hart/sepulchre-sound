@@ -113,6 +113,8 @@ function init_core_dsp() (
   bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9); bq_dist_pre_hp = alloc_buf(9);
   bq_dist_low = alloc_buf(9); bq_dist_mid = alloc_buf(9); bq_dist_high = alloc_buf(9);
   bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9); bq_dist_tb = alloc_buf(9);
+  bq_dist_p1 = alloc_buf(9); bq_dist_p2 = alloc_buf(9); bq_dist_p3 = alloc_buf(9);
+  bq_dist_p4 = alloc_buf(9); bq_dist_p5 = alloc_buf(9); bq_dist_p6 = alloc_buf(9);
   // 8th-order (4-stage) steep oversampling filters for up and down conversion
   bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
   bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
@@ -120,7 +122,7 @@ function init_core_dsp() (
   dist_slew_l = 0.0; dist_slew_r = 0.0;
   dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = 1.0; dist_db_s = 60.0; dist_out_s = 1.0; master_out_s = 1.0;
+  in_trim_s = 1.0; dist_mk_s = 0.0; dist_out_s = 1.0; master_out_s = 1.0;
   chorus_mix_s = 0.0; delay_mix_s = 0.0; reverb_mix_s = 0.0;
   meter_in_peak = 0.0; meter_dist_peak = 0.0; meter_out_peak = 0.0;
 );
@@ -134,7 +136,7 @@ function reset_core_state() (
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dist_slew_l = 0.0; dist_slew_r = 0.0; dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = in_trim_t; dist_db_s = dist_db_t; dist_out_s = dist_out_t; master_out_s = master_out_t;
+  in_trim_s = in_trim_t; dist_mk_s = dist_mk_t; dist_out_s = dist_out_t; master_out_s = master_out_t;
 );
 
 function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_fc) (
@@ -154,7 +156,11 @@ function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_
   gate_open_gain_c = exp(-1.0 / (0.003 * srate));
   gate_rel_gain_c = exp(-1.0 / (0.035 * srate));
 
-  // Distortion coefficients now live in update_dist_coeffs() (sepulchre_dsp_dist.jsfx-inc)
+  // Pre-EQ (Input column): applied to every pedal's input
+  bq_lshelf(bq_dist_low, 160.0, (slider13 - 50.0) * 0.24);
+  bq_peak(bq_dist_mid, 850.0, 1.1, (slider14 - 50.0) * 0.28);
+  bq_hshelf(bq_dist_high, 2600.0, (slider15 - 50.0) * 0.24);
+  // Pedal coefficients live in update_dist_coeffs() (sepulchre_dsp_dist.jsfx-inc)
 );
 
 function proc_input_gate() local(det_l, det_r, det, target_g) (
@@ -187,4 +193,6 @@ function proc_input_gate() local(det_l, det_r, det, target_g) (
     );
     spl0 *= gate_gain; spl1 *= gate_gain;
   ) : ( gate_gain = 1.0; );
+  spl0 = bq_proc_l(bq_dist_high, bq_proc_l(bq_dist_mid, bq_proc_l(bq_dist_low, spl0)));
+  spl1 = bq_proc_r(bq_dist_high, bq_proc_r(bq_dist_mid, bq_proc_r(bq_dist_low, spl1)));
 );

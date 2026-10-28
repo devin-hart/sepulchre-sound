@@ -31,6 +31,7 @@ function init_amp_cab_dsp() (
   ir_bpos = 0;
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
+  grit_phase = 0.0; grit_hl = 0.0; grit_hr = 0.0;
 );
 
 function reset_amp_cab_state() (
@@ -43,6 +44,7 @@ function reset_amp_cab_state() (
   ir_bpos = 0;
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
+  grit_phase = 0.0; grit_hl = 0.0; grit_hr = 0.0;
 );
 
 // Called on one-shot ir_reload_req from @init / @slider / @gfx (Fixes R2-6 & R3-1)
@@ -153,7 +155,7 @@ function proc_amp_stage(x, mode) (
   );
 );
 
-function proc_cab_master() local(l, r, t, bp2, dc_l, dc_r_out) (
+function proc_cab_master() local(l, r, t, bp2, dc_l, dc_r_out, grit, steps) (
   l = spl0; r = spl1;
 
   // Amp Stage (0=Off, 1=Tube Head, 2=Solid-State) + post-amp DC blocker
@@ -199,6 +201,19 @@ function proc_cab_master() local(l, r, t, bp2, dc_l, dc_r_out) (
       l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
       l *= cab_comp_lin; r *= cab_comp_lin;
     );
+  );
+
+  // Lo-Fi Grit (Output column): sample-hold + quantize, referenced to a 0.35 peak signal
+  grit = slider16 * 0.01;
+  grit > 0.02 ? (
+    grit_phase += 48000.0 / (1.0 + grit * 5.0) / srate;
+    grit_phase >= 1.0 ? (
+      grit_phase -= floor(grit_phase);
+      steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ^ 2)) / 0.35;
+      grit_hl = floor(l * steps + 0.5) / steps; grit_hr = floor(r * steps + 0.5) / steps;
+    );
+    l = l * (1.0 - grit * 0.65) + grit_hl * grit * 0.65;
+    r = r * (1.0 - grit * 0.65) + grit_hr * grit * 0.65;
   );
 
   l = bq_proc_l(bq_amp_pres, l);
