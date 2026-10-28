@@ -29,6 +29,8 @@ function init_amp_cab_dsp() (
   ir_fft_size = 4096;
   ir_chunk_size = 2048;
   ir_bpos = 0;
+  amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
+  amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
 );
 
 function reset_amp_cab_state() (
@@ -39,12 +41,15 @@ function reset_amp_cab_state() (
   memset(ir_blk_cur, 0, 32768);
   memset(ir_blk_last, 0, 32768);
   ir_bpos = 0;
+  amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
+  amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
 );
 
+// Called from @slider / @init ONLY (never from @block audio thread — fixes R2-6)
 function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
   ir_loaded_slot = slot_idx;
   ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
-  slot_idx > 0 ? (
+  slot_idx >= 0 ? (
     fh = file_open(slider53);
     fh > 0 ? (
       file_riff(fh, nch, ir_sr);
@@ -113,7 +118,7 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   bq_hshelf(bq_amp_treb, 2400.0, treb_db);
   bq_peak(bq_amp_pres, 3800.0, 1.25, pres_db);
 
-  // IIR Cabinet Shaper (loosened upper-mid/air roll-off per REVIEW.md)
+  // IIR Cabinet Shaper
   bq_hp(bq_cab_hp, 85.0, 0.7071);
   bq_lp(bq_cab_lp1, 7800.0, 0.7071);
   bq_cab_profile = slider50;
@@ -138,34 +143,34 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   );
 
   master_out_t = db2lin(slider51);
-  tmp_ir = floor(slider53 + 0.001);
-  tmp_ir != ir_loaded_slot ? load_ir_slot(tmp_ir);
 );
 
 function proc_amp_stage(x, mode) (
-  mode == 1 ? ( // Tube Head: asymmetric cathode/plate saturation (unity-calibrated)
+  mode == 1 ? ( // Tube Head: asymmetric cathode/plate saturation
     (x >= 0.0 ? soft_tanh(x * 1.45) : (0.85 * soft_tanh(x * 1.70))) * 0.56;
-  ) : ( // Solid-State Combo: MOSFET crisp rail clip (unity-calibrated)
+  ) : ( // Solid-State Combo: MOSFET crisp rail clip
     (clamp(x * 1.35, -0.82, 0.82) * 0.65 + 0.35 * soft_tanh(x * 1.85)) * 0.56;
   );
 );
 
-function proc_cab_master() local(l, r, t, bp2) (
+function proc_cab_master() local(l, r, t, bp2, dc_l, dc_r_out) (
   l = spl0; r = spl1;
 
-  // Amp Stage (0=Off, 1=Tube Head, 2=Solid-State)
+  // Amp Stage (0=Off, 1=Tube Head, 2=Solid-State) + post-amp DC blocker
   slider54 > 0.5 ? (
     l = bq_proc_l(bq_amp_hp, l); r = bq_proc_r(bq_amp_hp, r);
     l = proc_amp_stage(l, slider54);
     r = proc_amp_stage(r, slider54);
+    dc_l = l - amp_dc_x1_l + dc_r * amp_dc_y1_l; amp_dc_x1_l = l; amp_dc_y1_l = dc_l; l = dc_l;
+    dc_r_out = r - amp_dc_x1_r + dc_r * amp_dc_y1_r; amp_dc_x1_r = r; amp_dc_y1_r = dc_r_out; r = dc_r_out;
     l = bq_proc_l(bq_amp_bass, l); r = bq_proc_r(bq_amp_bass, r);
     l = bq_proc_l(bq_amp_mid, l);  r = bq_proc_r(bq_amp_mid, r);
     l = bq_proc_l(bq_amp_treb, l); r = bq_proc_r(bq_amp_treb, r);
   );
 
-  // Cabinet: External WAV IR Convolution if selected & loaded, else IIR Cabinet network
+  // Cabinet: External WAV IR Convolution when slider52 (IR Mode) == 1, else IIR Cabinet network (Fixes R2-4)
   slider49 > 0.5 ? (
-    slider53 > 0.5 && ir_filter_len > 0 ? (
+    slider52 > 0.5 && ir_filter_len > 0 ? (
       ir_bpos >= ir_chunk_size ? (
         t = ir_blk_last; ir_blk_last = ir_blk_cur; ir_blk_cur = t;
         memset(ir_blk_cur + ir_chunk_size2, 0, (ir_fft_size - ir_chunk_size) * 2);
@@ -196,7 +201,6 @@ function proc_cab_master() local(l, r, t, bp2) (
     );
   );
 
-  // Presence / Air shaping
   l = bq_proc_l(bq_amp_pres, l);
   r = bq_proc_r(bq_amp_pres, r);
 
@@ -204,7 +208,6 @@ function proc_cab_master() local(l, r, t, bp2) (
   l *= master_out_s;
   r *= master_out_s;
 
-  // Linear below -6 dBFS, exact -1.0 dBFS (0.89125) ceiling
   spl0 = limit_sample(l, 0.89125);
   spl1 = limit_sample(r, 0.89125);
 

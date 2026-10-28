@@ -216,6 +216,7 @@ function proc_delay() local(en, time_ms, target_del, fb, mod_spl, r_l, r_r, in_l
   r_r = bq_proc_r(bq_delay_lp, bq_proc_r(bq_delay_hp, r_r));
 
   fb = slider33 * 0.01;
+  !en ? fb = min(fb, 0.75); // Clamp feedback on bypass so >=100% self-oscillation decays cleanly (R2-2 fix)
   in_l = en ? spl0 : 0.0;
   in_r = en ? spl1 : 0.0;
   delay_buf_l[delay_wpos] = soft_tanh(in_l + r_l * fb);

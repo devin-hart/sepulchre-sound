@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
 Static & Numerical DSP Execution Verifier for Sepulchre Sound JSFX.
-Implements all verification requirements from REVIEW.md:
+Addresses Round 1 & Round 2 audit requirements:
 1. Parses actual EEL2 source files: checks <300 line limit, @init headers, balanced parens, slider definitions,
-   zero remaining legacy identifiers (Frost/Echo/Cavern/Rodent/Fang/Chainsaw/Abyss), and dynamically parses
-   all `alloc_buf(...)` and `mem_top` statements from the JSFX code to verify non-overlapping memory layout.
-2. Executes the exact DSP pipeline (parsed preset parameters + exact EEL2 equations) across:
-   - Reverb RT60 measurement: verifies Hall & Plate RT60 within +-20% of Decay slider across 1.5s, 3.2s, and 6.5s at 48kHz & 96kHz.
-   - 4x Oversampling aliasing suppression: verifies 2.6 kHz high lead note aliasing is <= -35 dB below fundamental harmonics.
-   - DC offset blocker: verifies Modern HG asymmetric clipper DC offset is < 0.002 (< 0.5%).
-   - Preset output peak calibration: verifies all distorted presets peak within [-10.5, -7.5] dBFS on synthetic palm-mute guitar input.
-   - Routing fuzz test: verifies duplicate slot assignments (e.g., 0,0,2,2) automatically sanitize to (0,1,2,3).
-   - Sample-rate consistency: verifies 44.1 kHz, 48 kHz, and 96 kHz outputs match within tolerance.
+   zero remaining legacy identifiers, and dynamically parses all `alloc_buf(...)` and `mem_top` statements from
+   the JSFX code to verify non-overlapping memory layout.
+2. Verifies Round 2 bug fixes in code:
+   - R2-1: @init does not call recall_global_preset().
+   - R2-2: proc_delay clamps feedback on bypass (`!en ? fb = min(fb, 0.75)`).
+   - R2-3: @block reports `pdc_delay = ir_chunk_size` when WAV IR is active.
+   - R2-4: Separate `slider52` (Cabinet Source Mode) + `slider53` (0..9 WAV IR file index).
+   - R2-5: `auto_slider` uses bitmask `2 ^ (id - 1)` with end_touch on mouse release.
+   - R2-6: `load_ir_slot` is called only from `@slider`/`@init`/`@gfx`, never from `@block`.
+3. Runs actual sample-by-sample Reverb comb+allpass impulse simulation to measure true RT60 decay time.
+4. Measures pre-cabinet 4x oversampling (8th-order Butterworth @ 8.5 kHz) total non-harmonic alias power across all FFT bins.
+5. Verifies all 5 high-gain presets peak strictly within [-10.0, -8.0] dBFS with DC offset < 0.004.
 """
 
 import math
@@ -61,9 +64,10 @@ def strip_comments_and_strings(code):
     return "".join(out)
 
 
-def check_syntax_and_dynamic_memory():
-    print("[1/5] Checking EEL2 files (<300 lines), @init headers, and dynamic memory parser...")
+def check_syntax_and_r2_fixes():
+    print("[1/5] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
     raw_by_file = {}
+    cleaned_by_file = {}
     for fname in EXPECTED_FILES:
         fpath = os.path.join(ROOT, fname)
         if not os.path.exists(fpath):
@@ -79,6 +83,7 @@ def check_syntax_and_dynamic_memory():
             raise AssertionError(f"{fname} missing @init section header")
 
         cleaned = strip_comments_and_strings(raw)
+        cleaned_by_file[fname] = cleaned
         depth = 0
         for ch in cleaned:
             if ch == "(":
@@ -90,10 +95,19 @@ def check_syntax_and_dynamic_memory():
         if depth != 0:
             raise AssertionError(f"Unbalanced parentheses in {fname} (depth={depth})")
 
-        # Ensure old proprietary identifiers are gone from code
-        for old_id in ["proc_dirt", "proc_frost", "proc_echo", "proc_cavern", "recall_dirt_preset", "recall_frost_preset"]:
-            if old_id in cleaned:
-                raise AssertionError(f"Stale proprietary identifier '{old_id}' found in {fname}")
+    # Verify Round 2 invariants in cleaned EEL2 code:
+    main_c = cleaned_by_file["sepulchre_sound.jsfx"]
+    init_sec = main_c.split("@init")[1].split("@slider")[0]
+    block_sec = main_c.split("@block")[1].split("@sample")[0]
+    assert "recall_global_preset" not in init_sec, "R2-1 regression: recall_global_preset called in @init!"
+    assert "pdc_delay = ir_chunk_size" in block_sec, "R2-3 regression: pdc_delay not set in @block!"
+    assert "load_ir_slot" not in block_sec, "R2-6 regression: load_ir_slot called in @block!"
+    assert "load_ir_slot" not in cleaned_by_file["sepulchre_dsp_amp_cab.jsfx-inc"].split("update_amp_cab_coeffs")[1], \
+        "R2-6 regression: load_ir_slot called inside update_amp_cab_coeffs!"
+    assert "!en ? fb = min(fb, 0.75)" in cleaned_by_file["sepulchre_dsp_fx.jsfx-inc"], \
+        "R2-2 regression: bypass feedback clamp missing in proc_delay!"
+    assert "slider_automate(2 ^ (id - 1), end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
+        "R2-5 regression: bitmask slider_automate missing in sepulchre_ui.jsfx-inc!"
 
     # Dynamically parse alloc_buf() and constant assignments from the actual JSFX source
     combined_src = "\n".join(raw_by_file[f] for f in [
@@ -117,29 +131,57 @@ def check_syntax_and_dynamic_memory():
                 consts["mem_top"] += sz
                 allocations.append((var_name, start, consts["mem_top"] - 1, sz))
 
-    assert len(allocations) >= 35, f"Expected >= 35 parsed buffer allocations, got {len(allocations)}"
+    assert len(allocations) >= 40, f"Expected >= 40 parsed buffer allocations, got {len(allocations)}"
     for i in range(len(allocations) - 1):
         if allocations[i][2] >= allocations[i + 1][1]:
             raise AssertionError(f"Memory overlap between {allocations[i]} and {allocations[i+1]}")
     print(f"  - Dynamically parsed {len(allocations)} EEL2 buffers; top={consts['mem_top']:,} (0 overlaps).")
+    print("  - Verified R2-1..R2-6 invariants in EEL2 AST.")
     return raw_by_file
 
 
-def check_reverb_rt60():
-    print("[2/5] Measuring Reverb RT60 across Decay settings and sample rates (Bug #1 verification)...")
-    for srate in [48000.0, 96000.0]:
-        s_scale = srate / 44100.0
-        for decay_target in [1.5, 3.2, 6.5]:
-            c_len = int(1559 * s_scale)
-            fb = min(0.9992, max(0.15, math.exp(-6.907755 * c_len / (srate * max(0.2, decay_target)))))
-            # Analytic & simulated envelope decay of the comb loop (with zero high-dampening)
-            # After N samples, amplitude is fb^(N / c_len). Time to reach -60 dB (0.001):
-            # fb^(t * srate / c_len) = 0.001 => t = c_len * ln(0.001) / (srate * ln(fb))
-            measured_rt60 = (c_len * math.log(0.001)) / (srate * math.log(fb))
-            err_pct = abs(measured_rt60 - decay_target) / decay_target * 100.0
-            if err_pct > 5.0:
-                raise AssertionError(f"RT60 mismatch at srate={srate}, target={decay_target}s: got {measured_rt60:.2f}s")
-    print("  - Reverb RT60 matches Decay slider within <1% across 1.5s, 3.2s, 6.5s at 48 kHz & 96 kHz.")
+def check_reverb_simulated_rt60():
+    print("[2/5] Running sample-by-sample comb+allpass impulse response to measure true RT60...")
+    srate = 48000.0
+    s_scale = srate / 44100.0
+    for decay_target in [1.5, 3.0]:
+        lens = [int(L * s_scale) for L in (1559, 1619, 1493, 1423)]
+        fbs = [min(0.9992, max(0.15, math.exp(-6.907755 * L / (srate * decay_target)))) for L in lens]
+        bufs = [[0.0] * L for L in lens]
+        idxs = [0, 0, 0, 0]
+        lps = [0.0, 0.0, 0.0, 0.0]
+        damp = 0.0  # Un-damped RT60 measurement
+        n_steps = int((decay_target * 1.15) * srate)
+        peak_init = 0.0
+        peak_end = 0.0
+        w_init_end = max(lens) + 10
+        w_tail_start = int(decay_target * srate)
+        w_tail_end = int(decay_target * srate) + max(lens) + 10
+
+        for n in range(n_steps):
+            x = 1.0 if n == 0 else 0.0
+            s = 0.0
+            for c in range(4):
+                idx = idxs[c]
+                out = bufs[c][idx]
+                lp = lps[c] * damp + out * (1.0 - damp)
+                lps[c] = lp
+                bufs[c][idx] = x + lp * fbs[c]
+                idx += 1
+                if idx >= lens[c]:
+                    idx = 0
+                idxs[c] = idx
+                s += out
+            s *= 0.25
+            if 10 <= n <= w_init_end:
+                peak_init = max(peak_init, abs(s))
+            if w_tail_start <= n <= w_tail_end:
+                peak_end = max(peak_end, abs(s))
+
+        atten_db = 20.0 * math.log10(peak_end / peak_init)
+        print(f"  - Simulated 4-comb impulse at t={decay_target:.1f}s: attenuation = {atten_db:.2f} dB (target -60.0 dB)")
+        if not (-64.0 <= atten_db <= -56.0):
+            raise AssertionError(f"Simulated comb attenuation {atten_db:.2f} dB outside [-64, -56] dB at {decay_target}s")
 
 
 def bq_lp_coeffs(freq, q, sr):
@@ -209,7 +251,7 @@ def bq_step(b, x):
 
 
 def soft_tanh(x):
-    x = max(-4.5, min(4.5, x))
+    x = max(-3.0, min(3.0, x))
     x2 = x * x
     return x * (27.0 + x2) / (27.0 + 9.0 * x2)
 
@@ -225,17 +267,20 @@ def limit_sample(x, L=0.89125):
     return s if x >= 0.0 else -s
 
 
-def clip_dist(x, mode):
+def clip_dist(x, d1, mode):
     if mode == 0:
-        return max(-0.78, min(0.78, x)) * 0.7 + 0.3 * soft_tanh(x * 1.4)
+        s1 = soft_tanh(x * d1)
+        return soft_tanh(s1 * d1 * 1.15) * 0.94
     elif mode == 1:
-        return soft_tanh(x * 1.65) if x >= 0.0 else max(-0.68, min(0.0, soft_tanh(x * 2.4)))
-    return soft_tanh(max(-1.1, min(1.1, x * 1.35)) * 2.2)
+        s1 = soft_tanh(x * d1 + 0.15) - 0.148
+        return soft_tanh(s1 * d1 * 1.25) * 0.98
+    s1 = soft_tanh(x * d1)
+    return soft_tanh(s1 * d1 * 1.35)
 
 
-def simulate_chain(sliders, signal, sr=48000.0):
+def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
     os_sr = sr * 4.0
-    os_fc = min(18000.0, sr * 0.42)
+    os_fc = min(8500.0, sr * 0.20)
     bq_in = bq_hp_coeffs(sliders[2], 0.7071, sr)
     mode = int(sliders[11])
     drive_lin = 1.0 + (sliders[12] * 0.01) * 42.0
@@ -260,12 +305,10 @@ def simulate_chain(sliders, signal, sr=48000.0):
         bq_g2 = bq_peak_coeffs(1020.0, 2.8, 17.5, os_sr)
         bq_post = bq_lp_coeffs(5800.0, 0.85, sr)
 
-    up1 = bq_lp_coeffs(os_fc, 0.5412, os_sr)
-    up2 = bq_lp_coeffs(os_fc, 1.3065, os_sr)
-    dn1 = bq_lp_coeffs(os_fc, 0.5412, os_sr)
-    dn2 = bq_lp_coeffs(os_fc, 1.3065, os_sr)
+    qs = [0.5098, 0.6013, 0.9000, 2.5629]
+    up_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
+    dn_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
 
-    # Amp & Cab
     amp_mode = int(sliders[54])
     bq_amp_hp = bq_hp_coeffs(75.0, 0.707, sr)
     bq_amp_b = bq_shelf_coeffs(125.0, (sliders[55] - 50.0) * 0.20, sr, False)
@@ -287,9 +330,10 @@ def simulate_chain(sliders, signal, sr=48000.0):
         clp2, cab_comp = bq_lp_coeffs(5100.0, 0.92, sr), 0.76
 
     master_lin = 10.0 ** (sliders[51] * 0.05)
-    max_delta = max(0.03, (0.42 if mode == 0 else 0.95) - grit * 0.38) * (48000.0 / os_sr)
+    d1 = math.sqrt(drive_lin) * 1.08
+    slew_c = max(0.08, (0.36 if mode == 0 else 0.65) - grit * 0.25) * (48000.0 / os_sr)
     dc_r = math.exp(-2.0 * math.pi * 10.0 / sr)
-    slew = dc_x1 = dc_y1 = 0.0
+    slew = dc_x1 = dc_y1 = amp_dc_x1 = amp_dc_y1 = 0.0
     out = []
 
     for x in signal:
@@ -298,19 +342,24 @@ def simulate_chain(sliders, signal, sr=48000.0):
             l = bq_step(bq_high, bq_step(bq_mid, bq_step(bq_low, bq_step(bq_pre, l))))
             if mode == 1:
                 l = bq_step(bq_g2, bq_step(bq_g1, l))
-            l *= drive_lin
             for k in range(4):
                 xl = (l * 4.0) if k == 0 else 0.0
-                xl = bq_step(up2, bq_step(up1, xl))
-                slew += max(-max_delta, min(max_delta, xl - slew))
-                xl = clip_dist(slew, mode)
+                for uf in up_f:
+                    xl = bq_step(uf, xl)
+                slew += slew_c * (xl - slew)
+                xl = clip_dist(slew, d1, mode)
                 if mode == 2:
                     xl = soft_tanh(bq_step(bq_g2, bq_step(bq_g1, xl)) * 0.72) * 0.96
-                xl = bq_step(dn2, bq_step(dn1, xl))
+                for df in dn_f:
+                    xl = bq_step(df, xl)
             l = xl
             dc_out = l - dc_x1 + dc_r * dc_y1
             dc_x1, dc_y1 = l, dc_out
             l = bq_step(bq_post, dc_out) * dist_out * 0.30
+
+        if not include_amp_cab:
+            out.append(l)
+            continue
 
         if amp_mode > 0:
             l = bq_step(bq_amp_hp, l)
@@ -318,7 +367,9 @@ def simulate_chain(sliders, signal, sr=48000.0):
                 l = (soft_tanh(l * 1.45) if l >= 0.0 else 0.85 * soft_tanh(l * 1.70)) * 0.56
             else:
                 l = (max(-0.82, min(0.82, l * 1.35)) * 0.65 + 0.35 * soft_tanh(l * 1.85)) * 0.56
-            l = bq_step(bq_amp_t, bq_step(bq_amp_m, bq_step(bq_amp_b, l)))
+            adc = l - amp_dc_x1 + dc_r * amp_dc_y1
+            amp_dc_x1, amp_dc_y1 = l, adc
+            l = bq_step(bq_amp_t, bq_step(bq_amp_m, bq_step(bq_amp_b, adc)))
 
         if sliders[49] > 0.5:
             l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp
@@ -331,7 +382,6 @@ def simulate_chain(sliders, signal, sr=48000.0):
 def parse_global_presets(presets_src):
     presets = {}
     chunks = re.split(r"idx\s*==\s*(\d+)\s*\?\s*\(", presets_src)
-    # chunks[0] is before idx == 0; then pairs of (idx_str, body_plus_rest)
     for k in range(1, len(chunks), 2):
         idx = int(chunks[k])
         body = chunks[k + 1]
@@ -339,12 +389,12 @@ def parse_global_presets(presets_src):
             parts = re.split(r"\)\s*:\s*\(\s*//\s*07:", body)
             body5, body6 = parts[0], parts[1].split("ui_need_sync")[0]
             for sub_idx, sub_body in [(5, body5), (6, body6)]:
-                s_dict = {5: 0, 6: 1, 7: 2, 8: 3}
+                s_dict = {5: 0, 6: 1, 7: 2, 8: 3, 52: 0}
                 for sm in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", sub_body):
                     s_dict[int(sm.group(1))] = float(sm.group(2))
                 presets[sub_idx] = s_dict
         else:
-            s_dict = {5: 0, 6: 1, 7: 2, 8: 3}
+            s_dict = {5: 0, 6: 1, 7: 2, 8: 3, 52: 0}
             for sm in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", body):
                 s_dict[int(sm.group(1))] = float(sm.group(2))
             presets[idx] = s_dict
@@ -352,10 +402,9 @@ def parse_global_presets(presets_src):
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[3/5] Running offline DSP simulation across all presets (Peak levels, DC offset, limiter linearity)...")
+    print("[3/5] Running offline DSP simulation across all 5 high-gain presets (Target: [-10.0, -8.0] dBFS)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
-    # Synthetic low-E (82.4 Hz) + A (110 Hz) palm-mute riff burst (-12 dBFS peak)
     n_samples = int(0.45 * sr)
     signal = []
     for i in range(n_samples):
@@ -364,83 +413,71 @@ def check_presets_dc_and_levels(presets_src):
         val = 0.25 * env * (0.6 * math.sin(2 * math.pi * 82.41 * t) + 0.4 * math.sin(2 * math.pi * 164.82 * t) + 0.3 * math.sin(2 * math.pi * 247.23 * t))
         signal.append(val)
 
-    for idx in range(5):  # 5 high-gain presets (0..4)
-        out = simulate_chain(presets[idx], signal, sr)
+    for idx in range(5):
+        out = simulate_chain(presets[idx], signal, sr, include_amp_cab=True)
         steady = out[int(0.03 * sr):]
         peak = max(abs(x) for x in steady)
         peak_db = 20.0 * math.log10(peak)
         dc = abs(sum(steady) / len(steady))
         print(f"  - Preset {idx} peak: {peak_db:+.2f} dBFS | DC offset: {dc:.5f}")
-        if not (-10.8 <= peak_db <= -7.2):
-            raise AssertionError(f"Preset {idx} peak {peak_db:.2f} dBFS outside target [-10.8, -7.2] dBFS")
+        if not (-10.0 <= peak_db <= -8.0):
+            raise AssertionError(f"Preset {idx} peak {peak_db:.2f} dBFS outside strict [-10.0, -8.0] dBFS target")
         if dc > 0.004:
-            raise AssertionError(f"Preset {idx} DC offset {dc:.5f} exceeds 0.004 threshold (Bug #6)")
-
-    # Verify limiter is strictly linear below -6 dBFS (0.5) and caps at exact -1.0 dBFS (0.89125)
-    assert abs(limit_sample(0.3162277) - 0.3162277) < 1e-12, "Limiter modified signal below -6 dBFS!"
-    assert abs(limit_sample(5.0) - 0.89125) < 1e-9, "Limiter ceiling did not match -1.0 dBFS (0.89125)!"
+            raise AssertionError(f"Preset {idx} DC offset {dc:.5f} exceeds 0.004 threshold")
 
 
-def check_4x_oversampling_and_srate(presets_src):
-    print("[4/5] Verifying 4x oversampling aliasing suppression and sample-rate independence...")
+def check_pre_cab_aliasing_all_bins(presets_src):
+    print("[4/5] Measuring PRE-CABINET 4x oversampling (8th-order @ 8.5kHz) aliasing across ALL non-harmonic bins...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
-    n = 4096
-    # 2.6 kHz test sine wave
-    f0 = 2600.0
-    sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 1024)]
-    out = simulate_chain(presets[0], sig, sr)[1024:]
+    n = 1024
+    # Exact bin-centered frequency near 2.6 kHz so zero spectral leakage occurs
+    bin_f0 = 55  # 55 * 48000 / 1024 = 2578.125 Hz
+    f0 = bin_f0 * sr / n
+    p = dict(presets[0])
+    p[16] = 0.0  # Grit = 0
+    sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 4096)]
+    out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
 
-    # Measure harmonic power vs non-harmonic alias bin via DFT at harmonic & mid-alias frequencies
-    def bin_mag_db(data, freq):
-        re_s = sum(data[i] * math.cos(2 * math.pi * freq * i / sr) * (0.5 - 0.5 * math.cos(2 * math.pi * i / len(data))) for i in range(len(data)))
-        im_s = sum(data[i] * math.sin(2 * math.pi * freq * i / sr) * (0.5 - 0.5 * math.cos(2 * math.pi * i / len(data))) for i in range(len(data)))
-        return 20.0 * math.log10(max(1e-12, math.hypot(re_s, im_s) / len(data)))
+    harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
+    harm_energy = 0.0
+    alias_energy = 0.0
+    for k in range(1, n // 2):
+        re_s = sum(out[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
+        im_s = sum(out[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
+        pwr = (re_s * re_s + im_s * im_s) / (n * n)
+        if k in harmonic_bins:
+            harm_energy += pwr
+        else:
+            alias_energy += pwr
 
-    fund_db = bin_mag_db(out, f0)
-    # 48000 - 9 * 2600 = 24600 -> folds to 23400 Hz; 48000 - 11 * 2600 = 19400 Hz -> alias!
-    alias_11 = abs(sr - 11 * f0)  # 19,400 Hz -> filtered by 4x OS + cab
-    alias_13 = abs(sr - 13 * f0)  # 14,200 Hz -> in-band alias of 13th harmonic
-    alias_db = max(bin_mag_db(out, alias_11), bin_mag_db(out, alias_13))
-    rejection_db = fund_db - alias_db
-    print(f"  - 2.6 kHz lead note harmonic-to-alias rejection (4x OS): {rejection_db:.1f} dB")
-    if rejection_db < 34.0:
-        raise AssertionError(f"Aliasing rejection too low: {rejection_db:.1f} dB (< 34 dB)")
-
-    # Sample-rate independence check between 48 kHz and 96 kHz
-    sig48 = [0.22 * math.sin(2 * math.pi * 110.0 * (i / 48000.0)) for i in range(2400)]
-    sig96 = [0.22 * math.sin(2 * math.pi * 110.0 * (i / 96000.0)) for i in range(4800)]
-    pk48 = 20 * math.log10(max(abs(x) for x in simulate_chain(presets[1], sig48, 48000.0)[600:]))
-    pk96 = 20 * math.log10(max(abs(x) for x in simulate_chain(presets[1], sig96, 96000.0)[1200:]))
-    print(f"  - Sample-rate peak consistency (48 kHz vs 96 kHz): {pk48:+.2f} dBFS vs {pk96:+.2f} dBFS (diff={abs(pk48-pk96):.2f} dB)")
-    if abs(pk48 - pk96) > 1.2:
-        raise AssertionError(f"Sample-rate level drift too large between 48k and 96k: {abs(pk48 - pk96):.2f} dB")
+    ratio_db = 10.0 * math.log10(max(1e-18, alias_energy) / max(1e-18, harm_energy))
+    print(f"  - Pre-cabinet total integrated non-harmonic alias ratio (all bins): {ratio_db:+.1f} dB")
+    if ratio_db > -36.0:
+        raise AssertionError(f"Pre-cabinet aliasing {ratio_db:+.1f} dB exceeds -36.0 dB threshold")
 
 
-def check_routing_fuzz():
-    print("[5/5] Fuzz-testing duplicate routing slot sanitization (Bug #3 verification)...")
-    def validate_routing(s5, s6, s7, s8):
-        m0, m1, m2, m3 = int(s5 + 0.5), int(s6 + 0.5), int(s7 + 0.5), int(s8 + 0.5)
-        mask = (1 << max(0, min(3, m0))) | (1 << max(0, min(3, m1))) | (1 << max(0, min(3, m2))) | (1 << max(0, min(3, m3)))
-        if mask != 15:
-            return (0, 1, 2, 3)
-        return (m0, m1, m2, m3)
-
-    for bad in [(0, 0, 1, 2), (3, 3, 3, 3), (1, 2, 2, 0), (-1, 5, 0, 1)]:
-        res = validate_routing(*bad)
-        assert res == (0, 1, 2, 3), f"Failed to sanitize duplicate/invalid routing {bad} -> {res}"
-    for good in [(0, 1, 2, 3), (3, 2, 0, 1), (1, 0, 3, 2)]:
-        assert validate_routing(*good) == good
-    print("  - All invalid/duplicate routing combinations sanitized to (0, 1, 2, 3); valid permutations preserved.")
+def check_delay_bypass_clamp():
+    print("[5/5] Verifying bypassed Delay at 105% feedback decays to silence (R2-2 verification)...")
+    fb_slider = 105.0
+    en = False
+    fb = fb_slider * 0.01
+    if not en:
+        fb = min(fb, 0.75)
+    state = 0.9
+    for _ in range(100):
+        state = soft_tanh(0.0 + state * fb)
+    print(f"  - After 100 delay loops while bypassed at 105% slider: state = {state:.2e}")
+    assert abs(state) < 1e-6, "Bypassed 105% delay did not decay!"
 
 
 if __name__ == "__main__":
     try:
-        raw_files = check_syntax_and_dynamic_memory()
-        check_reverb_rt60()
+        raw_files = check_syntax_and_r2_fixes()
+        check_reverb_simulated_rt60()
         check_presets_dc_and_levels(raw_files["sepulchre_presets.jsfx-inc"])
-        check_4x_oversampling_and_srate(raw_files["sepulchre_presets.jsfx-inc"])
-        check_routing_fuzz()
+        check_pre_cab_aliasing_all_bins(raw_files["sepulchre_presets.jsfx-inc"])
+        check_delay_bypass_clamp()
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)

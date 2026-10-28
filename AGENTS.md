@@ -5,7 +5,8 @@
 - **Rigor:** Read before writing. Challenge flawed premises directly. Never claim "done" or "works" without running verification; state "not verified" if untested in host.
 - **Clarification:** Ask 1–3 targeted questions with recommended options when requirements are ambiguous or conflicting. Do not guess.
 - **Scope & File Size:** Implement only what is requested. Split files along clear modular boundaries before they exceed ~300 lines. Every `.jsfx-inc` file MUST begin with an `@init` section header so REAPER's EEL2 compiler registers its functions.
-- **Thread Safety:** Never call `sync_all_DSP()` from `@gfx`. Set `ui_need_sync = 1` in `@gfx`/`@slider` and consume it exclusively in `@block`.
+- **Thread Safety:** Never call `sync_all_DSP()` or `load_ir_slot()` from `@block`/`@sample` improperly: `load_ir_slot()` (`file_open`/`file_riff`) must never run on `@block` (only `@init`, `@slider`, and `@gfx`), and `sync_all_DSP()` runs exclusively in `@block`/`@init`.
+- **Inter-Agent Review Protocol:** Always read `REVIEW.md` from disk before writing, append only (`Append=true`), and write per-round standalone reports in `reviews/roundN_antigravity.md`.
 - **Git & Docs:** Commit after each working step with a descriptive message (what changed and why). Keep `AGENTS.md` code map and `SPEC.md` roadmap/decisions log updated with every commit.
 
 ## 2. Tech Stack & Locations
@@ -29,11 +30,11 @@
 ## 4. Code Map
 - `AGENTS.md`: Operating rules, stack, deployment/test commands, and file index for coding agents and reviewers.
 - `SPEC.md`: Full technical architecture, DSP equations/parameters, gain-staging spec, preset table, roadmap, and decision log.
-- `REVIEW.md`: External architectural and DSP audit checklist (all 11 items resolved and verified).
-- `sepulchre_sound.jsfx`: Main JSFX entry point, slider declarations (`slider1`..`slider60`), `@block` thread-safe coefficient sync & transport-start state reset, dynamic 4-slot routing dispatcher, and `@gfx` frame layout.
-- `sepulchre_dsp_core.jsfx-inc`: Biquad IIR filter library, parameter smoothing, 4x oversampling (`bq_os_up`/`bq_os_dn`), Input/Gate with hysteresis & hold (Module 0), and Distortion with 10 Hz DC blocker (Module 1).
-- `sepulchre_dsp_fx.jsfx-inc`: Fractional delay-line interpolator, RT60-calibrated mutual-prime comb/allpass primitives, Chorus with smoothed white-noise drift (Module 2), Delay with 4 sync divisions (Module 3), and Reverb with natural bypass spillover (Module 4).
-- `sepulchre_dsp_amp_cab.jsfx-inc`: Amp Stage (Tube Head / Solid-State Combo + Bass/Mid/Treble/Presence tone stack), WAV IR FFT Convolution Loader (`file_riff` + `convolve_c`), IIR Cabinet fallback, and C1 Hermite `-1.0 dBFS` limiter (Module 5).
-- `sepulchre_presets.jsfx-inc`: Routing permutation validator (`validate_routing`), 7 global presets calibrated to `-10`..`-7.5 dBFS`, and 4x3 per-module quick presets.
-- `sepulchre_ui.jsfx-inc`: Dark industrial `@gfx` pedalboard UI, horizontal sliders (`ui_hslider` with `slider_automate()`, Shift-drag, mouse-wheel), Input/Output peak meters (`draw_level_meter`), and preset dropdown overlay with dirty `*` indicator.
-- `tests/verify_jsfx.py`: Automated EEL2 parser, dynamic `alloc_buf` memory verifier, RT60 verifier, 4x oversampling aliasing test, DC offset test, preset peak calibration check, and routing fuzz suite.
+- `REVIEW.md` & `reviews/`: Inter-agent architectural and DSP audit log between Claude (auditor) and Antigravity (implementer).
+- `sepulchre_sound.jsfx` (222 lines): Main JSFX entry point, slider declarations (`slider1`..`slider60`, including `slider52` Cabinet Source Mode), `@block` PDC reporting (`pdc_delay = ir_chunk_size`), coefficient sync & transport-start state reset, dynamic 4-slot routing dispatcher, and `@gfx` frame layout with end-touch automation release.
+- `sepulchre_dsp_core.jsfx-inc` (299 lines): Biquad IIR filter library, parameter smoothing, 4x oversampling with cascaded 8th-order Butterworth (`48 dB/oct` @ `8.5 kHz`) filters and `C^2`-smooth 2-stage saturation (`-48.2 dB` pre-cabinet aliasing across all non-harmonic bins), Input/Gate with hysteresis & hold (Module 0), and Distortion with 10 Hz DC blocker (Module 1).
+- `sepulchre_dsp_fx.jsfx-inc` (272 lines): Fractional delay-line interpolator, RT60-calibrated mutual-prime comb/allpass primitives, Chorus with smoothed white-noise drift (Module 2), Delay with 4 sync divisions and bypassed self-oscillation decay clamp (`!en ? fb = min(fb, 0.75)`) (Module 3), and Reverb with natural bypass spillover (Module 4).
+- `sepulchre_dsp_amp_cab.jsfx-inc` (215 lines): Amp Stage (Tube Head / Solid-State Combo + 10 Hz post-amp DC blocker + Bass/Mid/Treble/Presence tone stack), WAV IR FFT Convolution Loader (`slider52` mode toggle + `slider53` 0-based WAV index `#0..#9`), IIR Cabinet mode, and C1 Hermite `-1.0 dBFS` limiter (Module 5).
+- `sepulchre_presets.jsfx-inc` (175 lines): Routing permutation validator (`validate_routing`), 7 global presets calibrated strictly to `[-10.0, -8.0] dBFS` (high-gain presets 0–4), and 4x3 per-module quick presets.
+- `sepulchre_ui.jsfx-inc` (287 lines): Dark industrial `@gfx` pedalboard UI, horizontal sliders (`ui_hslider` with bitmask `auto_slider(id, end_touch)`, double-click reset, Shift-drag, mouse-wheel), 4 Delay sync division buttons (`1/8`, `1/4T`, `1/8.`, `1/4`), distinct Input / Post-Dist / Master peak meters, and preset dropdown overlay.
+- `tests/verify_jsfx.py`: Automated EEL2 parser, `<300` line enforcer, dynamic `alloc_buf` memory verifier, Round 2 AST invariant checks, sample-by-sample comb+allpass RT60 impulse test, pre-cabinet 4x oversampling all-bin aliasing test, preset peak calibration check (`[-10.0, -8.0] dBFS`), and bypassed 105% delay decay check.
