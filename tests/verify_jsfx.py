@@ -114,6 +114,12 @@ def check_syntax_and_r2_fixes():
     for fname, cl in cleaned_by_file.items():
         assert "& ~" not in cl, f"Invalid EEL2 unary '~' operator in {fname} ('~' is binary XOR in EEL2)!"
 
+    # Verify all filename:N,<asset> image declarations in sepulchre_sound.jsfx exist on disk
+    for m_fn in re.finditer(r"^filename:\d+,([^\r\n]+)$", raw_by_file["sepulchre_sound.jsfx"], flags=re.MULTILINE):
+        asset_name = m_fn.group(1).strip()
+        asset_path = os.path.join(ROOT, asset_name)
+        assert os.path.exists(asset_path), f"Missing declared UI asset file: {asset_name}"
+
     # Dynamically parse alloc_buf() and constant assignments from the actual JSFX source
     combined_src = "\n".join(raw_by_file[f] for f in [
         "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc", "sepulchre_dsp_amp_cab.jsfx-inc"

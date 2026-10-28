@@ -64,6 +64,10 @@ slider58:64<0,100,1>-Amp Presence / Air (%)
 // Global Template State
 slider60:0<0,6,1{Tight Rhythm,Cold Lead,Doom Wall,Raw 4-Track,Swedish Chainsaw,Freezing Clean,Ambient Swell}>-Global Preset
 
+// UI artwork (must sit next to this file; deploy copies *.jpg / *.png too)
+filename:0,sepulchre_bg.jpg
+filename:1,sepulchre_titles.png
+
 import sepulchre_dsp_core.jsfx-inc
 import sepulchre_dsp_fx.jsfx-inc
 import sepulchre_dsp_amp_cab.jsfx-inc
@@ -138,10 +142,10 @@ dispatch_slot(slider8);
 proc_cab_master();
 
 @gfx 1204 500
-// Resolution-independent necro-monochrome UI (see sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)
+// "Crypt" UI: baked background + title sprites, live widgets (sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)
 ui_begin();
-ui_alpha = 1; c_void(); gfx_rect(0, 0, gfx_w, gfx_h);
-ui_grain();
+ui_load_images();
+ui_draw_background();
 
 ui_mouse_down = mouse_cap & 1;
 ui_mouse_clicked = ui_mouse_down && !ui_last_mouse_down;
