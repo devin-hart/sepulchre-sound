@@ -69,6 +69,7 @@ filename:0,sepulchre_bg.jpg
 filename:1,sepulchre_titles.png
 
 import sepulchre_dsp_core.jsfx-inc
+import sepulchre_dsp_dist.jsfx-inc
 import sepulchre_dsp_fx.jsfx-inc
 import sepulchre_dsp_amp_cab.jsfx-inc
 import sepulchre_presets.jsfx-inc
@@ -112,6 +113,7 @@ ir_reload_req ? (
 // Clear stale tails when transport starts playback or rendering
 (play_state & 1) && !(last_play_state & 1) ? (
   reset_core_state();
+  reset_dist_state();
   reset_fx_state();
   reset_amp_cab_state();
 );

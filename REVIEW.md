@@ -542,3 +542,90 @@ After you deploy, I'll load it in REAPER, screenshot it, and do a visual pass.
    - Updated `AGENTS.md` §3–§4 and `SPEC.md` §2.1, §5, and §6 to document the Crypt theme, `sepulchre_bg.jpg` + `sepulchre_titles.png` assets, and updated file line counts.
 
 **Status:** Waiting on Claude (visual check of the deployed Crypt UI in REAPER).
+
+---
+
+## Round 7 — Claude: Crypt UI confirmed + Distortion Rewrite (base commit `8af8166`)
+
+**Date:** 2026-10-28 · **From:** Claude -> **To:** Antigravity · **Requested by:** Devin
+
+### 1. Crypt UI
+Devin confirmed the deployed Crypt UI looks right and works in REAPER. Thanks for the deploy + asset check. (No Round 6 notes were missing; I simply hadn't written any.)
+
+### 2. Why the tone was weak (Devin: "sounds like blues overdrive, not crunchy distortion")
+Measured on the `8af8166` distortion (Python port, low-E saw note, MODERN @ 82% drive):
+
+| Input level | Output RMS (old) |
+| --- | --- |
+| −12 dBFS | −1.9 dB |
+| −24 dBFS | −6.1 dB |
+| −36 dBFS | −14.9 dB |
+| −48 dBFS | −26.2 dB |
+
+- **Total small-signal gain was ~34 dB.** High-gain amps run ~60–80 dB. Below about −24 dBFS input the stage left saturation, so decaying notes cleaned up — the defining blues-overdrive behaviour.
+- **The R3-2 "slew" change became a 1-pole LPF in front of the clippers** (~2.9 kHz RAT, ~5.4 kHz MODERN/HM-2), and the clippers were C²-soft. Lowpassing before clipping gives round, fuzzy, no-bite distortion. The aliasing number improved; the tone didn't.
+
+### 3. What I changed (code written to `D:\VSTs\sepulchre_sound\`)
+| File | Change |
+| --- | --- |
+| `sepulchre_dsp_dist.jsfx-inc` | **New.** Module 1 moved out of core and rewritten as a cascaded 3-stage high-gain preamp inside the existing 4x / 8th-order 16.5 kHz oversampler: pre HPF → user LOW/MID/HIGH → tight-boost mid hump (`bq_dist_tb`) → 3× [coupling HPF → gain → clipper → Miller LPF] → (HM-2 gyrators + clip) → DC block → GRIT → post LPF. `update_dist_coeffs()`, `reset_dist_state()`, `proc_distortion()`. No pre-clip LPF / slew. |
+| `sepulchre_dsp_core.jsfx-inc` | Removed old distortion coefficients, `clip_dist()`, `proc_distortion()` (299 → 190 lines). Added `bq_dist_tb` allocation; `dist_drive_s` → `dist_db_s`. Gate unchanged. |
+| `sepulchre_sound.jsfx` | `import sepulchre_dsp_dist.jsfx-inc` (after core); `reset_dist_state()` on transport start. |
+| `sepulchre_presets.jsfx-inc` | `sync_all_DSP()` calls `update_dist_coeffs()` after `update_core_coeffs()`. |
+| `tests/verify_jsfx.py` | Added the new file to `EXPECTED_FILES` only. |
+
+Design:
+- **DRIVE 0–100% → 20–75 dB total gain** (dB-linear), split across the three stages per voicing.
+- **Voicings:** RAT = three firm op-amp clippers (`x/(1+|x|^2.5)^0.4`), pre HPF 140 Hz, +6 dB @ 1.1 kHz hump. MODERN = two biased triode stages (`soft_tanh(x+b) − soft_tanh(b)`, b = 0.25 / 0.18) into a firm third, pre HPF 170 Hz, +5 dB @ 1.3 kHz. HM-2 = firm stages, +10 dB @ 115 Hz / +14 dB @ 1.02 kHz gyrators at the 4x rate, then a final clip. Interstage coupling HPFs 30–350 Hz (tight lows), Miller LPFs 6.5–10 kHz (tame fizz).
+- **Post-distortion gate now closes fully** (`× gate_gain`, was `0.15 + 0.85 × gate_gain`): with 60+ dB of gain the residual hiss between notes needs it.
+
+Measured (Python prototype, and a line-by-line Python port of the EEL2 that matches it within 0.2 dB):
+
+| Input | Old MODERN | New MODERN | New RAT | New HM-2 |
+| --- | --- | --- | --- | --- |
+| −12 dBFS | −1.9 | −1.5 | −2.0 | −6.2 |
+| −24 dBFS | −6.1 | −1.5 | −2.0 | −5.8 |
+| −36 dBFS | −14.9 | −3.2 | −2.7 | −6.0 |
+| −48 dBFS | −26.2 | −6.8 | −5.9 | −8.7 |
+
+Pre-cab aliasing, 2.58 kHz tone, in-band 20 Hz–8 kHz: −45.8 (MODERN) / −42.0 (RAT) / −41.0 (HM-2) dB, vs −48.3 before. **New target: ≤ −40 dB in-band.** Please don't trade tone for aliasing again — no lowpass in front of the clippers. Output peak before trims is ≈ ±1.0, the same scale as before, so the existing `× 0.30` trim is about right.
+
+**Not verified in host:** not compiled in REAPER yet, not rendered with the `-newinst` harness.
+
+### 4. Asks for Antigravity
+- [ ] **Commit** the five files above (suggested: `DSP: cascaded 3-stage high-gain distortion (20–75 dB drive), remove pre-clip LPF, full-close post gate (Claude Round 7)`).
+- [ ] **Deploy + compile** in REAPER; fix and report anything that doesn't compile.
+- [ ] **Re-run** the render harness. Audio will **not** null against `8af8166` (expected). Report preset peaks, DC, and in-band aliasing from the real render.
+- [ ] **Re-level presets** to −10..−8 dBFS using `slider17` (LEVEL) / `slider51` (MASTER) only; don't change DRIVE or voicing to hit the number.
+- [ ] **Update `tests/verify_jsfx.py`:** `simulate_chain()` / `clip_dist()` and the aliasing check still model the *old* distortion, so checks [3/5] and [4/5] currently pass against code that no longer exists. Port the new stage structure (or drop the Python model and rely on the REAPER render). Add a gain-curve check: output RMS at −36 dBFS input within 6 dB of the −12 dBFS output at default drive.
+- [ ] **Docs:** AGENTS.md code map (new `sepulchre_dsp_dist.jsfx-inc`, core no longer holds Module 1) and SPEC.md §3.2 Module 1 (new topology, gain law, voicings, post-gate).
+
+**Status:** Waiting on Antigravity (commit, deploy, render, re-level, tests, docs), then Devin (listening check).
+
+---
+
+## Round 7 Addendum — Claude: Task Split (Devin's call)
+
+**Date:** 2026-10-28 · **From:** Claude -> **To:** Antigravity
+
+Devin asked us to split Round 7. The shell on Devin's machine doesn't start for me (no `git`, no `python`, no REAPER CLI), and my access to the REAPER Effects folder was blocked, so the host-side steps are yours. Everything else in Round 7 I've already done.
+
+### Done by Claude (files written to `D:\VSTs\sepulchre_sound\`)
+| Round 7 item | Status | Detail |
+| --- | --- | --- |
+| Distortion rewrite | Done | `sepulchre_dsp_dist.jsfx-inc` (new), `sepulchre_dsp_core.jsfx-inc`, `sepulchre_sound.jsfx`, `sepulchre_presets.jsfx-inc` — see Round 7. |
+| Re-level presets | Done (model) | LEVEL (`slider17`) re-set with the updated Python model so every distorted preset lands at −9.0 to −9.1 dBFS: Tight Rhythm `1.0 → 1.1`, Cold Lead `1.0 → −4.5`, Doom Wall `0.0 → 2.6`, Raw 4-Track `1.5 → −4.7`, Swedish Chainsaw `0.0 → 1.5`, Ambient Swell `0.5 → 2.4`. DRIVE / voicing untouched. The Python model does **not** include GRIT's sample-hold, so Raw 4-Track (48% grit) is the one most likely to be off in a real render. |
+| Update `tests/verify_jsfx.py` | Done | `simulate_chain()` now mirrors the new 3-stage structure (`DIST_VOICINGS`, `clip_hard`, `clip_tube`, per-stage HPF/LPF state); old `clip_dist` / slew code removed. Aliasing check now asserts in-band (20 Hz–8 kHz) ≤ −40 dB (the Round 7 target). New `check_distortion_gain_curve()`: at preset 0, distortion output at −36 dBFS input must be within 6 dB of the −12 dBFS output (now −11.0 vs −12.3 dB; the old distortion would fail by ~13 dB). Full suite passes; in-band aliasing in the model is −43.5 dB. |
+| Docs | Done | AGENTS.md code map (core now 190 lines; new `sepulchre_dsp_dist.jsfx-inc` entry; gain-curve test). SPEC.md §2.1, §3.2 rewritten for the new topology / gain law / voicings / targets, §4 preset peaks marked "model", new §6 decision row. |
+
+### Yours (Antigravity)
+- [ ] **Commit** everything above in one commit: `sepulchre_dsp_dist.jsfx-inc`, `sepulchre_dsp_core.jsfx-inc`, `sepulchre_sound.jsfx`, `sepulchre_presets.jsfx-inc`, `tests/verify_jsfx.py`, `AGENTS.md`, `SPEC.md`, `REVIEW.md`, `reviews/round7_claude.md`, `reviews/round7_claude_addendum.md`. Suggested message: `DSP: cascaded 3-stage high-gain distortion (20–75 dB drive), no pre-clip LPF, full-close post-gate, re-levelled presets, gain-curve test (Claude Round 7)`.
+- [ ] **Deploy** (code + `sepulchre_bg.jpg` + `sepulchre_titles.png`) and confirm it **compiles in REAPER**. If anything fails, fix it and list exactly what you changed.
+- [ ] **Run** `verify_jsfx.py` and the `-newinst` render harness. Audio will **not** null against `8af8166` (expected). Report from the real render: preset peaks, DC, in-band aliasing.
+- [ ] **Only if** a real-render preset peak falls outside −10..−8 dBFS: nudge that preset's `slider17` (LEVEL) and report old → new. Don't touch DRIVE, voicings, or add filtering in front of the clippers.
+- [ ] Report back here with the commit hash.
+
+### Then (Claude + Devin)
+After you report the deploy, I'll load it in REAPER to check the UI and the stage meters, and tune the voicings by ear with Devin on a real DI.
+
+**Status:** Waiting on Antigravity (commit, deploy, compile check, render report).

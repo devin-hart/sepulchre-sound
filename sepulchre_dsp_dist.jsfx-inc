@@ -1,0 +1,143 @@
+// sepulchre_dsp_dist.jsfx-inc
+// Module 1: Distortion — cascaded 3-stage high-gain preamp, 4x oversampled.
+//   pre HPF (tighten) -> user LOW/MID/HIGH -> tight-boost mid hump ->
+//   [ coupling HPF -> gain -> clipper -> Miller LPF ] x 3 -> (HM-2 post gyrators + clip) -> DC block -> GRIT -> post LPF
+// DRIVE 0..100% maps to 20..75 dB of total small-signal gain, split across the three stages per voicing.
+// Uses biquads allocated in init_core_dsp(): bq_dist_pre_hp/low/mid/high/tb/gyr1/gyr2/post, bq_os_up1..4, bq_os_dn1..4.
+@init
+
+// Firm op-amp/diode style clipper (knee sharpness p = 2.5)
+function clip_hard(x) ( x / ((1 + abs(x) ^ 2.5) ^ 0.4); );
+// Asymmetric triode-style clipper (bias shifts the knee; offset removed so silence stays at 0)
+function clip_tube(x, bias) ( soft_tanh(x + bias) - soft_tanh(bias); );
+function hp1_c(fc) ( exp(-2 * $pi * fc / (srate * 4)); );   // 1-pole coeffs at the 4x rate
+function lp1_c(fc) ( exp(-2 * $pi * fc / (srate * 4)); );
+
+function update_dist_coeffs() local(os_sr, os_fc, low_db, mid_db, high_db) (
+  os_sr = srate * 4.0;
+  os_fc = min(16500.0, srate * 0.36);
+  bq_lp_sr(bq_os_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_up2, os_fc, 0.6013, os_sr);
+  bq_lp_sr(bq_os_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_up4, os_fc, 2.5629, os_sr);
+  bq_lp_sr(bq_os_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_dn2, os_fc, 0.6013, os_sr);
+  bq_lp_sr(bq_os_dn3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_dn4, os_fc, 2.5629, os_sr);
+
+  dist_db_t = 20.0 + slider12 * 0.55;          // total gain, dB
+  dist_out_t = db2lin(slider17);
+  low_db = (slider13 - 50.0) * 0.24;
+  mid_db = (slider14 - 50.0) * 0.28;
+  high_db = (slider15 - 50.0) * 0.24;
+  bq_lshelf(bq_dist_low, 160.0, low_db);
+  bq_peak(bq_dist_mid, 850.0, 1.1, mid_db);
+  bq_hshelf(bq_dist_high, 2600.0, high_db);
+
+  // Voicings: pre HPF, tight-boost hump, per-stage (gain share, coupling HPF, Miller LPF, clipper 0=hard 1=tube, bias), post LPF
+  slider11 == 0 ? ( // RAT: three firm op-amp stages, fizzy and mid-forward
+    bq_hp(bq_dist_pre_hp, 140.0, 0.8); bq_peak(bq_dist_tb, 1100.0, 0.8, 6.0);
+    ds1_f = 0.40; ds1_hp = 30;  ds1_lp = 9000; ds1_t = 0; ds1_b = 0;
+    ds2_f = 0.35; ds2_hp = 180; ds2_lp = 7500; ds2_t = 0; ds2_b = 0;
+    ds3_f = 0.25; ds3_hp = 300; ds3_lp = 6500; ds3_t = 0; ds3_b = 0;
+    bq_lp(bq_dist_post, 7000.0, 0.70);
+  ) : slider11 == 1 ? ( // MODERN: two biased triode stages into a firm third, tightest low end
+    bq_hp(bq_dist_pre_hp, 170.0, 0.8); bq_peak(bq_dist_tb, 1300.0, 0.9, 5.0);
+    ds1_f = 0.34; ds1_hp = 40;  ds1_lp = 10000; ds1_t = 1; ds1_b = 0.25;
+    ds2_f = 0.36; ds2_hp = 220; ds2_lp = 8000;  ds2_t = 1; ds2_b = 0.18;
+    ds3_f = 0.30; ds3_hp = 350; ds3_lp = 6500;  ds3_t = 0; ds3_b = 0;
+    bq_lp(bq_dist_post, 7500.0, 0.70);
+  ) : ( // HM-2: firm stages, then the dual-gyrator boost and a final clip
+    bq_hp(bq_dist_pre_hp, 110.0, 0.8); bq_peak(bq_dist_tb, 900.0, 0.8, 3.0);
+    ds1_f = 0.40; ds1_hp = 40;  ds1_lp = 9000; ds1_t = 0; ds1_b = 0;
+    ds2_f = 0.35; ds2_hp = 150; ds2_lp = 8000; ds2_t = 0; ds2_b = 0;
+    ds3_f = 0.25; ds3_hp = 220; ds3_lp = 7000; ds3_t = 1; ds3_b = 0.10;
+    bq_peak_sr(bq_dist_gyr1, 115.0, 2.2, 10.0, os_sr);
+    bq_peak_sr(bq_dist_gyr2, 1020.0, 2.6, 14.0, os_sr);
+    bq_lp(bq_dist_post, 6500.0, 0.70);
+  );
+  ds1_hc = hp1_c(ds1_hp); ds2_hc = hp1_c(ds2_hp); ds3_hc = hp1_c(ds3_hp);
+  ds1_lc = lp1_c(ds1_lp); ds2_lc = lp1_c(ds2_lp); ds3_lc = lp1_c(ds3_lp);
+);
+
+function reset_dist_state() (
+  bq_clear(bq_dist_tb);
+  ds1_hx_l = 0; ds1_hy_l = 0; ds1_ly_l = 0; ds1_hx_r = 0; ds1_hy_r = 0; ds1_ly_r = 0;
+  ds2_hx_l = 0; ds2_hy_l = 0; ds2_ly_l = 0; ds2_hx_r = 0; ds2_hy_r = 0; ds2_ly_r = 0;
+  ds3_hx_l = 0; ds3_hy_l = 0; ds3_ly_l = 0; ds3_hx_r = 0; ds3_hy_r = 0; ds3_ly_r = 0;
+  dist_db_s = dist_db_t;
+);
+
+// One preamp stage, left / right (state kept in globals per stage & channel)
+function stage1_l(x, g) local(h) ( h = (1 + ds1_hc) * 0.5 * (x - ds1_hx_l) + ds1_hc * ds1_hy_l; ds1_hx_l = x; ds1_hy_l = h;
+  h = ds1_t ? clip_tube(h * g, ds1_b) : clip_hard(h * g); ds1_ly_l = h + ds1_lc * (ds1_ly_l - h); );
+function stage1_r(x, g) local(h) ( h = (1 + ds1_hc) * 0.5 * (x - ds1_hx_r) + ds1_hc * ds1_hy_r; ds1_hx_r = x; ds1_hy_r = h;
+  h = ds1_t ? clip_tube(h * g, ds1_b) : clip_hard(h * g); ds1_ly_r = h + ds1_lc * (ds1_ly_r - h); );
+function stage2_l(x, g) local(h) ( h = (1 + ds2_hc) * 0.5 * (x - ds2_hx_l) + ds2_hc * ds2_hy_l; ds2_hx_l = x; ds2_hy_l = h;
+  h = ds2_t ? clip_tube(h * g, ds2_b) : clip_hard(h * g); ds2_ly_l = h + ds2_lc * (ds2_ly_l - h); );
+function stage2_r(x, g) local(h) ( h = (1 + ds2_hc) * 0.5 * (x - ds2_hx_r) + ds2_hc * ds2_hy_r; ds2_hx_r = x; ds2_hy_r = h;
+  h = ds2_t ? clip_tube(h * g, ds2_b) : clip_hard(h * g); ds2_ly_r = h + ds2_lc * (ds2_ly_r - h); );
+function stage3_l(x, g) local(h) ( h = (1 + ds3_hc) * 0.5 * (x - ds3_hx_l) + ds3_hc * ds3_hy_l; ds3_hx_l = x; ds3_hy_l = h;
+  h = ds3_t ? clip_tube(h * g, ds3_b) : clip_hard(h * g); ds3_ly_l = h + ds3_lc * (ds3_ly_l - h); );
+function stage3_r(x, g) local(h) ( h = (1 + ds3_hc) * 0.5 * (x - ds3_hx_r) + ds3_hc * ds3_hy_r; ds3_hx_r = x; ds3_hy_r = h;
+  h = ds3_t ? clip_tube(h * g, ds3_b) : clip_hard(h * g); ds3_ly_r = h + ds3_lc * (ds3_ly_r - h); );
+
+function proc_distortion() local(grit, g1, g2, g3, steps, hold_rate, k, xl, xr, l, r, dc_l, dc_r_out, gk) (
+  dist_db_s = param_smooth_c * dist_db_s + (1.0 - param_smooth_c) * dist_db_t;
+  dist_out_s = param_smooth_c * dist_out_s + (1.0 - param_smooth_c) * dist_out_t;
+
+  slider10 > 0.5 ? (
+    l = bq_proc_l(bq_dist_pre_hp, spl0); r = bq_proc_r(bq_dist_pre_hp, spl1);
+    l = bq_proc_l(bq_dist_low, l);       r = bq_proc_r(bq_dist_low, r);
+    l = bq_proc_l(bq_dist_mid, l);       r = bq_proc_r(bq_dist_mid, r);
+    l = bq_proc_l(bq_dist_high, l);      r = bq_proc_r(bq_dist_high, r);
+    l = bq_proc_l(bq_dist_tb, l);        r = bq_proc_r(bq_dist_tb, r);
+
+    g1 = 10 ^ (dist_db_s * ds1_f * 0.05);
+    g2 = 10 ^ (dist_db_s * ds2_f * 0.05);
+    g3 = 10 ^ (dist_db_s * ds3_f * 0.05);
+
+    k = 0;
+    loop(4,
+      xl = (k == 0) ? (l * 4.0) : 0.0;
+      xr = (k == 0) ? (r * 4.0) : 0.0;
+      xl = bq_proc_l(bq_os_up4, bq_proc_l(bq_os_up3, bq_proc_l(bq_os_up2, bq_proc_l(bq_os_up1, xl))));
+      xr = bq_proc_r(bq_os_up4, bq_proc_r(bq_os_up3, bq_proc_r(bq_os_up2, bq_proc_r(bq_os_up1, xr))));
+
+      xl = stage3_l(stage2_l(stage1_l(xl, g1), g2), g3);
+      xr = stage3_r(stage2_r(stage1_r(xr, g1), g2), g3);
+
+      slider11 == 2 ? (
+        xl = bq_proc_l(bq_dist_gyr2, bq_proc_l(bq_dist_gyr1, xl)); xl = clip_hard(xl * 0.5);
+        xr = bq_proc_r(bq_dist_gyr2, bq_proc_r(bq_dist_gyr1, xr)); xr = clip_hard(xr * 0.5);
+      );
+
+      xl = bq_proc_l(bq_os_dn4, bq_proc_l(bq_os_dn3, bq_proc_l(bq_os_dn2, bq_proc_l(bq_os_dn1, xl))));
+      xr = bq_proc_r(bq_os_dn4, bq_proc_r(bq_os_dn3, bq_proc_r(bq_os_dn2, bq_proc_r(bq_os_dn1, xr))));
+      k += 1;
+    );
+    l = xl; r = xr;
+
+    // 10 Hz 1-pole DC blocker (tube stages are asymmetric)
+    dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
+    dc_r_out = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_r_out; r = dc_r_out;
+
+    grit = slider16 * 0.01;
+    grit > 0.02 ? (
+      hold_rate = 48000.0 / (1.0 + grit * 5.0);
+      dist_hold_phase += hold_rate / srate;
+      dist_hold_phase >= 1.0 ? (
+        dist_hold_phase -= floor(dist_hold_phase);
+        steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ^ 2));
+        dist_hold_l = floor(l * steps + 0.5) / steps;
+        dist_hold_r = floor(r * steps + 0.5) / steps;
+      );
+      l = l * (1.0 - grit * 0.65) + dist_hold_l * (grit * 0.65);
+      r = r * (1.0 - grit * 0.65) + dist_hold_r * (grit * 0.65);
+    );
+
+    l = bq_proc_l(bq_dist_post, l);
+    r = bq_proc_r(bq_dist_post, r);
+    // Post-gate: with 60+ dB of gain the hiss between notes must close fully, keyed from the input gate
+    gk = slider4 > 0.5 ? gate_gain : 1.0;
+    spl0 = l * dist_out_s * 0.30 * gk;
+    spl1 = r * dist_out_s * 0.30 * gk;
+  );
+  meter_dist_peak = max(meter_dist_peak * meter_decay_c, max(abs(spl0), abs(spl1)));
+);

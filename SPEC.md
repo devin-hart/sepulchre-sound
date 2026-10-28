@@ -10,7 +10,7 @@
 ### 2.1 File Modularization (<300 Lines per File)
 REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular `.jsfx-inc` headers (each beginning with `@init` and strictly under 300 lines):
 1. `sepulchre_sound.jsfx` (160 lines) — Slider declarations (`slider1`..`slider60`, including `slider52` Cabinet Source Mode), `filename:0,sepulchre_bg.jpg` and `filename:1,sepulchre_titles.png` asset declarations, `@init`/`@slider`/`@block`/`@sample`/`@gfx 1204 500` lifecycle sections, PDC convolution latency reporting (`pdc_delay = ir_chunk_size`), `ir_reload_req` handler, transport-start state clearing, thread-safe `@block` coefficient updates, and dynamic slot routing.
-2. `sepulchre_dsp_core.jsfx-inc` (299 lines) — RBJ Audio EQ Cookbook biquad filters, C1 Hermite ceiling limiter (`limit_sample`), Module 0 (Input & Hysteresis/Hold Gate), and Module 1 (4x Oversampled Distortion with 8th-order Butterworth filters @ `16.5 kHz`, `C^2` 2-stage saturation, and 10 Hz DC blocker).
+2. `sepulchre_dsp_core.jsfx-inc` (190 lines) — RBJ Audio EQ Cookbook biquad filters, C1 Hermite ceiling limiter (`limit_sample`), core buffer allocation, and Module 0 (Input & Hysteresis/Hold Gate). Module 1 (Distortion) lives in `sepulchre_dsp_dist.jsfx-inc` (143 lines, imported directly after core).
 3. `sepulchre_dsp_fx.jsfx-inc` (274 lines) — Fractional linear-interpolated ring buffers (`buf_read_interp`), RT60-calibrated damped comb filters (`comb_proc`), Schroeder allpass diffusers (`allpass_proc`), Module 2 (Chorus), Module 3 (Delay with bypassed self-oscillation decay clamp `!en ? fb = min(fb, 0.75)`), and Module 4 (Reverb) with continuous bypass spillover.
 4. `sepulchre_dsp_amp_cab.jsfx-inc` (215 lines) — Module 5: Tube / Solid-State Amp stage + 10 Hz post-amp DC blocker + 4-band tone stack (Bass, Mid, Treble, Presence/Air), overlap-add FFT WAV IR convolution engine (`slider52` mode toggle + `slider53` 0-based WAV index `#0..#9`), 3-profile IIR Cabinet mode, and master output stage.
 5. `sepulchre_presets.jsfx-inc` (115 lines) — Bitmask routing validator (`validate_routing`), WAV IR name lookup table (`get_ir_slot_name`), and parameter tables for 7 global presets (calibrated strictly to `[-10.0, -8.0] dBFS`).
@@ -47,11 +47,16 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular 
 - **Pre-Cut HPF:** 12 dB/oct Butterworth high-pass (`40`–`180 Hz`, `slider2`).
 - **Noise Gate:** `180 Hz` detector HPF (`bq_gate_det`) into peak envelope follower (`1.5 ms` attack, `45 ms` release), **5 dB hysteresis** (`gate_thresh_open` vs `gate_thresh_close`), **25 ms hold counter** (`gate_hold_samples`), `3 ms` open / `35 ms` exponential release, plus post-distortion hiss reduction keyed from `gate_gain`.
 
-### 3.2 Module 1 — 4x Oversampled Distortion
-- **Pre-EQ:** Low Shelf (`160 Hz`), Mid Peak (`850 Hz`, `Q=1.1`), High Shelf (`2.6 kHz`), each `±12 dB`.
-- **4x Oversampling:** Zero-stuffing 4x upsampler filtered by cascaded **8th-order Butterworth (`48 dB/oct` @ `16.5 kHz`, `Q = 0.5098, 0.6013, 0.9000, 2.5629`)** low-pass (`bq_os_up1..4`) → 1-pole OP07 bandwidth/slew filter + `C^2`-smooth 2-stage rational saturation (`soft_tanh` clamped at `±3.0` where $f'(\pm 3) = f''(\pm 3) = 0$) + (in HM-2 mode) dual-gyrator resonators at `4 * srate` → 8th-order Butterworth anti-aliasing filter (`bq_os_dn1..4`) and 4:1 decimation (**`-47.76 dB` across all non-harmonic bins `0–24 kHz`, `-48.39 dB` in `20 Hz–8 kHz`, and flat passband: `-0.01 dB` @ `10 kHz`, `-0.04 dB` @ `12 kHz`, `-4.06 dB` @ `16 kHz`**).
-- **DC Blocker:** 10 Hz 1-pole high-pass (`dc_r = exp(-2*pi*10/srate)`) immediately after decimation eliminates asymmetric clipping DC offset (`< 0.0003`).
-- **Modes (`slider11`):** `0 = RAT` (symmetric 2-stage clip + slew LPF `2.4`–`6.4 kHz`), `1 = MODERN HG` (tight `155 Hz` HPF, `420 Hz` scoop, `2.2 kHz` bite, asymmetric 2-stage clip), `2 = HM-2` (`115 Hz` + `1020 Hz` dual gyrators between saturation stages).
+### 3.2 Module 1 — Cascaded 3-Stage High-Gain Distortion (4x Oversampled) — `sepulchre_dsp_dist.jsfx-inc`
+- **Signal path:** pre HPF (voicing) → user Pre-EQ (Low Shelf `160 Hz`, Mid Peak `850 Hz Q=1.1`, High Shelf `2.6 kHz`, each ±12 dB) → tight-boost mid hump (`bq_dist_tb`) → 4x upsample (8th-order Butterworth @ `16.5 kHz`) → 3 × [1-pole coupling HPF → gain → clipper → 1-pole "Miller" LPF] → (HM-2: `+10 dB @ 115 Hz` / `+14 dB @ 1.02 kHz` gyrators at `4 * srate` → final clip) → 8th-order anti-alias + 4:1 decimation → 10 Hz DC blocker → GRIT (sample-hold/quantize) → post LPF → LEVEL × 0.30 × post-gate.
+- **Gain law:** DRIVE `0–100%` → `20–75 dB` total small-signal gain (dB-linear, `dist_db_t = 20 + 0.55 * drive`), smoothed in dB and split across the three stages by voicing (≈ 40/35/25 % or 34/36/30 %).
+- **Clippers:** firm op-amp/diode `x / (1 + |x|^2.5)^0.4`; asymmetric triode `soft_tanh(x + b) − soft_tanh(b)`.
+- **Voicings (`slider11`):**
+  - `0 = RAT` — pre HPF `140 Hz`, hump `+6 dB @ 1.1 kHz Q 0.8`, three firm stages (coupling HPF `30 / 180 / 300 Hz`, LPF `9 / 7.5 / 6.5 kHz`), post LPF `7 kHz`.
+  - `1 = MODERN` — pre HPF `170 Hz`, hump `+5 dB @ 1.3 kHz Q 0.9`, two triode stages (bias `0.25 / 0.18`) into a firm third (HPF `40 / 220 / 350 Hz`, LPF `10 / 8 / 6.5 kHz`), post LPF `7.5 kHz`.
+  - `2 = HM-2` — pre HPF `110 Hz`, hump `+3 dB @ 900 Hz`, firm / firm / triode stages (HPF `40 / 150 / 220 Hz`, LPF `9 / 8 / 7 kHz`), post gyrators + clip, post LPF `6.5 kHz`.
+- **Behaviour targets (Round 7):** output stays saturated as notes decay — distortion output RMS at −36 dBFS input within 6 dB of the −12 dBFS output (guarded by `check_distortion_gain_curve`). Pre-cabinet in-band (`20 Hz–8 kHz`) aliasing ≤ −40 dB. **No lowpass in front of the clippers.**
+- **Post-gate:** output multiplied by the input gate's `gate_gain` (closes fully; was `0.15 + 0.85 × gate_gain`).
 
 ### 3.3 Module 2 — Chorus
 - **Bypass Spillover:** Buffer and LFO run continuously; bypass smoothly crossfades `chorus_mix_s` to `0.0`.
@@ -78,11 +83,11 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular 
 
 | # | Preset Name | Distortion | Amp Stage | Chorus | Delay | Reverb | Cab / Peak |
 | :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 0 | **01: TIGHT RHYTHM** | Modern HG (82%) | Tube Head | Bypass | Bypass | Hall (15%) | 4x12 (`-9.76 dBFS`) |
-| 1 | **02: COLD LEAD** | RAT (76%) | Tube Head | Analog BBD (36%) | Tape 390ms (28%) | Plate (24%) | 2x12 (`-9.20 dBFS`) |
-| 2 | **03: DOOM WALL** | HM-2 (84%) | Tube Head | Dimension (28%) | Tape 520ms (28%) | Ambient (34%) | Damped (`-9.24 dBFS`) |
-| 3 | **04: RAW 4-TRACK** | RAT (80%, 48% Grit) | Solid-State | Bypass | Tape 140ms (18%) | Bypass | 2x12 (`-9.38 dBFS`) |
-| 4 | **05: SWEDISH CHAINSAW** | HM-2 (88%) | Solid-State | Bypass | Bypass | Plate (14%) | 4x12 (`-9.53 dBFS`) |
+| 0 | **01: TIGHT RHYTHM** | Modern HG (82%) | Tube Head | Bypass | Bypass | Hall (15%) | 4x12 (model `-9.07 dBFS`) |
+| 1 | **02: COLD LEAD** | RAT (76%) | Tube Head | Analog BBD (36%) | Tape 390ms (28%) | Plate (24%) | 2x12 (model `-9.01 dBFS`) |
+| 2 | **03: DOOM WALL** | HM-2 (84%) | Tube Head | Dimension (28%) | Tape 520ms (28%) | Ambient (34%) | Damped (model `-9.07 dBFS`) |
+| 3 | **04: RAW 4-TRACK** | RAT (80%, 48% Grit) | Solid-State | Bypass | Tape 140ms (18%) | Bypass | 2x12 (model `-9.00 dBFS`) |
+| 4 | **05: SWEDISH CHAINSAW** | HM-2 (88%) | Solid-State | Bypass | Bypass | Plate (14%) | 4x12 (model `-9.06 dBFS`) |
 | 5 | **06: FREEZING CLEAN** | Bypass (+3.5 dB In) | Tube Head | Analog BBD (48%) | Digital 440ms (32%) | Hall (34%) | 2x12 |
 | 6 | **07: AMBIENT SWELL** | RAT (68%) | Tube Head | Dimension (40%) | Tape 580ms (38%) | Ambient (46%) | Damped |
 
@@ -113,3 +118,4 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports six modular 
 | 2026-10-28 | Defer UI coefficient recalculation to `@block` (`ui_need_sync`) and call `auto_slider(id, end_touch)` on user edits | Prevents audio-thread/UI-thread race conditions on biquad coefficients and records touch/latch DAW automation with proper bitmask/symbol and end-touch release. |
 | 2026-10-28 | Upgrade 4x oversampler to 8th-order Butterworth (`16.5 kHz`) + `C^2` 2-stage saturation (`soft_tanh` clamped at `±3.0`) | Preserves full `10–16 kHz` passband for WAV IRs and Presence/Air while achieving `-48.39 dB` (`20 Hz–8 kHz`) and `-47.76 dB` (`0–24 kHz`) pre-cabinet aliasing. |
 | 2026-10-28 | Adopt Claude's Round 5/6 "Crypt" necro-monochrome UI (`1204×500` scaled via `ui_S`, 2x Retina `sepulchre_bg.jpg` + `sepulchre_titles.png`, numbered stages `I–VIII`, 28% alpha bypass dimming, bipolar `±dB` EQ) | Solves contrast, visual hierarchy, black-metal logo/stone-slab atmosphere, scaling on high-DPI displays, and right-column crowding while removing redundant per-module `P1..P3` preset rows. |
+| 2026-10-28 | Replace 2-stage soft distortion with cascaded 3-stage high-gain preamp (DRIVE → `20–75 dB`), remove pre-clip LPF, full-close post-gate; re-level preset LEVEL values (Claude Round 7) | Old stage had ~34 dB gain and a 2.9–5.4 kHz LPF before the clippers, so notes cleaned up as they decayed (blues-overdrive behaviour). New stage stays saturated to ~−36 dBFS input; in-band aliasing −41 to −46 dB. |

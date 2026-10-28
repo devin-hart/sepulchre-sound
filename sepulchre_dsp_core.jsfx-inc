@@ -1,5 +1,5 @@
 // sepulchre_dsp_core.jsfx-inc
-// Core biquad filters, parameter smoothing, 4x 8th-order oversampling, Input/Gate (Mod 0), and Distortion (Mod 1)
+// Core biquad filters, parameter smoothing, and Input/Gate (Mod 0). Distortion (Mod 1) is in sepulchre_dsp_dist.jsfx-inc
 @init
 
 function alloc_buf(size) local(ptr) (
@@ -112,7 +112,7 @@ function bq_proc_r(b, x) local(y) (
 function init_core_dsp() (
   bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9); bq_dist_pre_hp = alloc_buf(9);
   bq_dist_low = alloc_buf(9); bq_dist_mid = alloc_buf(9); bq_dist_high = alloc_buf(9);
-  bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9);
+  bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9); bq_dist_tb = alloc_buf(9);
   // 8th-order (4-stage) steep oversampling filters for up and down conversion
   bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
   bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
@@ -120,7 +120,7 @@ function init_core_dsp() (
   dist_slew_l = 0.0; dist_slew_r = 0.0;
   dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = 1.0; dist_drive_s = 10.0; dist_out_s = 1.0; master_out_s = 1.0;
+  in_trim_s = 1.0; dist_db_s = 60.0; dist_out_s = 1.0; master_out_s = 1.0;
   chorus_mix_s = 0.0; delay_mix_s = 0.0; reverb_mix_s = 0.0;
   meter_in_peak = 0.0; meter_dist_peak = 0.0; meter_out_peak = 0.0;
 );
@@ -134,7 +134,7 @@ function reset_core_state() (
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dist_slew_l = 0.0; dist_slew_r = 0.0; dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = in_trim_t; dist_drive_s = dist_drive_t; dist_out_s = dist_out_t; master_out_s = master_out_t;
+  in_trim_s = in_trim_t; dist_db_s = dist_db_t; dist_out_s = dist_out_t; master_out_s = master_out_t;
 );
 
 function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_fc) (
@@ -154,39 +154,7 @@ function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_
   gate_open_gain_c = exp(-1.0 / (0.003 * srate));
   gate_rel_gain_c = exp(-1.0 / (0.035 * srate));
 
-  dist_drive_t = 1.0 + (slider12 * 0.01) * 42.0;
-  dist_out_t = db2lin(slider17);
-  low_db = (slider13 - 50.0) * 0.24;
-  mid_db = (slider14 - 50.0) * 0.28;
-  high_db = (slider15 - 50.0) * 0.24;
-
-  bq_lshelf(bq_dist_low, 160.0, low_db);
-  bq_peak(bq_dist_mid, 850.0, 1.1, mid_db);
-  bq_hshelf(bq_dist_high, 2600.0, high_db);
-
-  // 8th-order Butterworth (48 dB/oct) steep oversampling filters at 16.5 kHz (Fixes R3-2)
-  os_sr = srate * 4.0;
-  os_fc = min(16500.0, srate * 0.36);
-  bq_lp_sr(bq_os_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_up2, os_fc, 0.6013, os_sr);
-  bq_lp_sr(bq_os_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_up4, os_fc, 2.5629, os_sr);
-  bq_lp_sr(bq_os_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_dn2, os_fc, 0.6013, os_sr);
-  bq_lp_sr(bq_os_dn3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_dn4, os_fc, 2.5629, os_sr);
-
-  slider11 == 0 ? ( // RAT
-    bq_hp(bq_dist_pre_hp, 110.0, 0.707);
-    slew_fc = max(2400.0, 6400.0 - slider12 * 26.0 - slider16 * 12.0);
-    bq_lp(bq_dist_post, slew_fc, 0.80);
-  ) : slider11 == 1 ? ( // Modern High-Gain
-    bq_hp(bq_dist_pre_hp, 155.0, 0.90);
-    bq_peak(bq_dist_gyr1, 420.0, 1.4, -6.5);
-    bq_peak(bq_dist_gyr2, 2200.0, 1.2, 7.5);
-    bq_lp(bq_dist_post, 6800.0, 0.75);
-  ) : ( // HM-2 (gyrators run inside 4x oversampled loop)
-    bq_hp(bq_dist_pre_hp, 95.0, 0.80);
-    bq_peak_sr(bq_dist_gyr1, 115.0, 2.2, 13.5, os_sr);
-    bq_peak_sr(bq_dist_gyr2, 1020.0, 2.8, 17.5, os_sr);
-    bq_lp(bq_dist_post, 5800.0, 0.85);
-  );
+  // Distortion coefficients now live in update_dist_coeffs() (sepulchre_dsp_dist.jsfx-inc)
 );
 
 function proc_input_gate() local(det_l, det_r, det, target_g) (
@@ -219,81 +187,4 @@ function proc_input_gate() local(det_l, det_r, det, target_g) (
     );
     spl0 *= gate_gain; spl1 *= gate_gain;
   ) : ( gate_gain = 1.0; );
-);
-
-function clip_dist(x, d1, mode) local(s1, y) (
-  mode == 0 ? ( s1 = soft_tanh(x * d1); y = soft_tanh(s1 * d1 * 1.15) * 0.94; )
-  : mode == 1 ? ( s1 = soft_tanh(x * d1 + 0.15) - 0.148; y = soft_tanh(s1 * d1 * 1.25) * 0.98; )
-  : ( s1 = soft_tanh(x * d1); y = soft_tanh(s1 * d1 * 1.35); );
-  y;
-);
-
-function proc_distortion() local(grit, d1, slew_c, steps, hold_rate, k, xl, xr, l, r, dc_l, dc_r_out) (
-  dist_drive_s = param_smooth_c * dist_drive_s + (1.0 - param_smooth_c) * dist_drive_t;
-  dist_out_s = param_smooth_c * dist_out_s + (1.0 - param_smooth_c) * dist_out_t;
-
-  slider10 > 0.5 ? (
-    l = bq_proc_l(bq_dist_pre_hp, spl0); r = bq_proc_r(bq_dist_pre_hp, spl1);
-    l = bq_proc_l(bq_dist_low, l);       r = bq_proc_r(bq_dist_low, r);
-    l = bq_proc_l(bq_dist_mid, l);       r = bq_proc_r(bq_dist_mid, r);
-    l = bq_proc_l(bq_dist_high, l);      r = bq_proc_r(bq_dist_high, r);
-
-    slider11 == 1 ? (
-      l = bq_proc_l(bq_dist_gyr1, l); r = bq_proc_r(bq_dist_gyr1, r);
-      l = bq_proc_l(bq_dist_gyr2, l); r = bq_proc_r(bq_dist_gyr2, r);
-    );
-
-    d1 = sqrt(dist_drive_s) * 1.08;
-    grit = slider16 * 0.01;
-    slew_c = max(0.08, (slider11 == 0 ? 0.36 : 0.65) - grit * 0.25) * (48000.0 / (srate * 4.0));
-
-    // 4x Oversampled C2-smooth 2-stage clipping + HM-2 gyrator loop (8th-order up & down filters)
-    k = 0;
-    loop(4,
-      xl = (k == 0) ? (l * 4.0) : 0.0;
-      xr = (k == 0) ? (r * 4.0) : 0.0;
-      xl = bq_proc_l(bq_os_up4, bq_proc_l(bq_os_up3, bq_proc_l(bq_os_up2, bq_proc_l(bq_os_up1, xl))));
-      xr = bq_proc_r(bq_os_up4, bq_proc_r(bq_os_up3, bq_proc_r(bq_os_up2, bq_proc_r(bq_os_up1, xr))));
-
-      dist_slew_l += slew_c * (xl - dist_slew_l);
-      dist_slew_r += slew_c * (xr - dist_slew_r);
-      xl = clip_dist(dist_slew_l, d1, slider11);
-      xr = clip_dist(dist_slew_r, d1, slider11);
-
-      slider11 == 2 ? (
-        xl = bq_proc_l(bq_dist_gyr1, xl); xr = bq_proc_r(bq_dist_gyr1, xr);
-        xl = bq_proc_l(bq_dist_gyr2, xl); xr = bq_proc_r(bq_dist_gyr2, xr);
-        xl = soft_tanh(xl * 0.72) * 0.96;
-        xr = soft_tanh(xr * 0.72) * 0.96;
-      );
-
-      xl = bq_proc_l(bq_os_dn4, bq_proc_l(bq_os_dn3, bq_proc_l(bq_os_dn2, bq_proc_l(bq_os_dn1, xl))));
-      xr = bq_proc_r(bq_os_dn4, bq_proc_r(bq_os_dn3, bq_proc_r(bq_os_dn2, bq_proc_r(bq_os_dn1, xr))));
-      k += 1;
-    );
-    l = xl; r = xr;
-
-    // 10 Hz 1-pole DC blocker
-    dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
-    dc_r_out = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_r_out; r = dc_r_out;
-
-    grit > 0.02 ? (
-      hold_rate = 48000.0 / (1.0 + grit * 5.0);
-      dist_hold_phase += hold_rate / srate;
-      dist_hold_phase >= 1.0 ? (
-        dist_hold_phase -= floor(dist_hold_phase);
-        steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ^ 2));
-        dist_hold_l = floor(l * steps + 0.5) / steps;
-        dist_hold_r = floor(r * steps + 0.5) / steps;
-      );
-      l = l * (1.0 - grit * 0.65) + dist_hold_l * (grit * 0.65);
-      r = r * (1.0 - grit * 0.65) + dist_hold_r * (grit * 0.65);
-    );
-
-    l = bq_proc_l(bq_dist_post, l);
-    r = bq_proc_r(bq_dist_post, r);
-    spl0 = l * dist_out_s * 0.30 * (slider4 > 0.5 ? (0.15 + 0.85 * gate_gain) : 1.0);
-    spl1 = r * dist_out_s * 0.30 * (slider4 > 0.5 ? (0.15 + 0.85 * gate_gain) : 1.0);
-  );
-  meter_dist_peak = max(meter_dist_peak * meter_decay_c, max(abs(spl0), abs(spl1)));
 );

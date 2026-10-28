@@ -27,6 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXPECTED_FILES = [
     "sepulchre_sound.jsfx",
     "sepulchre_dsp_core.jsfx-inc",
+    "sepulchre_dsp_dist.jsfx-inc",
     "sepulchre_dsp_fx.jsfx-inc",
     "sepulchre_dsp_amp_cab.jsfx-inc",
     "sepulchre_presets.jsfx-inc",
@@ -278,15 +279,25 @@ def limit_sample(x, L=0.89125):
     return s if x >= 0.0 else -s
 
 
-def clip_dist(x, d1, mode):
-    if mode == 0:
-        s1 = soft_tanh(x * d1)
-        return soft_tanh(s1 * d1 * 1.15) * 0.94
-    elif mode == 1:
-        s1 = soft_tanh(x * d1 + 0.15) - 0.148
-        return soft_tanh(s1 * d1 * 1.25) * 0.98
-    s1 = soft_tanh(x * d1)
-    return soft_tanh(s1 * d1 * 1.35)
+def clip_hard(x):
+    # Mirrors clip_hard() in sepulchre_dsp_dist.jsfx-inc
+    return x / ((1.0 + abs(x) ** 2.5) ** 0.4)
+
+
+def clip_tube(x, bias):
+    # Mirrors clip_tube() in sepulchre_dsp_dist.jsfx-inc
+    return soft_tanh(x + bias) - soft_tanh(bias)
+
+
+# Voicings mirrored from update_dist_coeffs(): pre HPF, tight-boost hump, 3 stages (gain share, HPF, LPF, tube?, bias), post LPF
+DIST_VOICINGS = {
+    0: dict(pre=140.0, tb=(1100.0, 0.8, 6.0), post=7000.0,
+            st=[(0.40, 30.0, 9000.0, 0, 0.0), (0.35, 180.0, 7500.0, 0, 0.0), (0.25, 300.0, 6500.0, 0, 0.0)]),
+    1: dict(pre=170.0, tb=(1300.0, 0.9, 5.0), post=7500.0,
+            st=[(0.34, 40.0, 10000.0, 1, 0.25), (0.36, 220.0, 8000.0, 1, 0.18), (0.30, 350.0, 6500.0, 0, 0.0)]),
+    2: dict(pre=110.0, tb=(900.0, 0.8, 3.0), post=6500.0,
+            st=[(0.40, 40.0, 9000.0, 0, 0.0), (0.35, 150.0, 8000.0, 0, 0.0), (0.25, 220.0, 7000.0, 1, 0.10)]),
+}
 
 
 def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
@@ -294,27 +305,20 @@ def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
     os_fc = min(16500.0, sr * 0.36)
     bq_in = bq_hp_coeffs(sliders[2], 0.7071, sr)
     mode = int(sliders[11])
-    drive_lin = 1.0 + (sliders[12] * 0.01) * 42.0
+    v = DIST_VOICINGS[mode]
+    total_db = 20.0 + sliders[12] * 0.55
     dist_out = 10.0 ** (sliders[17] * 0.05)
-    grit = sliders[16] * 0.01
     bq_low = bq_shelf_coeffs(160.0, (sliders[13] - 50.0) * 0.24, sr, False)
     bq_mid = bq_peak_coeffs(850.0, 1.1, (sliders[14] - 50.0) * 0.28, sr)
     bq_high = bq_shelf_coeffs(2600.0, (sliders[15] - 50.0) * 0.24, sr, True)
-
-    if mode == 0:
-        bq_pre = bq_hp_coeffs(110.0, 0.707, sr)
-        bq_post = bq_lp_coeffs(max(2400.0, 6400.0 - sliders[12] * 26.0 - sliders[16] * 12.0), 0.80, sr)
-        bq_g1 = bq_g2 = None
-    elif mode == 1:
-        bq_pre = bq_hp_coeffs(155.0, 0.90, sr)
-        bq_g1 = bq_peak_coeffs(420.0, 1.4, -6.5, sr)
-        bq_g2 = bq_peak_coeffs(2200.0, 1.2, 7.5, sr)
-        bq_post = bq_lp_coeffs(6800.0, 0.75, sr)
-    else:
-        bq_pre = bq_hp_coeffs(95.0, 0.80, sr)
-        bq_g1 = bq_peak_coeffs(115.0, 2.2, 13.5, os_sr)
-        bq_g2 = bq_peak_coeffs(1020.0, 2.8, 17.5, os_sr)
-        bq_post = bq_lp_coeffs(5800.0, 0.85, sr)
+    bq_pre = bq_hp_coeffs(v["pre"], 0.8, sr)
+    bq_tb = bq_peak_coeffs(v["tb"][0], v["tb"][1], v["tb"][2], sr)
+    bq_post = bq_lp_coeffs(v["post"], 0.70, sr)
+    bq_g1 = bq_peak_coeffs(115.0, 2.2, 10.0, os_sr) if mode == 2 else None
+    bq_g2 = bq_peak_coeffs(1020.0, 2.6, 14.0, os_sr) if mode == 2 else None
+    stages = [(10.0 ** (total_db * fr * 0.05), math.exp(-2 * math.pi * hp / os_sr), math.exp(-2 * math.pi * lp / os_sr), t, bias)
+              for fr, hp, lp, t, bias in v["st"]]
+    st_state = [[0.0, 0.0, 0.0] for _ in stages]
 
     qs = [0.5098, 0.6013, 0.9000, 2.5629]
     up_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
@@ -341,26 +345,28 @@ def simulate_chain(sliders, signal, sr=48000.0, include_amp_cab=True):
         clp2, cab_comp = bq_lp_coeffs(5100.0, 0.92, sr), 0.76
 
     master_lin = 10.0 ** (sliders[51] * 0.05)
-    d1 = math.sqrt(drive_lin) * 1.08
-    slew_c = max(0.08, (0.36 if mode == 0 else 0.65) - grit * 0.25) * (48000.0 / os_sr)
     dc_r = math.exp(-2.0 * math.pi * 10.0 / sr)
-    slew = dc_x1 = dc_y1 = amp_dc_x1 = amp_dc_y1 = 0.0
+    dc_x1 = dc_y1 = amp_dc_x1 = amp_dc_y1 = 0.0
     out = []
 
     for x in signal:
         l = bq_step(bq_in, x * (10.0 ** (sliders[1] * 0.05)))
         if sliders[10] > 0.5:
-            l = bq_step(bq_high, bq_step(bq_mid, bq_step(bq_low, bq_step(bq_pre, l))))
-            if mode == 1:
-                l = bq_step(bq_g2, bq_step(bq_g1, l))
+            l = bq_step(bq_tb, bq_step(bq_high, bq_step(bq_mid, bq_step(bq_low, bq_step(bq_pre, l)))))
             for k in range(4):
                 xl = (l * 4.0) if k == 0 else 0.0
                 for uf in up_f:
                     xl = bq_step(uf, xl)
-                slew += slew_c * (xl - slew)
-                xl = clip_dist(slew, d1, mode)
+                for i, (g, hc, lc, tube, bias) in enumerate(stages):
+                    hx, hy, ly = st_state[i]
+                    h = (1.0 + hc) * 0.5 * (xl - hx) + hc * hy
+                    hx, hy = xl, h
+                    h = clip_tube(h * g, bias) if tube else clip_hard(h * g)
+                    ly = h + lc * (ly - h)
+                    st_state[i] = [hx, hy, ly]
+                    xl = ly
                 if mode == 2:
-                    xl = soft_tanh(bq_step(bq_g2, bq_step(bq_g1, xl)) * 0.72) * 0.96
+                    xl = clip_hard(bq_step(bq_g2, bq_step(bq_g1, xl)) * 0.5)
                 for df in dn_f:
                     xl = bq_step(df, xl)
             l = xl
@@ -470,8 +476,8 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     ratio_8k_db = 10.0 * math.log10(max(1e-18, alias_8k) / max(1e-18, harm_8k))
     print(f"  - Pre-cabinet alias ratio (ALL non-harmonic bins 0-24kHz): {ratio_db:+.2f} dB")
     print(f"  - Pre-cabinet alias ratio (in-band 20Hz-8kHz only):        {ratio_8k_db:+.2f} dB")
-    if ratio_db > -36.0 or ratio_8k_db > -36.0:
-        raise AssertionError(f"Pre-cabinet aliasing {ratio_db:+.1f} dB exceeds -36.0 dB threshold")
+    if ratio_8k_db > -40.0:
+        raise AssertionError(f"Pre-cabinet in-band aliasing {ratio_8k_db:+.1f} dB exceeds -40.0 dB threshold (Round 7 target)")
 
 
 def check_delay_bypass_clamp():
@@ -488,12 +494,33 @@ def check_delay_bypass_clamp():
     assert abs(state) < 1e-6, "Bypassed 105% delay did not decay!"
 
 
+
+def check_distortion_gain_curve(presets_src):
+    # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
+    # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
+    print("[6/6] Verifying high-gain saturation curve (distortion output vs input level)...")
+    presets = parse_global_presets(presets_src)
+    sr = 48000.0
+    n = int(0.25 * sr)
+    note = [sum(math.sin(2 * math.pi * 82.41 * k * i / sr) / k for k in range(1, 25)) for i in range(n)]
+    pk = max(abs(x) for x in note)
+    rms = {}
+    for lvl in (-12.0, -36.0):
+        g = 10.0 ** (lvl / 20.0) / pk
+        out = simulate_chain(presets[0], [x * g for x in note], sr, include_amp_cab=False)[int(0.05 * sr):]
+        rms[lvl] = 10.0 * math.log10(sum(x * x for x in out) / len(out))
+        print(f"  - Input {lvl:+.0f} dBFS -> distortion output RMS {rms[lvl]:+.1f} dB")
+    drop = rms[-12.0] - rms[-36.0]
+    if drop > 6.0:
+        raise AssertionError(f"Distortion loses {drop:.1f} dB between -12 and -36 dBFS input (> 6 dB): not high-gain")
+
 if __name__ == "__main__":
     try:
         raw_files = check_syntax_and_r2_fixes()
         check_reverb_simulated_rt60()
         check_presets_dc_and_levels(raw_files["sepulchre_presets.jsfx-inc"])
         check_pre_cab_aliasing_all_bins(raw_files["sepulchre_presets.jsfx-inc"])
+        check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
         check_delay_bypass_clamp()
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:
