@@ -29,7 +29,7 @@ function mouse_in(x, y, w, h) (
 
 // Click toggle button: returns 1 if clicked on this frame
 function ui_button(x, y, w, h, label, active) local(clicked, tw, th) (
-  clicked = ui_mouse_clicked && mouse_in(x, y, w, h);
+  clicked = ui_mouse_clicked && !ui_dropdown_open && mouse_in(x, y, w, h);
   active ? col_crimson() : col_bg();
   draw_box(x, y, w, h, 1);
   col_steel();
@@ -58,7 +58,7 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, step_v, fmt) local(tr
   track_y = y + 15;
   track_h = 10;
 
-  ui_mouse_clicked && mouse_in(x - 2, track_y - 3, w + 4, track_h + 6) ? (
+  ui_mouse_clicked && !ui_dropdown_open && mouse_in(x - 2, track_y - 3, w + 4, track_h + 6) ? (
     ui_drag_id = id;
   );
 
@@ -180,5 +180,55 @@ function draw_middle_module(mod_id, slot_idx, x, y, w, h) local(inner_x, inner_w
     slider43 = ui_hslider(43, inner_x, cy, inner_w, "PRE-DELAY", slider43, 0, 60, 1, "%d ms"); cy += 42;
     slider44 = ui_hslider(44, inner_x, cy, inner_w, "DAMPENING", slider44, 0, 100, 1, "%d%%"); cy += 42;
     slider45 = ui_hslider(45, inner_x, cy, inner_w, "MIX", slider45, 0, 100, 1, "%d%%");
+  );
+);
+
+function draw_preset_dropdown_bar(x, y, w, h) local(tw, th) (
+  col_bg(); draw_box(x, y, w, h, 1);
+  col_steel(); draw_box(x, y, w, h, 0);
+  col_crimson(); draw_box(x + w - 26, y, 26, h, 1);
+  col_steel(); draw_box(x + w - 26, y, 26, h, 0);
+  col_bone();
+  gfx_x = x + 10; gfx_y = y + 6;
+  gfx_drawstr(get_global_preset_name(slider60));
+  gfx_measurestr("v", tw, th);
+  gfx_x = x + w - 13 - tw * 0.5; gfx_y = y + 5;
+  gfx_drawstr("v");
+  ui_mouse_clicked && mouse_in(x, y, w, h) ? (
+    ui_dropdown_open = !ui_dropdown_open;
+    ui_mouse_clicked = 0;
+  );
+);
+
+function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, num_p, menu_h, hovered) (
+  ui_dropdown_open ? (
+    num_p = 7;
+    menu_h = num_p * row_h;
+    col_chassis(); draw_box(x, y, w, menu_h, 1);
+    col_steel(); draw_box(x, y, w, menu_h, 0);
+    i = 0;
+    loop(num_p,
+      ry = y + i * row_h;
+      hovered = mouse_in(x, ry, w, row_h);
+      i == slider60 ? (
+        col_crimson(); draw_box(x + 1, ry + 1, w - 2, row_h - 2, 1);
+      ) : hovered ? (
+        col_header(); draw_box(x + 1, ry + 1, w - 2, row_h - 2, 1);
+      );
+      col_steel(); gfx_line(x, ry + row_h - 1, x + w - 1, ry + row_h - 1);
+      (i == slider60 || hovered) ? col_bone() : col_dim();
+      gfx_x = x + 10; gfx_y = ry + 6;
+      gfx_drawstr(get_global_preset_name(i));
+      ui_mouse_clicked && hovered ? (
+        recall_global_preset(i);
+        ui_dropdown_open = 0;
+        ui_mouse_clicked = 0;
+      );
+      i += 1;
+    );
+    ui_mouse_clicked ? (
+      ui_dropdown_open = 0;
+      ui_mouse_clicked = 0;
+    );
   );
 );

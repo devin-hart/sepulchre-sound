@@ -3,29 +3,19 @@
 @init
 
 function alloc_buf(size) local(ptr) (
-  ptr = mem_top;
-  mem_top += size;
-  ptr;
+  ptr = mem_top; mem_top += size; ptr;
 );
 
-function db2lin(db) (
-  10.0 ^ (db * 0.05);
-);
-
-function clamp(v, lo, hi) (
-  max(lo, min(hi, v));
-);
+function db2lin(db) ( 10.0 ^ (db * 0.05); );
+function clamp(v, lo, hi) ( max(lo, min(hi, v)); );
 
 function soft_tanh(x) local(x2) (
-  x = clamp(x, -4.5, 4.5);
-  x2 = x * x;
+  x = clamp(x, -4.5, 4.5); x2 = x * x;
   x * (27.0 + x2) / (27.0 + 9.0 * x2);
 );
 
 // Biquad layout: [0]=b0, [1]=b1, [2]=b2, [3]=a1, [4]=a2, [5]=z1L, [6]=z2L, [7]=z1R, [8]=z2R
-function bq_clear(b) (
-  b[5] = 0; b[6] = 0; b[7] = 0; b[8] = 0;
-);
+function bq_clear(b) ( b[5] = 0; b[6] = 0; b[7] = 0; b[8] = 0; );
 
 function bq_lp(b, freq, q) local(w0, cosw, sinw, alpha, a0, inv_a0) (
   freq = clamp(freq, 20.0, srate * 0.46);
@@ -112,20 +102,11 @@ function bq_proc_r(b, x) local(y) (
 );
 
 function init_core_dsp() (
-  bq_in_hp = alloc_buf(9);
-  bq_dirt_pre_hp = alloc_buf(9);
-  bq_dirt_low = alloc_buf(9);
-  bq_dirt_mid = alloc_buf(9);
-  bq_dirt_high = alloc_buf(9);
-  bq_dirt_gyr1 = alloc_buf(9);
-  bq_dirt_gyr2 = alloc_buf(9);
-  bq_dirt_post = alloc_buf(9);
-  bq_cab_hp = alloc_buf(9);
-  bq_cab_lp1 = alloc_buf(9);
-  bq_cab_lp2 = alloc_buf(9);
-  bq_cab_f1 = alloc_buf(9);
-  bq_cab_f2 = alloc_buf(9);
-  bq_cab_f3 = alloc_buf(9);
+  bq_in_hp = alloc_buf(9); bq_dirt_pre_hp = alloc_buf(9);
+  bq_dirt_low = alloc_buf(9); bq_dirt_mid = alloc_buf(9); bq_dirt_high = alloc_buf(9);
+  bq_dirt_gyr1 = alloc_buf(9); bq_dirt_gyr2 = alloc_buf(9); bq_dirt_post = alloc_buf(9);
+  bq_cab_hp = alloc_buf(9); bq_cab_lp1 = alloc_buf(9); bq_cab_lp2 = alloc_buf(9);
+  bq_cab_f1 = alloc_buf(9); bq_cab_f2 = alloc_buf(9); bq_cab_f3 = alloc_buf(9);
   gate_env = 0.0; gate_gain = 0.0;
   dirt_slew_l = 0.0; dirt_slew_r = 0.0;
   dirt_hold_l = 0.0; dirt_hold_r = 0.0; dirt_hold_cnt = 0;
@@ -166,25 +147,28 @@ function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc) (
     bq_lp(bq_dirt_post, 4400.0, 0.9);
   );
 
-  // Cabinet & Master
+  // Cabinet & Master (gain-compensated IIR speaker curves)
   bq_hp(bq_cab_hp, 90.0, 0.7071);
   bq_lp(bq_cab_lp1, 5500.0, 0.7071);
   bq_cab_profile = slider50;
-  bq_cab_profile == 0 ? ( // Raw 4x12 (V30 / SM57 Edge)
-    bq_peak(bq_cab_f1, 135.0, 1.8, 4.5);
-    bq_peak(bq_cab_f2, 650.0, 1.2, -4.0);
-    bq_peak(bq_cab_f3, 2750.0, 1.6, 6.5);
-    bq_lp(bq_cab_lp2, 4800.0, 1.15);
-  ) : bq_cab_profile == 1 ? ( // Cold 2x12 (Grim Practice Combo)
-    bq_hp(bq_cab_f1, 175.0, 1.2);
-    bq_peak(bq_cab_f2, 1150.0, 1.5, 5.5);
-    bq_peak(bq_cab_f3, 3300.0, 1.9, 5.0);
-    bq_lp(bq_cab_lp2, 4600.0, 0.95);
-  ) : ( // Dark Crypt (Damped 4x12)
-    bq_peak(bq_cab_f1, 110.0, 2.1, 6.5);
+  bq_cab_profile == 0 ? ( // 4x12 (V30 / SM57)
+    bq_peak(bq_cab_f1, 135.0, 1.8, 3.0);
+    bq_peak(bq_cab_f2, 650.0, 1.2, -4.5);
+    bq_peak(bq_cab_f3, 2750.0, 1.5, 4.5);
+    bq_lp(bq_cab_lp2, 4800.0, 1.05);
+    cab_comp_lin = 0.62;
+  ) : bq_cab_profile == 1 ? ( // 2x12 (Combo)
+    bq_hp(bq_cab_f1, 175.0, 1.1);
+    bq_peak(bq_cab_f2, 1150.0, 1.4, 4.0);
+    bq_peak(bq_cab_f3, 3300.0, 1.7, 3.5);
+    bq_lp(bq_cab_lp2, 4600.0, 0.90);
+    cab_comp_lin = 0.60;
+  ) : ( // 4x12 (Damped)
+    bq_peak(bq_cab_f1, 110.0, 1.9, 4.5);
     bq_peak(bq_cab_f2, 3000.0, 2.0, -7.5);
-    bq_peak(bq_cab_f3, 1650.0, 1.2, 3.0);
-    bq_lp(bq_cab_lp2, 3900.0, 1.05);
+    bq_peak(bq_cab_f3, 1650.0, 1.2, 2.5);
+    bq_lp(bq_cab_lp2, 3900.0, 1.0);
+    cab_comp_lin = 0.65;
   );
   master_out_lin = db2lin(slider51);
 );
@@ -259,8 +243,8 @@ function proc_dirt() local(grit, max_delta, steps, hold_div, l, r) (
     slider11 == 2 ? (
       l = bq_proc_l(bq_dirt_gyr1, l); r = bq_proc_r(bq_dirt_gyr1, r);
       l = bq_proc_l(bq_dirt_gyr2, l); r = bq_proc_r(bq_dirt_gyr2, r);
-      l = soft_tanh(l * 0.85);
-      r = soft_tanh(r * 0.85);
+      l = soft_tanh(l * 0.65) * 0.72;
+      r = soft_tanh(r * 0.65) * 0.72;
     );
 
     grit > 0.02 ? (
@@ -278,8 +262,9 @@ function proc_dirt() local(grit, max_delta, steps, hold_div, l, r) (
 
     l = bq_proc_l(bq_dirt_post, l);
     r = bq_proc_r(bq_dirt_post, r);
-    spl0 = l * dirt_out_lin * 0.55;
-    spl1 = r * dirt_out_lin * 0.55;
+    // Calibrated -10 dBFS target headroom (0.28 base trim)
+    spl0 = l * dirt_out_lin * 0.28;
+    spl1 = r * dirt_out_lin * 0.28;
   );
 );
 
@@ -292,7 +277,12 @@ function proc_cab_master() local(l, r) (
     l = bq_proc_l(bq_cab_f3, l); r = bq_proc_r(bq_cab_f3, r);
     l = bq_proc_l(bq_cab_lp2, l); r = bq_proc_r(bq_cab_lp2, r);
     l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
+    l *= cab_comp_lin;
+    r *= cab_comp_lin;
   );
-  spl0 = l * master_out_lin;
-  spl1 = r * master_out_lin;
+  l *= master_out_lin;
+  r *= master_out_lin;
+  // Safety ceiling soft-knee limiter at -1.0 dBFS (0.891 linear)
+  spl0 = 0.891 * soft_tanh(l / 0.891);
+  spl1 = 0.891 * soft_tanh(r / 0.891);
 );

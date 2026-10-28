@@ -236,11 +236,19 @@ def check_ui_and_presets():
         raise AssertionError("Rotary knob drawing primitives (gfx_arc/gfx_circle) detected in UI!")
 
     presets_raw = open(os.path.join(ROOT, "sepulchre_presets.jsfx-inc"), "r", encoding="utf-8").read()
-    for p_fn in ["recall_dirt_preset", "recall_frost_preset", "recall_echo_preset", "recall_cavern_preset", "recall_global_preset"]:
+    for p_fn in ["recall_dirt_preset", "recall_frost_preset", "recall_echo_preset", "recall_cavern_preset", "recall_global_preset", "get_global_preset_name"]:
         if p_fn not in presets_raw:
             raise AssertionError(f"Missing preset function: {p_fn}")
 
-    print("  - Confirmed strictly horizontal slider UI (`ui_hslider`) and all 3 global + 4x3 local presets.")
+    for p_name in ["01: TIGHT RHYTHM", "02: COLD LEAD", "03: DOOM WALL", "04: RAW 4-TRACK", "05: SWEDISH CHAINSAW", "06: FREEZING CLEAN", "07: AMBIENT SWELL"]:
+        if p_name not in presets_raw:
+            raise AssertionError(f"Missing global preset label: {p_name}")
+
+    for dd_fn in ["draw_preset_dropdown_bar", "draw_preset_dropdown_menu"]:
+        if dd_fn not in ui_raw:
+            raise AssertionError(f"Missing UI dropdown function: {dd_fn}")
+
+    print("  - Confirmed strictly horizontal slider UI (`ui_hslider`), preset dropdown overlay, and 7 global + 4x3 local presets.")
 
 
 if __name__ == "__main__":
