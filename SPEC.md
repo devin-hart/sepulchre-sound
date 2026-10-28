@@ -21,12 +21,12 @@ Build **Sepulchre Sound**, a native Cockos REAPER JSFX multi-effect pedalboard p
 
 ## 3. Roadmap
 - [x] Initialize Git repository, `AGENTS.md`, and `SPEC.md`.
-- [ ] Implement core DSP & filter library (`sepulchre_dsp_core.jsfx-inc`).
-- [ ] Implement modulation & time-based DSP modules (`sepulchre_dsp_fx.jsfx-inc`).
-- [ ] Implement global & local module preset definitions (`sepulchre_presets.jsfx-inc`).
-- [ ] Implement custom `@gfx` horizontal-slider pedalboard interface (`sepulchre_ui.jsfx-inc`).
-- [ ] Implement main plugin entry and dynamic routing (`sepulchre_sound.jsfx`).
-- [ ] Write and run static syntax + numerical DSP verification suite (`tests/verify_jsfx.py`).
+- [x] Implement core DSP & filter library (`sepulchre_dsp_core.jsfx-inc`).
+- [x] Implement modulation & time-based DSP modules (`sepulchre_dsp_fx.jsfx-inc`).
+- [x] Implement global & local module preset definitions (`sepulchre_presets.jsfx-inc`).
+- [x] Implement custom `@gfx` horizontal-slider pedalboard interface (`sepulchre_ui.jsfx-inc`).
+- [x] Implement main plugin entry and dynamic routing (`sepulchre_sound.jsfx`).
+- [x] Write and run static syntax + numerical DSP verification suite (`tests/verify_jsfx.py`).
 
 ## 4. Decisions Log
 | Date | Decision | Why |

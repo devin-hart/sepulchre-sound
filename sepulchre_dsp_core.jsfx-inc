@@ -1,0 +1,297 @@
+// sepulchre_dsp_core.jsfx-inc
+// Core biquad filters, memory management, Input/Gate (Mod 0), Dirt (Mod 1), and Cabinet/Master (Mod 5)
+
+function alloc_buf(size) local(ptr) (
+  ptr = mem_top;
+  mem_top += size;
+  ptr;
+);
+
+function db2lin(db) (
+  10.0 ^ (db * 0.05);
+);
+
+function clamp(v, lo, hi) (
+  max(lo, min(hi, v));
+);
+
+function soft_tanh(x) local(x2) (
+  x = clamp(x, -4.5, 4.5);
+  x2 = x * x;
+  x * (27.0 + x2) / (27.0 + 9.0 * x2);
+);
+
+// Biquad layout: [0]=b0, [1]=b1, [2]=b2, [3]=a1, [4]=a2, [5]=z1L, [6]=z2L, [7]=z1R, [8]=z2R
+function bq_clear(b) (
+  b[5] = 0; b[6] = 0; b[7] = 0; b[8] = 0;
+);
+
+function bq_lp(b, freq, q) local(w0, cosw, sinw, alpha, a0, inv_a0) (
+  freq = clamp(freq, 20.0, srate * 0.46);
+  w0 = 2.0 * $pi * freq / srate;
+  cosw = cos(w0); sinw = sin(w0);
+  alpha = sinw / (2.0 * max(0.1, q));
+  a0 = 1.0 + alpha; inv_a0 = 1.0 / a0;
+  b[1] = (1.0 - cosw) * inv_a0;
+  b[0] = b[1] * 0.5;
+  b[2] = b[0];
+  b[3] = (-2.0 * cosw) * inv_a0;
+  b[4] = (1.0 - alpha) * inv_a0;
+);
+
+function bq_hp(b, freq, q) local(w0, cosw, sinw, alpha, a0, inv_a0) (
+  freq = clamp(freq, 20.0, srate * 0.46);
+  w0 = 2.0 * $pi * freq / srate;
+  cosw = cos(w0); sinw = sin(w0);
+  alpha = sinw / (2.0 * max(0.1, q));
+  a0 = 1.0 + alpha; inv_a0 = 1.0 / a0;
+  b[0] = (1.0 + cosw) * 0.5 * inv_a0;
+  b[1] = -(1.0 + cosw) * inv_a0;
+  b[2] = b[0];
+  b[3] = (-2.0 * cosw) * inv_a0;
+  b[4] = (1.0 - alpha) * inv_a0;
+);
+
+function bq_peak(b, freq, q, gain_db) local(A, w0, cosw, sinw, alpha, a0, inv_a0) (
+  freq = clamp(freq, 20.0, srate * 0.46);
+  A = 10.0 ^ (gain_db / 40.0);
+  w0 = 2.0 * $pi * freq / srate;
+  cosw = cos(w0); sinw = sin(w0);
+  alpha = sinw / (2.0 * max(0.1, q));
+  a0 = 1.0 + alpha / A; inv_a0 = 1.0 / a0;
+  b[0] = (1.0 + alpha * A) * inv_a0;
+  b[1] = (-2.0 * cosw) * inv_a0;
+  b[2] = (1.0 - alpha * A) * inv_a0;
+  b[3] = b[1];
+  b[4] = (1.0 - alpha / A) * inv_a0;
+);
+
+function bq_lshelf(b, freq, gain_db) local(A, w0, cosw, sinw, alpha, sqA2a, a0, inv_a0) (
+  freq = clamp(freq, 20.0, srate * 0.46);
+  A = 10.0 ^ (gain_db / 40.0);
+  w0 = 2.0 * $pi * freq / srate;
+  cosw = cos(w0); sinw = sin(w0);
+  alpha = sinw * 0.5 * sqrt(2.0);
+  sqA2a = 2.0 * sqrt(A) * alpha;
+  a0 = (A + 1.0) + (A - 1.0) * cosw + sqA2a; inv_a0 = 1.0 / a0;
+  b[0] = A * ((A + 1.0) - (A - 1.0) * cosw + sqA2a) * inv_a0;
+  b[1] = 2.0 * A * ((A - 1.0) - (A + 1.0) * cosw) * inv_a0;
+  b[2] = A * ((A + 1.0) - (A - 1.0) * cosw - sqA2a) * inv_a0;
+  b[3] = -2.0 * ((A - 1.0) + (A + 1.0) * cosw) * inv_a0;
+  b[4] = ((A + 1.0) + (A - 1.0) * cosw - sqA2a) * inv_a0;
+);
+
+function bq_hshelf(b, freq, gain_db) local(A, w0, cosw, sinw, alpha, sqA2a, a0, inv_a0) (
+  freq = clamp(freq, 20.0, srate * 0.46);
+  A = 10.0 ^ (gain_db / 40.0);
+  w0 = 2.0 * $pi * freq / srate;
+  cosw = cos(w0); sinw = sin(w0);
+  alpha = sinw * 0.5 * sqrt(2.0);
+  sqA2a = 2.0 * sqrt(A) * alpha;
+  a0 = (A + 1.0) - (A - 1.0) * cosw + sqA2a; inv_a0 = 1.0 / a0;
+  b[0] = A * ((A + 1.0) + (A - 1.0) * cosw + sqA2a) * inv_a0;
+  b[1] = -2.0 * A * ((A - 1.0) + (A + 1.0) * cosw) * inv_a0;
+  b[2] = A * ((A + 1.0) + (A - 1.0) * cosw - sqA2a) * inv_a0;
+  b[3] = 2.0 * ((A - 1.0) - (A + 1.0) * cosw) * inv_a0;
+  b[4] = ((A + 1.0) - (A - 1.0) * cosw - sqA2a) * inv_a0;
+);
+
+function bq_proc_l(b, x) local(y) (
+  y = b[0] * x + b[5];
+  b[5] = b[1] * x - b[3] * y + b[6];
+  b[6] = b[2] * x - b[4] * y;
+  y;
+);
+
+function bq_proc_r(b, x) local(y) (
+  y = b[0] * x + b[7];
+  b[7] = b[1] * x - b[3] * y + b[8];
+  b[8] = b[2] * x - b[4] * y;
+  y;
+);
+
+function init_core_dsp() (
+  bq_in_hp = alloc_buf(9);
+  bq_dirt_pre_hp = alloc_buf(9);
+  bq_dirt_low = alloc_buf(9);
+  bq_dirt_mid = alloc_buf(9);
+  bq_dirt_high = alloc_buf(9);
+  bq_dirt_gyr1 = alloc_buf(9);
+  bq_dirt_gyr2 = alloc_buf(9);
+  bq_dirt_post = alloc_buf(9);
+  bq_cab_hp = alloc_buf(9);
+  bq_cab_lp1 = alloc_buf(9);
+  bq_cab_lp2 = alloc_buf(9);
+  bq_cab_f1 = alloc_buf(9);
+  bq_cab_f2 = alloc_buf(9);
+  bq_cab_f3 = alloc_buf(9);
+  gate_env = 0.0; gate_gain = 0.0;
+  dirt_slew_l = 0.0; dirt_slew_r = 0.0;
+  dirt_hold_l = 0.0; dirt_hold_r = 0.0; dirt_hold_cnt = 0;
+);
+
+function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc) (
+  in_trim_lin = db2lin(slider1);
+  bq_hp(bq_in_hp, slider2, 0.7071);
+  gate_thresh_lin = db2lin(slider3);
+  gate_att_coeff = exp(-1.0 / (0.0015 * srate));
+  gate_rel_coeff = exp(-1.0 / (0.045 * srate));
+  gate_rel_gain_coeff = exp(-1.0 / (0.035 * srate));
+
+  // Dirt coefficients
+  dirt_drive_lin = 1.0 + (slider12 * 0.01) * 42.0;
+  dirt_out_lin = db2lin(slider17);
+  low_db = (slider13 - 50.0) * 0.24;
+  mid_db = (slider14 - 50.0) * 0.28;
+  high_db = (slider15 - 50.0) * 0.24;
+
+  bq_lshelf(bq_dirt_low, 160.0, low_db);
+  bq_peak(bq_dirt_mid, 850.0, 1.1, mid_db);
+  bq_hshelf(bq_dirt_high, 2600.0, high_db);
+
+  slider11 == 0 ? ( // Rodent (RAT-style)
+    bq_hp(bq_dirt_pre_hp, 110.0, 0.707);
+    slew_fc = max(1400.0, 4800.0 - slider12 * 24.0 - slider16 * 12.0);
+    bq_lp(bq_dirt_post, slew_fc, 0.85);
+  ) : slider11 == 1 ? ( // Fang (Modern High-Gain)
+    bq_hp(bq_dirt_pre_hp, 165.0, 0.95);
+    bq_peak(bq_dirt_gyr1, 420.0, 1.4, -6.5);
+    bq_peak(bq_dirt_gyr2, 2200.0, 1.2, 7.5);
+    bq_lp(bq_dirt_post, 5200.0, 0.75);
+  ) : ( // Chainsaw (HM-2 Dual-Gyrator)
+    bq_hp(bq_dirt_pre_hp, 95.0, 0.8);
+    bq_peak(bq_dirt_gyr1, 115.0, 2.2, 13.5);
+    bq_peak(bq_dirt_gyr2, 1020.0, 2.8, 17.5);
+    bq_lp(bq_dirt_post, 4400.0, 0.9);
+  );
+
+  // Cabinet & Master
+  bq_hp(bq_cab_hp, 90.0, 0.7071);
+  bq_lp(bq_cab_lp1, 5500.0, 0.7071);
+  bq_cab_profile = slider50;
+  bq_cab_profile == 0 ? ( // Raw 4x12 (V30 / SM57 Edge)
+    bq_peak(bq_cab_f1, 135.0, 1.8, 4.5);
+    bq_peak(bq_cab_f2, 650.0, 1.2, -4.0);
+    bq_peak(bq_cab_f3, 2750.0, 1.6, 6.5);
+    bq_lp(bq_cab_lp2, 4800.0, 1.15);
+  ) : bq_cab_profile == 1 ? ( // Cold 2x12 (Grim Practice Combo)
+    bq_hp(bq_cab_f1, 175.0, 1.2);
+    bq_peak(bq_cab_f2, 1150.0, 1.5, 5.5);
+    bq_peak(bq_cab_f3, 3300.0, 1.9, 5.0);
+    bq_lp(bq_cab_lp2, 4600.0, 0.95);
+  ) : ( // Dark Crypt (Damped 4x12)
+    bq_peak(bq_cab_f1, 110.0, 2.1, 6.5);
+    bq_peak(bq_cab_f2, 3000.0, 2.0, -7.5);
+    bq_peak(bq_cab_f3, 1650.0, 1.2, 3.0);
+    bq_lp(bq_cab_lp2, 3900.0, 1.05);
+  );
+  master_out_lin = db2lin(slider51);
+);
+
+function proc_input_gate() local(det, target_g) (
+  spl0 *= in_trim_lin;
+  spl1 *= in_trim_lin;
+  spl0 = bq_proc_l(bq_in_hp, spl0);
+  spl1 = bq_proc_r(bq_in_hp, spl1);
+
+  slider4 > 0.5 ? (
+    det = max(abs(spl0), abs(spl1));
+    det > gate_env ? (
+      gate_env = gate_att_coeff * gate_env + (1.0 - gate_att_coeff) * det;
+    ) : (
+      gate_env = gate_rel_coeff * gate_env + (1.0 - gate_rel_coeff) * det;
+    );
+    target_g = gate_env >= gate_thresh_lin ? 1.0 : 0.0;
+    target_g > gate_gain ? (
+      gate_gain = 0.85 * gate_gain + 0.15 * target_g;
+    ) : (
+      gate_gain = gate_rel_gain_coeff * gate_gain;
+      gate_gain < 0.0001 ? gate_gain = 0.0; // hard clamp floor
+    );
+    spl0 *= gate_gain;
+    spl1 *= gate_gain;
+  ) : (
+    gate_gain = 1.0;
+  );
+);
+
+function clip_dirt(x, mode) local(y) (
+  mode == 0 ? ( // Rodent hard diode clip + knee
+    y = clamp(x, -0.78, 0.78) * 0.7 + 0.3 * soft_tanh(x * 1.4);
+  ) : mode == 1 ? ( // Fang asymmetrical clip
+    x >= 0.0 ? (
+      y = soft_tanh(x * 1.65);
+    ) : (
+      y = clamp(soft_tanh(x * 2.4), -0.68, 0.0);
+    );
+  ) : ( // Chainsaw op-amp rail saturation
+    y = soft_tanh(clamp(x * 1.35, -1.1, 1.1) * 2.2);
+  );
+  y;
+);
+
+function proc_dirt() local(grit, max_delta, steps, hold_div, l, r) (
+  slider10 > 0.5 ? (
+    l = bq_proc_l(bq_dirt_pre_hp, spl0);
+    r = bq_proc_r(bq_dirt_pre_hp, spl1);
+    l = bq_proc_l(bq_dirt_low, l); r = bq_proc_r(bq_dirt_low, r);
+    l = bq_proc_l(bq_dirt_mid, l); r = bq_proc_r(bq_dirt_mid, r);
+    l = bq_proc_l(bq_dirt_high, l); r = bq_proc_r(bq_dirt_high, r);
+
+    slider11 == 1 ? (
+      l = bq_proc_l(bq_dirt_gyr1, l); r = bq_proc_r(bq_dirt_gyr1, r);
+      l = bq_proc_l(bq_dirt_gyr2, l); r = bq_proc_r(bq_dirt_gyr2, r);
+    );
+
+    l *= dirt_drive_lin;
+    r *= dirt_drive_lin;
+
+    grit = slider16 * 0.01;
+    // Slew limiting (RAT op-amp + extra Grit degrader)
+    max_delta = max(0.03, (slider11 == 0 ? 0.42 : 0.95) - grit * 0.38);
+    dirt_slew_l += clamp(l - dirt_slew_l, -max_delta, max_delta);
+    dirt_slew_r += clamp(r - dirt_slew_r, -max_delta, max_delta);
+    l = clip_dirt(dirt_slew_l, slider11);
+    r = clip_dirt(dirt_slew_r, slider11);
+
+    // Chainsaw dual-gyrator post-drive resonator + second clip stage
+    slider11 == 2 ? (
+      l = bq_proc_l(bq_dirt_gyr1, l); r = bq_proc_r(bq_dirt_gyr1, r);
+      l = bq_proc_l(bq_dirt_gyr2, l); r = bq_proc_r(bq_dirt_gyr2, r);
+      l = soft_tanh(l * 0.85);
+      r = soft_tanh(r * 0.85);
+    );
+
+    grit > 0.02 ? (
+      hold_div = 1 + floor(grit * 5.0);
+      dirt_hold_cnt += 1;
+      dirt_hold_cnt >= hold_div ? (
+        dirt_hold_cnt = 0;
+        steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ^ 2));
+        dirt_hold_l = floor(l * steps + 0.5) / steps;
+        dirt_hold_r = floor(r * steps + 0.5) / steps;
+      );
+      l = l * (1.0 - grit * 0.65) + dirt_hold_l * (grit * 0.65);
+      r = r * (1.0 - grit * 0.65) + dirt_hold_r * (grit * 0.65);
+    );
+
+    l = bq_proc_l(bq_dirt_post, l);
+    r = bq_proc_r(bq_dirt_post, r);
+    spl0 = l * dirt_out_lin * 0.55;
+    spl1 = r * dirt_out_lin * 0.55;
+  );
+);
+
+function proc_cab_master() local(l, r) (
+  l = spl0; r = spl1;
+  slider49 > 0.5 ? (
+    l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);
+    l = bq_proc_l(bq_cab_f1, l); r = bq_proc_r(bq_cab_f1, r);
+    l = bq_proc_l(bq_cab_f2, l); r = bq_proc_r(bq_cab_f2, r);
+    l = bq_proc_l(bq_cab_f3, l); r = bq_proc_r(bq_cab_f3, r);
+    l = bq_proc_l(bq_cab_lp2, l); r = bq_proc_r(bq_cab_lp2, r);
+    l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
+  );
+  spl0 = l * master_out_lin;
+  spl1 = r * master_out_lin;
+);
