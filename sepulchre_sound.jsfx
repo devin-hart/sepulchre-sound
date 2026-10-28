@@ -19,20 +19,20 @@ slider10:1<0,1,1{Bypass,On}>-Distortion Enable
 slider11:2<0,3,1{RAT,DS-1,Metal Zone,HM-2}>-Distortion Pedal
 slider26:8.0<0,10,0.1>-RAT Distortion
 slider27:3.5<0,10,0.1>-RAT Filter
-slider28:6.0<0,10,0.1>-RAT Volume
+slider28:6.7<0,10,0.1>-RAT Volume
 slider29:9.0<0,10,0.1>-DS-1 Dist
 slider37:6.5<0,10,0.1>-DS-1 Tone
-slider38:6.0<0,10,0.1>-DS-1 Level
+slider38:8.9<0,10,0.1>-DS-1 Level
 slider39:7.5<0,10,0.1>-Metal Zone Dist
 slider46:6.5<0,10,0.1>-Metal Zone High
 slider47:4.5<0,10,0.1>-Metal Zone Low
 slider48:6.0<0,10,0.1>-Metal Zone Middle
 slider59:4.5<0,10,0.1>-Metal Zone Mid Freq
-slider61:5.0<0,10,0.1>-Metal Zone Level
+slider61:7.5<0,10,0.1>-Metal Zone Level
 slider62:10.0<0,10,0.1>-HM-2 Distortion
 slider63:10.0<0,10,0.1>-HM-2 Low
 slider64:10.0<0,10,0.1>-HM-2 High
-slider9:6.0<0,10,0.1>-HM-2 Level
+slider9:5.2<0,10,0.1>-HM-2 Level
 
 // Pre-EQ (Input column, before every pedal) and Lo-Fi Grit (Output column)
 slider13:50<0,100,1>-Pre-EQ Low (%)

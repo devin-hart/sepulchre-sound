@@ -81,7 +81,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 62; slider56 = 52; slider57 = 58; slider58 = 60;
   ) : idx == 3 ? ( // 04: Raw 4-Track (DS-1 + Solid-State Combo + 2x12, lo-fi grit, short slap)
     slider1 = 0.0; slider2 = 135; slider3 = -50; slider4 = 1;
-    slider10 = 1; slider11 = 1; slider29 = 8.5; slider37 = 7.0; slider38 = 8.1; slider13 = 40; slider14 = 62; slider15 = 66; slider16 = 40;
+    slider10 = 1; slider11 = 1; slider29 = 8.5; slider37 = 7.0; slider38 = 8.2; slider13 = 40; slider14 = 62; slider15 = 66; slider16 = 40;
     slider20 = 0; slider21 = 0; slider22 = 0.5; slider23 = 40; slider24 = 40; slider25 = 0;
     slider30 = 1; slider31 = 0; slider32 = 140; slider33 = 18; slider34 = 30; slider35 = 18; slider36 = 0;
     slider40 = 0; slider41 = 0; slider42 = 1.5; slider43 = 10; slider44 = 70; slider45 = 0;

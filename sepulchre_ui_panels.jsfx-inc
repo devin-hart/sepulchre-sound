@@ -74,23 +74,23 @@ function panel_slot(mod_id, slot_idx, x, w) local(ix, iw, en, bw, div, a, y, p, 
     p == 0 ? (
       slider26 = ui_hslider(26, ix, lay(30), iw, "DISTORTION", slider26, 0, 10, 8, 0.1, "%.1f", 0);
       slider27 = ui_hslider(27, ix, lay(30), iw, "FILTER", slider27, 0, 10, 3.5, 0.1, "%.1f", 0);
-      slider28 = ui_hslider(28, ix, lay(30), iw, "VOLUME", slider28, 0, 10, 6, 0.1, "%.1f", 0);
+      slider28 = ui_hslider(28, ix, lay(30), iw, "VOLUME", slider28, 0, 10, 6.7, 0.1, "%.1f", 0);
     ) : p == 1 ? (
       slider29 = ui_hslider(29, ix, lay(30), iw, "DIST", slider29, 0, 10, 9, 0.1, "%.1f", 0);
       slider37 = ui_hslider(37, ix, lay(30), iw, "TONE", slider37, 0, 10, 6.5, 0.1, "%.1f", 0);
-      slider38 = ui_hslider(38, ix, lay(30), iw, "LEVEL", slider38, 0, 10, 6, 0.1, "%.1f", 0);
+      slider38 = ui_hslider(38, ix, lay(30), iw, "LEVEL", slider38, 0, 10, 8.9, 0.1, "%.1f", 0);
     ) : p == 2 ? (
       slider39 = ui_hslider(39, ix, lay(30), iw, "DIST", slider39, 0, 10, 7.5, 0.1, "%.1f", 0);
       slider46 = ui_hslider(46, ix, lay(30), iw, "HIGH", slider46, 0, 10, 5, 0.1, "%+.1f dB", 4);
       slider47 = ui_hslider(47, ix, lay(30), iw, "LOW", slider47, 0, 10, 5, 0.1, "%+.1f dB", 4);
       slider48 = ui_hslider(48, ix, lay(30), iw, "MIDDLE", slider48, 0, 10, 5, 0.1, "%+.1f dB", 3);
       slider59 = ui_hslider(59, ix, lay(30), iw, "MID FREQ", slider59, 0, 10, 4.5, 0.1, "%d Hz", -1);
-      slider61 = ui_hslider(61, ix, lay(30), iw, "LEVEL", slider61, 0, 10, 5, 0.1, "%.1f", 0);
+      slider61 = ui_hslider(61, ix, lay(30), iw, "LEVEL", slider61, 0, 10, 7.5, 0.1, "%.1f", 0);
     ) : (
       slider62 = ui_hslider(62, ix, lay(30), iw, "DISTORTION", slider62, 0, 10, 10, 0.1, "%.1f", 0);
       slider63 = ui_hslider(63, ix, lay(30), iw, "LOW", slider63, 0, 10, 10, 0.1, "%.1f", 0);
       slider64 = ui_hslider(64, ix, lay(30), iw, "HIGH", slider64, 0, 10, 10, 0.1, "%.1f", 0);
-      slider9 = ui_hslider(9, ix, lay(30), iw, "LEVEL", slider9, 0, 10, 6, 0.1, "%.1f", 0);
+      slider9 = ui_hslider(9, ix, lay(30), iw, "LEVEL", slider9, 0, 10, 5.2, 0.1, "%.1f", 0);
     );
   ) : mod_id == 1 ? (
     lay_begin(144, 5); y = lay(24); bw = (iw - 3) / 2;
