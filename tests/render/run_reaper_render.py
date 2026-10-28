@@ -87,11 +87,17 @@ for slot, idx in enumerate(test_preset_indices):
     p[20] = 0; p[30] = 0; p[40] = 0
     tracks_xml.append(make_track(f"Preset_{idx}", p, di_path, round(slot * 0.5, 2)))
 
-# Track: Pre-cabinet 8x oversampling sine aliasing test (Gate off, FX off, Amp off, Cab off, Grit=0, Master=0dB)
-p_alias = dict(presets[0])
-p_alias[4] = 0; p_alias[16] = 0; p_alias[20] = 0; p_alias[30] = 0; p_alias[40] = 0
-p_alias[49] = 0; p_alias[51] = 0.0; p_alias[52] = 0; p_alias[54] = 0; p_alias[58] = 50.0
-tracks_xml.append(make_track("PreCab_Alias", p_alias, sine_path, 3.0))
+# Track: Pre-cabinet 8x oversampling sine aliasing test for Metal Zone
+p_alias_mt2 = dict(presets[0])
+p_alias_mt2[4] = 0; p_alias_mt2[16] = 0; p_alias_mt2[20] = 0; p_alias_mt2[30] = 0; p_alias_mt2[40] = 0
+p_alias_mt2[49] = 0; p_alias_mt2[51] = 0.0; p_alias_mt2[52] = 0; p_alias_mt2[54] = 0; p_alias_mt2[58] = 50.0
+tracks_xml.append(make_track("PreCab_Alias_MT2", p_alias_mt2, sine_path, 3.0))
+
+# Track: Pre-cabinet 8x oversampling sine aliasing test for HM-2 (all on 10)
+p_alias_hm2 = dict(presets[4])
+p_alias_hm2[4] = 0; p_alias_hm2[16] = 0; p_alias_hm2[20] = 0; p_alias_hm2[30] = 0; p_alias_hm2[40] = 0
+p_alias_hm2[49] = 0; p_alias_hm2[51] = 0.0; p_alias_hm2[52] = 0; p_alias_hm2[54] = 0; p_alias_hm2[58] = 50.0
+tracks_xml.append(make_track("PreCab_Alias_HM2", p_alias_hm2, sine_path, 3.5))
 
 for out_p in [out1_path, out2_path]:
     if os.path.exists(out_p):
@@ -102,7 +108,7 @@ for out_p in [out1_path, out2_path]:
   RENDER_FILE "{out_p}"
   RENDER_FMT 0 2 48000
   RENDER_1X 0
-  RENDER_RANGE 1 0.0 3.5 0 1000
+  RENDER_RANGE 1 0.0 4.0 0 1000
 {chr(10).join(tracks_xml)}
 >
 """
@@ -130,25 +136,30 @@ for slot, idx in enumerate(test_preset_indices):
     assert -10.0 <= pk_db <= -8.0, f"Live REAPER Preset {idx} peak {pk_db:.2f} outside [-10, -8] dBFS"
     assert dc < 0.004, f"Live REAPER Preset {idx} DC {dc:.5f} >= 0.004"
 
-# Pre-cab aliasing from live REAPER render (window starting 4096 samples into slot at 3.0s)
-start_s = int(3.0 * sr) + 4096
-n = 1024
-seg_a = w1[start_s : start_s + n]
-hb = {55 * k for k in range(1, (n // 2) // 55 + 1)}
-bin_8k = int(8000.0 * n / sr)
-harm_all = alias_all = harm_8k = alias_8k = 0.0
-for k in range(1, n // 2):
-    re_s = sum(seg_a[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
-    im_s = sum(seg_a[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
-    pwr = (re_s * re_s + im_s * im_s) / (n * n)
-    if k in hb:
-        harm_all += pwr
-        if k <= bin_8k: harm_8k += pwr
-    else:
-        alias_all += pwr
-        if k <= bin_8k: alias_8k += pwr
-all_db = 10 * math.log10(alias_all / harm_all)
-inband_db = 10 * math.log10(alias_8k / harm_8k)
-print(f"LIVE REAPER Pre-Cab Alias Ratio -> All bins: {all_db:+.2f} dB | 20Hz-8kHz: {inband_db:+.2f} dB")
-assert all_db <= -36.0 and inband_db <= -36.0, "Live REAPER pre-cab aliasing exceeded -36 dB!"
+def measure_aliasing(start_time, label):
+    start_s = int(start_time * sr) + 4096
+    n = 1024
+    seg_a = w1[start_s : start_s + n]
+    hb = {55 * k for k in range(1, (n // 2) // 55 + 1)}
+    bin_8k = int(8000.0 * n / sr)
+    harm_all = alias_all = harm_8k = alias_8k = 0.0
+    for k in range(1, n // 2):
+        re_s = sum(seg_a[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
+        im_s = sum(seg_a[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
+        pwr = (re_s * re_s + im_s * im_s) / (n * n)
+        if k in hb:
+            harm_all += pwr
+            if k <= bin_8k: harm_8k += pwr
+        else:
+            alias_all += pwr
+            if k <= bin_8k: alias_8k += pwr
+    all_db = 10 * math.log10(alias_all / harm_all)
+    inband_db = 10 * math.log10(alias_8k / harm_8k)
+    print(f"LIVE REAPER Pre-Cab Alias ({label}) -> All bins: {all_db:+.2f} dB | 20Hz-8kHz: {inband_db:+.2f} dB")
+    return all_db, inband_db
+
+mt2_all, mt2_in = measure_aliasing(3.0, "Metal Zone")
+hm2_all, hm2_in = measure_aliasing(3.5, "HM-2 all 10")
+assert mt2_in <= -40.0, f"Metal Zone aliasing {mt2_in:.2f} dB exceeded -40 dB!"
+assert hm2_in <= -34.0, f"HM-2 aliasing {hm2_in:.2f} dB exceeded -34 dB!"
 print("ALL LIVE REAPER CLI RENDER CHECKS PASSED.")

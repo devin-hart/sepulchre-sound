@@ -308,6 +308,13 @@ def aclip(x, vp, vn):
     return sclip(x, vp) if x >= 0 else sclip(x, vn)
 
 
+def gyro_peak_coeffs(f, qg, db, sr):
+    return bq_peak_coeffs(f, qg / 10.0 ** (abs(db) / 40.0), db, sr)
+
+
+MT_MK, HM_MK = 0.54, 1.98
+
+
 def unity():
     return [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -330,17 +337,17 @@ def pedal_setup(s, sr):
                  alp=c1b(234), ahp=c1b(1063), tone=s[37] * 0.1, mk=3.96 * a_taper(s[38] * 0.1))
     elif P["ped"] == 2:
         rd = 1000 + 250000 * a_taper(s[39] * 0.1)
-        P.update(G=1 + rd / 1000, a106=c1x(106), a72k=c1x(7200), a48=c1x(48), aC28=c1x(1 / (2 * math.pi * rd * 47e-12)),
-                 hump=bq_peak_coeffs(1000, 1.2, 30, os_sr), mk=1.155 * a_taper(s[61] * 0.1))
-        P["post"] = [bq_lp_coeffs(8000, 0.6, sr), bq_peak_coeffs(105, 2.0, 8, sr), bq_peak_coeffs(4900, 2.2, 7, sr),
-                     bq_peak_coeffs(105, 3.1, (s[47] - 5) * 4, sr), bq_shelf_coeffs(3200, (s[46] - 5) * 4, sr, True),
-                     bq_peak_coeffs(240 * (4700 / 240) ** (s[59] * 0.1), 0.9, (s[48] - 5) * 3, sr)]
+        P.update(G=1 + rd / 1000, a106=c1x(106), a72k=c1x(7200), a680=c1x(680), a48=c1x(48),
+                 aC28=c1x(1 / (2 * math.pi * rd * 47e-12)), hump=gyro_peak_coeffs(960, 1.66, 36, os_sr),
+                 dco=dclip(0.08, 0.65, 1.8), aP=c1b(5000), kP=0.316, mk=MT_MK * a_taper(s[61] * 0.1))
+        P["post"] = [bq_lp_coeffs(9000, 0.707, sr), gyro_peak_coeffs(105, 1.0, 4, sr), gyro_peak_coeffs(4900, 1.0, 6, sr),
+                     gyro_peak_coeffs(110, 1.5, (s[47] - 5) * 3.2, sr), bq_shelf_coeffs(3000, (s[46] - 5) * 3.2, sr, True),
+                     gyro_peak_coeffs(300 * (4000 / 300) ** (s[59] * 0.1), 1.2, (s[48] - 5) * 2.4, sr)]
     else:
         t = a_taper(s[62] * 0.1)
-        P.update(g1=2 + 12 * t, g2=3 + 60 * t, a40=c1x(40), aL=c1x(7000), mk=1.98 * a_taper(s[9] * 0.1))
-        P["post"] = [bq_peak_coeffs(420, 0.8, -4, sr), bq_peak_coeffs(90, 1.0, -12 + 3 * s[63], sr),
-                     bq_peak_coeffs(900, 2.0, -10 + 2.5 * s[64], sr), bq_peak_coeffs(1250, 2.5, -10 + 2.5 * s[64], sr),
-                     unity(), unity()]
+        P.update(g1=2 + 12 * t, g2=3 + 60 * t, a40=c1x(40), aL=c1x(7000), mk=HM_MK * a_taper(s[9] * 0.1))
+        P["post"] = [gyro_peak_coeffs(87, 1.2, (s[63] - 5) * 3.2, sr), gyro_peak_coeffs(958, 2.0, (s[64] - 5) * 1.8, sr),
+                     gyro_peak_coeffs(1279, 2.0, (s[64] - 5) * 1.8, sr), unity(), unity(), unity()]
     return P
 
 
@@ -369,10 +376,11 @@ def pedal_os(P, st, x):
         y = h[0] * st[1] + st[2]; st[2] = h[1] * st[1] - h[3] * y + st[3]; st[3] = h[2] * st[1] - h[4] * y
         st[4] = y + P["a72k"] * (st[4] - y)
         v = sclip(st[4], 4.0) * 0.5
+        st[8] = v + P["a680"] * (st[8] - v); v = st[8]
         st[6] = (1 + P["a48"]) * 0.5 * (v - st[5]) + P["a48"] * st[6]; st[5] = v
         w = v + (P["G"] - 1) * st[6]
         st[7] = w + P["aC28"] * (st[7] - w)
-        return dclip(sclip(st[7], 4.0), 0.65, 1.8)
+        return dclip(sclip(st[7], 4.0) + 0.08, 0.65, 1.8) - P["dco"]
     st[1] = (1 + P["a40"]) * 0.5 * (x - st[0]) + P["a40"] * st[1]; st[0] = x
     v = aclip(st[1] * P["g1"], 3.5, 2.5)
     st[2] = v + P["aL"] * (st[2] - v)
@@ -395,7 +403,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
     bq_mid = bq_peak_coeffs(850.0, 1.1, (sliders[14] - 50.0) * 0.28, sr)
     bq_high = bq_shelf_coeffs(2600.0, (sliders[15] - 50.0) * 0.24, sr, True)
     P = pedal_setup(sliders, sr)
-    pst = [0.0] * 8
+    pst = [0.0] * 10
     tone_st = [0.0, 0.0, 0.0]
     qs = [0.5098, 0.6013, 0.9000, 2.5629]
     up_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
@@ -446,6 +454,8 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
                 tone_st[0] = l + P["alp"] * (tone_st[0] - l)
                 tone_st[2] = (1 + P["ahp"]) * 0.5 * (l - tone_st[1]) + P["ahp"] * tone_st[2]; tone_st[1] = l
                 l = ((1 - P["tone"]) * tone_st[0] + P["tone"] * tone_st[2]) * 0.25
+            elif P["ped"] == 2:
+                tone_st[0] = l + P["aP"] * (tone_st[0] - l); l = P["kP"] * l + (1 - P["kP"]) * tone_st[0]
             for b in P["post"]:
                 l = bq_step(b, l)
             dc_out = l - dc_x1 + dc_r * dc_y1
@@ -559,6 +569,36 @@ def check_pre_cab_aliasing_all_bins(presets_src):
             raise AssertionError(f"{name} in-band aliasing {ratio:+.1f} dB exceeds {limit:+.0f} dB")
 
 
+def pole_q(b):
+    # biquad denominator 1 + a1 z^-1 + a2 z^-2 -> analog-equivalent pole Q (0 if real poles)
+    a1, a2 = b[3], b[4]
+    if a2 <= 0 or a1 * a1 >= 4 * a2:
+        return 0.0
+    r = math.sqrt(a2); th = math.acos(max(-1.0, min(1.0, -a1 / (2 * r))))
+    return th / (2 * max(1e-9, -math.log(r)))
+
+
+def check_no_resonant_filters():
+    # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
+    # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
+    print("[4b] Checking pedal filter pole Q (no ringing resonances) across knob extremes...")
+    if not SLIDER_DEFAULTS:
+        load_slider_defaults()
+    worst = 0.0
+    for ped in range(4):
+        for k in (0.0, 5.0, 10.0):
+            s = dict(SLIDER_DEFAULTS); s[11] = ped
+            for i in (26, 27, 29, 37, 39, 46, 47, 48, 59, 62, 63, 64):
+                s[i] = k
+            P = pedal_setup(s, 48000.0)
+            for b in P["post"] + ([P["hump"]] if "hump" in P else []):
+                worst = max(worst, pole_q(b))
+    print(f"  - Worst pole Q: {worst:.2f} (limit 3.5)")
+    if worst > 3.5:
+        raise AssertionError(f"Pedal filter pole Q {worst:.2f} > 3.5: will ring")
+
+
+
 def check_delay_bypass_clamp():
     print("[6/6] Verifying bypassed Delay at 105% feedback decays to silence (R2-2 verification)...")
     fb_slider = 105.0
@@ -599,6 +639,7 @@ if __name__ == "__main__":
         check_reverb_simulated_rt60()
         check_presets_dc_and_levels(raw_files["sepulchre_presets.jsfx-inc"])
         check_pre_cab_aliasing_all_bins(raw_files["sepulchre_presets.jsfx-inc"])
+        check_no_resonant_filters()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
         check_delay_bypass_clamp()
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")

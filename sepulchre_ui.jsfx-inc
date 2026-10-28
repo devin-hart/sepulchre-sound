@@ -157,13 +157,13 @@ function ui_power_led(x, y, on) local(hit, a0) (
 );
 
 // Horizontal slider (30 tall). bip_k > 0: shows (val - centre) * bip_k, filled from the centre detent.
-// bip_k == -1: Metal Zone MID FREQ, shown as 240 Hz..4.7 kHz (log sweep of a 0..10 knob).
+// bip_k == -1: Metal Zone MID FREQ, shown as 300 Hz..4 kHz (log sweep of a 0..10 knob).
 function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, bip_k)
   local(ty, norm, new_val, d_norm, now_t, cx, fx) (
   f_label(); c_lab(); u_text_sp(x, y + 1, label, 1.6);
   f_value(); c_bone();
   bip_k > 0 ? sprintf(#val_str, fmt, (val - (min_v + max_v) * 0.5) * bip_k)
-  : bip_k < 0 ? sprintf(#val_str, fmt, 240 * (4700 / 240) ^ (val * 0.1)) : sprintf(#val_str, fmt, val);
+  : bip_k < 0 ? sprintf(#val_str, fmt, 300 * (4000 / 300) ^ (val * 0.1)) : sprintf(#val_str, fmt, val);
   u_text_r(x + w, y, #val_str);
 
   ty = y + 21; new_val = val;

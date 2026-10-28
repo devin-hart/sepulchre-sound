@@ -4,12 +4,17 @@
 // per-channel instance functions (pdL.* / pdR.*); linear tone stacks run at the base rate.
 //   0 RAT        LM308 stage (60 Hz / 1.54 kHz gain shelves, GBW + 0.3 V/us slew) -> 1N914 pair -> Filter -> Volume
 //   1 DS-1       35 dB transistor booster -> op-amp (0..26.5 dB) -> 7.2 kHz LPF -> 1N4148 pair -> Big-Muff tone -> Level
-//   2 Metal Zone ~1 kHz gyrator hump (+30 dB, overdriven) -> op-amp x2..x252 -> Si pair -> 105 Hz / 4.9 kHz peaks -> Low/High/Middle -> Level
-//   3 HM-2       transistor pregain -> asymmetric clipping amp -> 2 clipper pairs -> gate dead band -> Color Mix Low/High -> Level
+//   2 Metal Zone 960 Hz gyrator (+36 dB, pole Q 1.66) -> 10k/10k + 680 Hz LPF -> op-amp x2..x252 -> Si pair (slightly
+//                asymmetric) -> post-clip shelf LPF -> 105 Hz / 4.9 kHz peaks -> Low 110 / High 3k / Middle 300..4k -> Level
+//   3 HM-2       transistor pregain -> asymmetric clipping amp -> 2 clipper pairs -> gate dead band -> Color Mix
+//                Low (87 Hz) / High (twin 958 + 1279 Hz gyrators) -> Level
+// Round 11: every gyrator EQ uses gyro_peak() = constant pole/zero Q. RBJ bq_peak's Q is NOT the pole Q: at +30 dB
+// its pole Q is Q*5.6, which made the old MT-2 pre-hump ring at ~1 kHz (the reported 'whistle').
 // Uses biquads allocated in init_core_dsp(): bq_os_up1..4, bq_os_dn1..4, bq_dist_tb (MT-2 hump @ 8x), bq_dist_p1..p6 (post EQ).
 @init
 
 DIST_OS = 8;
+MT_MK = 0.54; HM_MK = 1.98;   // Level make-up, calibrated by tests/verify_jsfx.py (presets -10..-8 dBFS)
 function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
 function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
@@ -17,6 +22,8 @@ function sclip(x, v) local(y) ( y = x / v; v * y / ((1 + y * y * y * y) ^ 0.25);
 function dclip(x, v, p) local(y) ( y = x / v; v * y / ((1 + abs(y) ^ p) ^ (1 / p)); );       // diode pair
 function aclip(x, vp, vn) ( x >= 0 ? sclip(x, vp) : sclip(x, vn); );
 function bq_unity(b) ( b[0] = 1; b[1] = 0; b[2] = 0; b[3] = 0; b[4] = 0; );
+function gyro_peak_sr(b, f, qg, db, sr) ( bq_peak_sr(b, f, qg / 10 ^ (abs(db) / 40), db, sr); );   // gyrator: pole (boost) / zero (cut) Q = qg
+function gyro_peak(b, f, qg, db) ( gyro_peak_sr(b, f, qg, db, srate); );
 
 function update_dist_coeffs() local(os_sr, os_fc, rd, t) (
   os_sr = srate * DIST_OS; os_fc = min(16500.0, srate * 0.36);
@@ -45,24 +52,25 @@ function update_dist_coeffs() local(os_sr, os_fc, rd, t) (
     dist_mk_t = 3.96 * a_taper(slider38 * 0.1);
   ) : dist_ped == 2 ? ( // Metal Zone
     rd = 1000 + 250000 * a_taper(slider39 * 0.1);
-    mt_G = 1 + rd / 1000; mt_a106 = c1x(106); mt_a72k = c1x(7200); mt_a48 = c1x(48);
+    mt_G = 1 + rd / 1000; mt_a106 = c1x(106); mt_a72k = c1x(7200); mt_a680 = c1x(680); mt_a48 = c1x(48);
     mt_aC28 = c1x(1 / (2 * $pi * rd * 0.000000000047));
-    bq_peak_sr(bq_dist_tb, 1000, 1.2, 30, os_sr);
+    gyro_peak_sr(bq_dist_tb, 960, 1.66, 36, os_sr);                               // op-amp 3b gyrator: 63x @ 960 Hz
     mt_b0 = bq_dist_tb[0]; mt_b1 = bq_dist_tb[1]; mt_b2 = bq_dist_tb[2]; mt_a1 = bq_dist_tb[3]; mt_a2 = bq_dist_tb[4];
-    bq_lp(bq_dist_p1, 8000, 0.6);
-    bq_peak(bq_dist_p2, 105, 2.0, 8); bq_peak(bq_dist_p3, 4900, 2.2, 7);          // fixed double peak
-    bq_peak(bq_dist_p4, 105, 3.1, (slider47 - 5) * 4);                            // LOW  +/-20 dB
-    bq_hshelf(bq_dist_p5, 3200, (slider46 - 5) * 4);                              // HIGH +/-20 dB
-    bq_peak(bq_dist_p6, 240 * (4700 / 240) ^ (slider59 * 0.1), 0.9, (slider48 - 5) * 3);  // MIDDLE +/-15 dB @ 240..4.7k
-    dist_mk_t = 1.155 * a_taper(slider61 * 0.1);
+    mt_dco = dclip(0.08, 0.65, 1.8);                                              // diode asymmetry offset (even harmonics)
+    mt_aP = c1b(5000); mt_kP = 0.316;                                             // R032/R031/C023 post-clip LPF, -10 dB max
+    bq_lp(bq_dist_p1, 9000, 0.707);                                               // C022/C018 top roll-off
+    gyro_peak(bq_dist_p2, 105, 1.0, 4); gyro_peak(bq_dist_p3, 4900, 1.0, 6);      // fixed gyrators (transistor-limited)
+    gyro_peak(bq_dist_p4, 110, 1.5, (slider47 - 5) * 3.2);                        // LOW  +/-16 dB
+    bq_hshelf(bq_dist_p5, 3000, (slider46 - 5) * 3.2);                            // HIGH +/-16 dB
+    gyro_peak(bq_dist_p6, 300 * (4000 / 300) ^ (slider59 * 0.1), 1.2, (slider48 - 5) * 2.4);  // MIDDLE +/-12 dB @ 300..4k
+    dist_mk_t = MT_MK * a_taper(slider61 * 0.1);
   ) : ( // HM-2
     t = a_taper(slider62 * 0.1);
     hm_g1 = 2 + 12 * t; hm_g2 = 3 + 60 * t; hm_a40 = c1x(40); hm_aL = c1x(7000);
-    bq_peak(bq_dist_p1, 420, 0.8, -4);                                            // scoop between the humps
-    bq_peak(bq_dist_p2, 90, 1.0, -12 + 3 * slider63);                             // LOW  -12..+18 dB
-    bq_peak(bq_dist_p3, 900, 2.0, -10 + 2.5 * slider64);                          // HIGH twin peaks -10..+15 dB
-    bq_peak(bq_dist_p4, 1250, 2.5, -10 + 2.5 * slider64);
-    dist_mk_t = 1.98 * a_taper(slider9 * 0.1);
+    gyro_peak(bq_dist_p1, 87, 1.2, (slider63 - 5) * 3.2);                         // LOW  +/-16 dB @ 87 Hz
+    gyro_peak(bq_dist_p2, 958, 2.0, (slider64 - 5) * 1.8);                        // HIGH: twin gyrators, ~+/-17 dB combined
+    gyro_peak(bq_dist_p3, 1279, 2.0, (slider64 - 5) * 1.8);
+    dist_mk_t = HM_MK * a_taper(slider9 * 0.1);
   );
 );
 
@@ -88,16 +96,17 @@ function ds_os(x) instance(hx, hy, hx2, hy2, l7, l72) local(b, v) (
   l72 = v + ds_a72k * (l72 - v);
   dclip(l72, 0.7, 2.5);                                            // 1N4148 pair to ground
 );
-function mt_reset() instance(hx, hy, z1, z2, l72, hx48, hy48, lc) ( hx = 0; hy = 0; z1 = 0; z2 = 0; l72 = 0; hx48 = 0; hy48 = 0; lc = 0; );
-function mt_os(x) instance(hx, hy, z1, z2, l72, hx48, hy48, lc) local(y, v, w) (
+function mt_reset() instance(hx, hy, z1, z2, l72, l68, hx48, hy48, lc) ( hx = 0; hy = 0; z1 = 0; z2 = 0; l72 = 0; l68 = 0; hx48 = 0; hy48 = 0; lc = 0; );
+function mt_os(x) instance(hx, hy, z1, z2, l72, l68, hx48, hy48, lc) local(y, v, w) (
   hy = (1 + mt_a106) * 0.5 * (x - hx) + mt_a106 * hy; hx = x;
-  y = mt_b0 * hy + z1; z1 = mt_b1 * hy - mt_a1 * y + z2; z2 = mt_b2 * hy - mt_a2 * y;   // ~1 kHz hump
+  y = mt_b0 * hy + z1; z1 = mt_b1 * hy - mt_a1 * y + z2; z2 = mt_b2 * hy - mt_a2 * y;   // 960 Hz gyrator
   l72 = y + mt_a72k * (l72 - y);
-  v = sclip(l72, 4.0) * 0.5;
+  v = sclip(l72, 4.0) * 0.5;                                       // op-amp rails, 10k/10k divider
+  l68 = v + mt_a680 * (l68 - v); v = l68;                          // R045/C031 low-pass
   hy48 = (1 + mt_a48) * 0.5 * (v - hx48) + mt_a48 * hy48; hx48 = v;
   w = v + (mt_G - 1) * hy48;
   lc = w + mt_aC28 * (lc - w);
-  dclip(sclip(lc, 4.0), 0.65, 1.8);
+  dclip(sclip(lc, 4.0) + 0.08, 0.65, 1.8) - mt_dco;
 );
 function hm_reset() instance(hx, hy, l1, l2, l) ( hx = 0; hy = 0; l1 = 0; l2 = 0; l = 0; );
 function hm_os(x) instance(hx, hy, l1, l2, l) local(v) (
@@ -113,6 +122,8 @@ function hm_os(x) instance(hx, hy, l1, l2, l) local(v) (
 // ---------- per-channel base-rate tone (RAT Filter, DS-1 Tone) ----------
 function rat_f_reset() instance(y) ( y = 0; );
 function rat_filt(x) instance(y) ( y = x + rat_af * (y - x); );
+function mt_f_reset() instance(y) ( y = 0; );
+function mt_filt(x) instance(y) ( y = x + mt_aP * (y - x); mt_kP * x + (1 - mt_kP) * y; );
 function ds_f_reset() instance(ly, hx, hy) ( ly = 0; hx = 0; hy = 0; );
 function ds_tone_f(x) instance(ly, hx, hy) (
   ly = x + ds_alp * (ly - x);
@@ -125,6 +136,7 @@ function reset_dist_state() (
   pdL.mt_reset(); pdR.mt_reset(); pdL.hm_reset(); pdR.hm_reset();
   tfL.rat_f_reset(); tfR.rat_f_reset();
   tfL.ds_f_reset(); tfR.ds_f_reset();
+  tfL.mt_f_reset(); tfR.mt_f_reset();
   bq_clear(bq_dist_p1); bq_clear(bq_dist_p2); bq_clear(bq_dist_p3);
   bq_clear(bq_dist_p4); bq_clear(bq_dist_p5); bq_clear(bq_dist_p6);
   dist_mk_s = dist_mk_t;
@@ -151,6 +163,7 @@ function proc_distortion() local(k, xl, xr, l, r, gk) (
     l = xl; r = xr;
     dist_ped == 0 ? ( l = tfL.rat_filt(l); r = tfR.rat_filt(r); );
     dist_ped == 1 ? ( l = tfL.ds_tone_f(l); r = tfR.ds_tone_f(r); );
+    dist_ped == 2 ? ( l = tfL.mt_filt(l); r = tfR.mt_filt(r); );
     l = bq_proc_l(bq_dist_p1, l); r = bq_proc_r(bq_dist_p1, r);
     l = bq_proc_l(bq_dist_p2, l); r = bq_proc_r(bq_dist_p2, r);
     l = bq_proc_l(bq_dist_p3, l); r = bq_proc_r(bq_dist_p3, r);
