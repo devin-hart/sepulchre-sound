@@ -8,138 +8,138 @@ function sync_all_DSP() (
   sliderchange(-1);
 );
 
-// Module 1: Dirt local presets (0, 1, 2)
+// Module 1: Distortion local presets (0, 1, 2)
 function recall_dirt_preset(idx) (
   dirt_preset_idx = idx;
-  idx == 0 ? ( // I: Necro Rasp (Rodent)
+  idx == 0 ? ( // P1: RAT Crunch
     slider10 = 1; slider11 = 0; slider12 = 74;
-    slider13 = 42; slider14 = 68; slider15 = 62;
-    slider16 = 25; slider17 = 0.0;
-  ) : idx == 1 ? ( // II: Grim Scythe (Fang)
+    slider13 = 45; slider14 = 68; slider15 = 62;
+    slider16 = 18; slider17 = 0.0;
+  ) : idx == 1 ? ( // P2: Tight High-Gain
     slider10 = 1; slider11 = 1; slider12 = 82;
     slider13 = 56; slider14 = 38; slider15 = 76;
-    slider16 = 12; slider17 = 1.0;
-  ) : ( // III: Swedish Grave (Chainsaw)
-    slider10 = 1; slider11 = 2; slider12 = 90;
-    slider13 = 78; slider14 = 88; slider15 = 72;
-    slider16 = 35; slider17 = -1.5;
+    slider16 = 10; slider17 = 1.0;
+  ) : ( // P3: HM-2 Grind
+    slider10 = 1; slider11 = 2; slider12 = 86;
+    slider13 = 74; slider14 = 84; slider15 = 68;
+    slider16 = 20; slider17 = -1.0;
   );
   sync_all_DSP();
 );
 
-// Module 2: Frost local presets (0, 1, 2)
+// Module 2: Chorus local presets (0, 1, 2)
 function recall_frost_preset(idx) (
   frost_preset_idx = idx;
-  idx == 0 ? ( // I: Glacial Drift (Analog BBD slow)
+  idx == 0 ? ( // P1: Subtle BBD
     slider20 = 1; slider21 = 0; slider22 = 0.45;
-    slider23 = 58; slider24 = 42; slider25 = 38;
-  ) : idx == 1 ? ( // II: Blashyrkh Widen (Dimension)
-    slider20 = 1; slider21 = 1; slider22 = 0.85;
-    slider23 = 65; slider24 = 68; slider25 = 45;
-  ) : ( // III: Sickly Warble (Fast BBD)
-    slider20 = 1; slider21 = 0; slider22 = 2.65;
-    slider23 = 75; slider24 = 30; slider25 = 50;
+    slider23 = 52; slider24 = 48; slider25 = 34;
+  ) : idx == 1 ? ( // P2: Wide Dimension
+    slider20 = 1; slider21 = 1; slider22 = 0.80;
+    slider23 = 65; slider24 = 68; slider25 = 42;
+  ) : ( // P3: Fast Mod
+    slider20 = 1; slider21 = 0; slider22 = 2.40;
+    slider23 = 70; slider24 = 36; slider25 = 46;
   );
   sync_all_DSP();
 );
 
-// Module 3: Echo local presets (0, 1, 2)
+// Module 3: Delay local presets (0, 1, 2)
 function recall_echo_preset(idx) (
   echo_preset_idx = idx;
-  idx == 0 ? ( // I: Dungeon Slap (Short Tape)
+  idx == 0 ? ( // P1: Slapback
     slider30 = 1; slider31 = 0; slider32 = 165;
-    slider33 = 28; slider34 = 38; slider35 = 26; slider36 = 0;
-  ) : idx == 1 ? ( // II: Nocturnal Lead (Dark Tape Echo)
+    slider33 = 25; slider34 = 42; slider35 = 24; slider36 = 0;
+  ) : idx == 1 ? ( // P2: Tape Lead
     slider30 = 1; slider31 = 0; slider32 = 420;
-    slider33 = 54; slider34 = 32; slider35 = 35; slider36 = 0;
-  ) : ( // III: Self-Oscillating Ritual (Runaway Feedback)
-    slider30 = 1; slider31 = 0; slider32 = 580;
-    slider33 = 102; slider34 = 24; slider35 = 48; slider36 = 0;
+    slider33 = 48; slider34 = 36; slider35 = 32; slider36 = 0;
+  ) : ( // P3: Long Echo
+    slider30 = 1; slider31 = 1; slider32 = 560;
+    slider33 = 58; slider34 = 52; slider35 = 36; slider36 = 0;
   );
   sync_all_DSP();
 );
 
-// Module 4: Cavern local presets (0, 1, 2)
+// Module 4: Reverb local presets (0, 1, 2)
 function recall_cavern_preset(idx) (
   cavern_preset_idx = idx;
-  idx == 0 ? ( // I: Burial Vault (Crypt Hall)
-    slider40 = 1; slider41 = 0; slider42 = 2.8;
-    slider43 = 22; slider44 = 62; slider45 = 24;
-  ) : idx == 1 ? ( // II: Iron Charnel (Cold Plate)
+  idx == 0 ? ( // P1: Room / Hall
+    slider40 = 1; slider41 = 0; slider42 = 2.6;
+    slider43 = 20; slider44 = 60; slider45 = 22;
+  ) : idx == 1 ? ( // P2: Bright Plate
     slider40 = 1; slider41 = 1; slider42 = 1.9;
-    slider43 = 8; slider44 = 28; slider45 = 32;
-  ) : ( // III: Endless Catacomb (Abyss)
-    slider40 = 1; slider41 = 2; slider42 = 8.8;
-    slider43 = 45; slider44 = 74; slider45 = 64;
+    slider43 = 10; slider44 = 30; slider45 = 28;
+  ) : ( // P3: Ambient Wash
+    slider40 = 1; slider41 = 2; slider42 = 6.5;
+    slider43 = 35; slider44 = 65; slider45 = 38;
   );
   sync_all_DSP();
 );
 
 // Global Presets:
-// 0 = Human Worms (Tight Fang drive, high bite, subtle Crypt Hall, no chorus)
-// 1 = Transylvanian Frost (Rodent drive, slow Analog BBD chorus, Tape delay)
-// 2 = Crypt Drone (Reverb routed before Chainsaw distortion, infinite feedback, max wash)
+// 0 = Tight Rhythm (Modern High-Gain drive, high pick attack, subtle Hall reverb, no chorus/delay)
+// 1 = Cold Lead (RAT distortion, slow Analog BBD chorus, Tape delay, Plate reverb)
+// 2 = Doom Wall (HM-2 distortion -> Dimension chorus -> Tape delay -> Ambient reverb, playable & articulate)
 function recall_global_preset(idx) (
   slider60 = idx;
-  idx == 0 ? ( // Human Worms
+  idx == 0 ? ( // Tight Rhythm
     slider1 = 2.5; slider2 = 120; slider3 = -48; slider4 = 1;
-    // Standard order: Dirt(0) -> Frost(1) -> Echo(2) -> Cavern(3)
+    // Standard order: Distortion(0) -> Chorus(1) -> Delay(2) -> Reverb(3)
     slider5 = 0; slider6 = 1; slider7 = 2; slider8 = 3;
-    // Dirt: Tight Fang
+    // Distortion: Modern High-Gain
     slider10 = 1; slider11 = 1; slider12 = 84;
     slider13 = 52; slider14 = 36; slider15 = 78;
-    slider16 = 15; slider17 = 1.0;
-    // Frost: Off
+    slider16 = 12; slider17 = 1.0;
+    // Chorus: Off
     slider20 = 0; slider21 = 0; slider22 = 0.6;
     slider23 = 45; slider24 = 55; slider25 = 0;
-    // Echo: Off
+    // Delay: Off
     slider30 = 0; slider31 = 1; slider32 = 340;
     slider33 = 30; slider34 = 60; slider35 = 18; slider36 = 0;
-    // Cavern: Subtle Crypt Hall
-    slider40 = 1; slider41 = 0; slider42 = 2.4;
-    slider43 = 18; slider44 = 64; slider45 = 18;
-    // Cab: Raw 4x12
+    // Reverb: Subtle Hall
+    slider40 = 1; slider41 = 0; slider42 = 2.2;
+    slider43 = 18; slider44 = 64; slider45 = 16;
+    // Cab: 4x12 V30
     slider49 = 1; slider50 = 0; slider51 = 0.0;
     dirt_preset_idx = 1; cavern_preset_idx = 0;
-  ) : idx == 1 ? ( // Transylvanian Frost
+  ) : idx == 1 ? ( // Cold Lead
     slider1 = 1.0; slider2 = 105; slider3 = -52; slider4 = 1;
-    // Standard order: Dirt(0) -> Frost(1) -> Echo(2) -> Cavern(3)
+    // Standard order: Distortion(0) -> Chorus(1) -> Delay(2) -> Reverb(3)
     slider5 = 0; slider6 = 1; slider7 = 2; slider8 = 3;
-    // Dirt: Rodent
+    // Distortion: RAT
     slider10 = 1; slider11 = 0; slider12 = 76;
-    slider13 = 40; slider14 = 70; slider15 = 64;
-    slider16 = 22; slider17 = 0.0;
-    // Frost: Slow Analog BBD
+    slider13 = 42; slider14 = 70; slider15 = 64;
+    slider16 = 18; slider17 = 0.0;
+    // Chorus: Slow Analog BBD
     slider20 = 1; slider21 = 0; slider22 = 0.38;
-    slider23 = 62; slider24 = 44; slider25 = 42;
-    // Echo: Tape Delay
+    slider23 = 58; slider24 = 46; slider25 = 38;
+    // Delay: Tape Delay
     slider30 = 1; slider31 = 0; slider32 = 390;
-    slider33 = 46; slider34 = 34; slider35 = 30; slider36 = 0;
-    // Cavern: Cold Plate
-    slider40 = 1; slider41 = 1; slider42 = 3.2;
-    slider43 = 24; slider44 = 48; slider45 = 26;
-    // Cab: Cold 2x12
+    slider33 = 44; slider34 = 38; slider35 = 28; slider36 = 0;
+    // Reverb: Plate
+    slider40 = 1; slider41 = 1; slider42 = 3.0;
+    slider43 = 24; slider44 = 48; slider45 = 24;
+    // Cab: 2x12 Combo
     slider49 = 1; slider50 = 1; slider51 = 0.0;
     dirt_preset_idx = 0; frost_preset_idx = 0; echo_preset_idx = 1; cavern_preset_idx = 1;
-  ) : ( // Crypt Drone
-    slider1 = 3.0; slider2 = 75; slider3 = -65; slider4 = 1;
-    // Reverb & Echo routed BEFORE Chainsaw distortion: Cavern(3) -> Echo(2) -> Dirt(0) -> Frost(1)
-    slider5 = 3; slider6 = 2; slider7 = 0; slider8 = 1;
-    // Dirt: Chainsaw
-    slider10 = 1; slider11 = 2; slider12 = 92;
-    slider13 = 82; slider14 = 90; slider15 = 70;
-    slider16 = 42; slider17 = -2.0;
-    // Frost: Dimension spatial wash
-    slider20 = 1; slider21 = 1; slider22 = 0.25;
-    slider23 = 75; slider24 = 38; slider25 = 48;
-    // Echo: Infinite (>100%) soft-clipped self-oscillation
-    slider30 = 1; slider31 = 0; slider32 = 620;
-    slider33 = 103; slider34 = 25; slider35 = 56; slider36 = 0;
-    // Cavern: Abyss Max Wash
-    slider40 = 1; slider41 = 2; slider42 = 9.5;
-    slider43 = 42; slider44 = 72; slider45 = 78;
-    // Cab: Dark Crypt
-    slider49 = 1; slider50 = 2; slider51 = -1.5;
+  ) : ( // Doom Wall
+    slider1 = 2.0; slider2 = 85; slider3 = -52; slider4 = 1;
+    // Standard playable order: Distortion(0) -> Chorus(1) -> Delay(2) -> Reverb(3)
+    slider5 = 0; slider6 = 1; slider7 = 2; slider8 = 3;
+    // Distortion: HM-2
+    slider10 = 1; slider11 = 2; slider12 = 86;
+    slider13 = 74; slider14 = 84; slider15 = 68;
+    slider16 = 20; slider17 = -0.5;
+    // Chorus: Dimension subtle widening
+    slider20 = 1; slider21 = 1; slider22 = 0.35;
+    slider23 = 55; slider24 = 52; slider25 = 30;
+    // Delay: Controlled atmospheric repeats (52% feedback, no runaway self-oscillation)
+    slider30 = 1; slider31 = 0; slider32 = 520;
+    slider33 = 52; slider34 = 38; slider35 = 30; slider36 = 0;
+    // Reverb: Ambient wash (35% mix so notes stay articulate)
+    slider40 = 1; slider41 = 2; slider42 = 6.2;
+    slider43 = 32; slider44 = 62; slider45 = 35;
+    // Cab: Damped 4x12
+    slider49 = 1; slider50 = 2; slider51 = 0.0;
     dirt_preset_idx = 2; frost_preset_idx = 1; echo_preset_idx = 2; cavern_preset_idx = 2;
   );
   sync_all_DSP();

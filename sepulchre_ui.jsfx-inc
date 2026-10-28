@@ -114,17 +114,17 @@ function draw_middle_module(mod_id, slot_idx, x, y, w, h) local(inner_x, inner_w
     ui_button(x + w - 26, y + 5, 20, 18, ">", 0) ? swap_routing_slots(slot_idx, slot_idx + 1);
   );
 
-  mod_id == 0 ? ( // DIRT
+  mod_id == 0 ? ( // DISTORTION
     en = slider10 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "DIRT [ON]" : "DIRT [BYP]", en) ? ( slider10 = !en; ui_param_changed = 1; );
+    ui_button(x + 30, y + 5, w - 60, 18, en ? "DISTORTION [ON]" : "DISTORTION [BYP]", en) ? ( slider10 = !en; ui_param_changed = 1; );
     cy = y + 36;
-    ui_button(inner_x, cy, 48, 18, "RODENT", slider11 == 0) ? ( slider11 = 0; ui_param_changed = 1; );
-    ui_button(inner_x + 51, cy, 44, 18, "FANG", slider11 == 1) ? ( slider11 = 1; ui_param_changed = 1; );
-    ui_button(inner_x + 98, cy, inner_w - 98, 18, "CHAINSAW", slider11 == 2) ? ( slider11 = 2; ui_param_changed = 1; );
+    ui_button(inner_x, cy, 38, 18, "RAT", slider11 == 0) ? ( slider11 = 0; ui_param_changed = 1; );
+    ui_button(inner_x + 41, cy, 74, 18, "MODERN HG", slider11 == 1) ? ( slider11 = 1; ui_param_changed = 1; );
+    ui_button(inner_x + 118, cy, inner_w - 118, 18, "HM-2", slider11 == 2) ? ( slider11 = 2; ui_param_changed = 1; );
     cy += 24;
-    ui_button(inner_x, cy, 46, 16, "P1:RASP", dirt_preset_idx == 0) ? recall_dirt_preset(0);
-    ui_button(inner_x + 50, cy, 48, 16, "P2:BITE", dirt_preset_idx == 1) ? recall_dirt_preset(1);
-    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:HM2", dirt_preset_idx == 2) ? recall_dirt_preset(2);
+    ui_button(inner_x, cy, 46, 16, "P1:RAT", dirt_preset_idx == 0) ? recall_dirt_preset(0);
+    ui_button(inner_x + 50, cy, 52, 16, "P2:TIGHT", dirt_preset_idx == 1) ? recall_dirt_preset(1);
+    ui_button(inner_x + 106, cy, inner_w - 106, 16, "P3:HM-2", dirt_preset_idx == 2) ? recall_dirt_preset(2);
     cy += 24;
     slider12 = ui_hslider(12, inner_x, cy, inner_w, "DRIVE", slider12, 0, 100, 1, "%d%%"); cy += 34;
     slider13 = ui_hslider(13, inner_x, cy, inner_w, "PRE-LOW", slider13, 0, 100, 1, "%d%%"); cy += 34;
@@ -132,31 +132,31 @@ function draw_middle_module(mod_id, slot_idx, x, y, w, h) local(inner_x, inner_w
     slider15 = ui_hslider(15, inner_x, cy, inner_w, "PRE-HIGH", slider15, 0, 100, 1, "%d%%"); cy += 34;
     slider16 = ui_hslider(16, inner_x, cy, inner_w, "GRIT (DEGRADE)", slider16, 0, 100, 1, "%d%%"); cy += 34;
     slider17 = ui_hslider(17, inner_x, cy, inner_w, "LEVEL", slider17, -18, 12, 0.1, "%+.1f dB");
-  ) : mod_id == 1 ? ( // FROST
+  ) : mod_id == 1 ? ( // CHORUS
     en = slider20 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "FROST [ON]" : "FROST [BYP]", en) ? ( slider20 = !en; ui_param_changed = 1; );
+    ui_button(x + 30, y + 5, w - 60, 18, en ? "CHORUS [ON]" : "CHORUS [BYP]", en) ? ( slider20 = !en; ui_param_changed = 1; );
     cy = y + 36;
     ui_button(inner_x, cy, inner_w * 0.5 - 2, 18, "ANALOG BBD", slider21 == 0) ? ( slider21 = 0; ui_param_changed = 1; );
     ui_button(inner_x + inner_w * 0.5 + 2, cy, inner_w * 0.5 - 2, 18, "DIMENSION", slider21 == 1) ? ( slider21 = 1; ui_param_changed = 1; );
     cy += 24;
     ui_button(inner_x, cy, 46, 16, "P1:SLOW", frost_preset_idx == 0) ? recall_frost_preset(0);
     ui_button(inner_x + 50, cy, 48, 16, "P2:WIDE", frost_preset_idx == 1) ? recall_frost_preset(1);
-    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:SICK", frost_preset_idx == 2) ? recall_frost_preset(2);
+    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:FAST", frost_preset_idx == 2) ? recall_frost_preset(2);
     cy += 28;
     slider22 = ui_hslider(22, inner_x, cy, inner_w, "RATE", slider22, 0.1, 4.0, 0.05, "%.2f Hz"); cy += 42;
     slider23 = ui_hslider(23, inner_x, cy, inner_w, "DEPTH", slider23, 0, 100, 1, "%d%%"); cy += 42;
     slider24 = ui_hslider(24, inner_x, cy, inner_w, "TONE (DAMP)", slider24, 0, 100, 1, "%d%%"); cy += 42;
     slider25 = ui_hslider(25, inner_x, cy, inner_w, "MIX", slider25, 0, 100, 1, "%d%%");
-  ) : mod_id == 2 ? ( // ECHO
+  ) : mod_id == 2 ? ( // DELAY
     en = slider30 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "ECHO [ON]" : "ECHO [BYP]", en) ? ( slider30 = !en; ui_param_changed = 1; );
+    ui_button(x + 30, y + 5, w - 60, 18, en ? "DELAY [ON]" : "DELAY [BYP]", en) ? ( slider30 = !en; ui_param_changed = 1; );
     cy = y + 36;
-    ui_button(inner_x, cy, inner_w * 0.5 - 2, 18, "TAPE / BBD", slider31 == 0) ? ( slider31 = 0; ui_param_changed = 1; );
-    ui_button(inner_x + inner_w * 0.5 + 2, cy, inner_w * 0.5 - 2, 18, "DIGITAL 80S", slider31 == 1) ? ( slider31 = 1; ui_param_changed = 1; );
+    ui_button(inner_x, cy, inner_w * 0.5 - 2, 18, "TAPE", slider31 == 0) ? ( slider31 = 0; ui_param_changed = 1; );
+    ui_button(inner_x + inner_w * 0.5 + 2, cy, inner_w * 0.5 - 2, 18, "DIGITAL", slider31 == 1) ? ( slider31 = 1; ui_param_changed = 1; );
     cy += 24;
     ui_button(inner_x, cy, 46, 16, "P1:SLAP", echo_preset_idx == 0) ? recall_echo_preset(0);
-    ui_button(inner_x + 50, cy, 48, 16, "P2:DARK", echo_preset_idx == 1) ? recall_echo_preset(1);
-    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:OSC", echo_preset_idx == 2) ? recall_echo_preset(2);
+    ui_button(inner_x + 50, cy, 48, 16, "P2:LEAD", echo_preset_idx == 1) ? recall_echo_preset(1);
+    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:LONG", echo_preset_idx == 2) ? recall_echo_preset(2);
     cy += 26;
     slider32 = ui_hslider(32, inner_x, cy, inner_w, "TIME", slider32, 20, 800, 1, "%d ms"); cy += 36;
     ui_button(inner_x, cy, inner_w, 18, slider36 > 0.5 ? "TEMPO SYNC: ON" : "TEMPO SYNC: OFF", slider36 > 0.5) ? ( slider36 = !(slider36 > 0.5); ui_param_changed = 1; );
@@ -164,17 +164,17 @@ function draw_middle_module(mod_id, slot_idx, x, y, w, h) local(inner_x, inner_w
     slider33 = ui_hslider(33, inner_x, cy, inner_w, "FEEDBACK", slider33, 0, 105, 1, "%d%%"); cy += 38;
     slider34 = ui_hslider(34, inner_x, cy, inner_w, "TONE", slider34, 0, 100, 1, "%d%%"); cy += 38;
     slider35 = ui_hslider(35, inner_x, cy, inner_w, "MIX", slider35, 0, 100, 1, "%d%%");
-  ) : ( // CAVERN
+  ) : ( // REVERB
     en = slider40 > 0.5;
-    ui_button(x + 30, y + 5, w - 60, 18, en ? "CAVERN [ON]" : "CAVERN [BYP]", en) ? ( slider40 = !en; ui_param_changed = 1; );
+    ui_button(x + 30, y + 5, w - 60, 18, en ? "REVERB [ON]" : "REVERB [BYP]", en) ? ( slider40 = !en; ui_param_changed = 1; );
     cy = y + 36;
-    ui_button(inner_x, cy, 48, 18, "CRYPT", slider41 == 0) ? ( slider41 = 0; ui_param_changed = 1; );
-    ui_button(inner_x + 51, cy, 48, 18, "PLATE", slider41 == 1) ? ( slider41 = 1; ui_param_changed = 1; );
-    ui_button(inner_x + 102, cy, inner_w - 102, 18, "ABYSS", slider41 == 2) ? ( slider41 = 2; ui_param_changed = 1; );
+    ui_button(inner_x, cy, 46, 18, "HALL", slider41 == 0) ? ( slider41 = 0; ui_param_changed = 1; );
+    ui_button(inner_x + 49, cy, 48, 18, "PLATE", slider41 == 1) ? ( slider41 = 1; ui_param_changed = 1; );
+    ui_button(inner_x + 100, cy, inner_w - 100, 18, "AMBIENT", slider41 == 2) ? ( slider41 = 2; ui_param_changed = 1; );
     cy += 24;
     ui_button(inner_x, cy, 46, 16, "P1:HALL", cavern_preset_idx == 0) ? recall_cavern_preset(0);
-    ui_button(inner_x + 50, cy, 48, 16, "P2:COLD", cavern_preset_idx == 1) ? recall_cavern_preset(1);
-    ui_button(inner_x + 102, cy, inner_w - 102, 16, "P3:VOID", cavern_preset_idx == 2) ? recall_cavern_preset(2);
+    ui_button(inner_x + 50, cy, 50, 16, "P2:PLATE", cavern_preset_idx == 1) ? recall_cavern_preset(1);
+    ui_button(inner_x + 104, cy, inner_w - 104, 16, "P3:WASH", cavern_preset_idx == 2) ? recall_cavern_preset(2);
     cy += 28;
     slider42 = ui_hslider(42, inner_x, cy, inner_w, "DECAY", slider42, 0.5, 10.0, 0.1, "%.1f s"); cy += 42;
     slider43 = ui_hslider(43, inner_x, cy, inner_w, "PRE-DELAY", slider43, 0, 60, 1, "%d ms"); cy += 42;

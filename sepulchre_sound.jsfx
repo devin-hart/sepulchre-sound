@@ -8,54 +8,54 @@ slider2:105.0<40.0,180.0,1.0>-Pre-Cut HPF (Hz)
 slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
 slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 
-// Dynamic Middle Routing Slots (0=Dirt, 1=Frost, 2=Echo, 3=Cavern)
-slider5:0<0,3,1{Dirt,Frost,Echo,Cavern}>-Slot A Module
-slider6:1<0,3,1{Dirt,Frost,Echo,Cavern}>-Slot B Module
-slider7:2<0,3,1{Dirt,Frost,Echo,Cavern}>-Slot C Module
-slider8:3<0,3,1{Dirt,Frost,Echo,Cavern}>-Slot D Module
+// Dynamic Middle Routing Slots (0=Distortion, 1=Chorus, 2=Delay, 3=Reverb)
+slider5:0<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot A Module
+slider6:1<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot B Module
+slider7:2<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot C Module
+slider8:3<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot D Module
 
-// Module 1: Dirt (Distortion)
-slider10:1<0,1,1{Bypass,On}>-Dirt Enable
-slider11:0<0,2,1{Rodent,Fang,Chainsaw}>-Dirt Mode
-slider12:76<0,100,1>-Dirt Drive (%)
-slider13:45<0,100,1>-Dirt Pre-Low (%)
-slider14:68<0,100,1>-Dirt Pre-Mid (%)
-slider15:64<0,100,1>-Dirt Pre-High (%)
-slider16:20<0,100,1>-Dirt Grit (%)
-slider17:0.0<-18.0,12.0,0.1>-Dirt Output (dB)
+// Module 1: Distortion
+slider10:1<0,1,1{Bypass,On}>-Distortion Enable
+slider11:0<0,2,1{RAT,Modern High-Gain,HM-2}>-Distortion Mode
+slider12:76<0,100,1>-Distortion Drive (%)
+slider13:45<0,100,1>-Distortion Pre-Low (%)
+slider14:68<0,100,1>-Distortion Pre-Mid (%)
+slider15:64<0,100,1>-Distortion Pre-High (%)
+slider16:20<0,100,1>-Distortion Grit (%)
+slider17:0.0<-18.0,12.0,0.1>-Distortion Output (dB)
 
-// Module 2: Frost (Chorus)
-slider20:1<0,1,1{Bypass,On}>-Frost Enable
-slider21:0<0,1,1{Analog BBD,Dimension}>-Frost Mode
-slider22:0.45<0.1,4.0,0.01>-Frost Rate (Hz)
-slider23:58<0,100,1>-Frost Depth (%)
-slider24:44<0,100,1>-Frost Tone (%)
-slider25:38<0,100,1>-Frost Mix (%)
+// Module 2: Chorus
+slider20:1<0,1,1{Bypass,On}>-Chorus Enable
+slider21:0<0,1,1{Analog BBD,Dimension}>-Chorus Mode
+slider22:0.45<0.1,4.0,0.01>-Chorus Rate (Hz)
+slider23:58<0,100,1>-Chorus Depth (%)
+slider24:44<0,100,1>-Chorus Tone (%)
+slider25:38<0,100,1>-Chorus Mix (%)
 
-// Module 3: Echo (Delay)
-slider30:1<0,1,1{Bypass,On}>-Echo Enable
-slider31:0<0,1,1{Tape / BBD,Digital 80s}>-Echo Mode
-slider32:390<20,800,1>-Echo Time (ms)
-slider33:42<0,105,1>-Echo Feedback (%)
-slider34:36<0,100,1>-Echo Tone (%)
-slider35:28<0,100,1>-Echo Mix (%)
-slider36:0<0,1,1{Off,On}>-Echo Tempo Sync
+// Module 3: Delay
+slider30:1<0,1,1{Bypass,On}>-Delay Enable
+slider31:0<0,1,1{Tape,Digital}>-Delay Mode
+slider32:390<20,800,1>-Delay Time (ms)
+slider33:42<0,105,1>-Delay Feedback (%)
+slider34:36<0,100,1>-Delay Tone (%)
+slider35:28<0,100,1>-Delay Mix (%)
+slider36:0<0,1,1{Off,On}>-Delay Tempo Sync
 
-// Module 4: Cavern (Reverb)
-slider40:1<0,1,1{Bypass,On}>-Cavern Enable
-slider41:0<0,2,1{Crypt Hall,Cold Plate,Abyss}>-Cavern Mode
-slider42:3.2<0.5,10.0,0.1>-Cavern Decay (s)
-slider43:22<0,60,1>-Cavern Pre-Delay (ms)
-slider44:62<0,100,1>-Cavern Dampening (%)
-slider45:26<0,100,1>-Cavern Mix (%)
+// Module 4: Reverb
+slider40:1<0,1,1{Bypass,On}>-Reverb Enable
+slider41:0<0,2,1{Hall,Plate,Ambient}>-Reverb Mode
+slider42:3.2<0.5,10.0,0.1>-Reverb Decay (s)
+slider43:22<0,60,1>-Reverb Pre-Delay (ms)
+slider44:62<0,100,1>-Reverb Dampening (%)
+slider45:26<0,100,1>-Reverb Mix (%)
 
 // Module 5: Cabinet Shaper & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
-slider50:0<0,2,1{Raw 4x12,Cold 2x12,Dark Crypt}>-Cabinet Profile
+slider50:0<0,2,1{4x12 V30/SM57,2x12 Combo,4x12 Damped}>-Cabinet Profile
 slider51:0.0<-24.0,6.0,0.1>-Master Output (dB)
 
 // Global Template State
-slider60:1<0,2,1{Human Worms,Transylvanian Frost,Crypt Drone}>-Global Preset
+slider60:1<0,2,1{Tight Rhythm,Cold Lead,Doom Wall}>-Global Preset
 
 import sepulchre_dsp_core.jsfx-inc
 import sepulchre_dsp_fx.jsfx-inc
@@ -124,11 +124,11 @@ gfx_x = 200; gfx_y = 25;
 gfx_drawstr("// RAW BLACK METAL SIGNAL CHAIN");
 
 col_dim();
-gfx_x = 580; gfx_y = 25;
-gfx_drawstr("GLOBAL RITUAL:");
-ui_button(695, 19, 132, 24, "HUMAN WORMS", slider60 == 0) ? recall_global_preset(0);
-ui_button(835, 19, 152, 24, "TRANSYLVANIAN FROST", slider60 == 1) ? recall_global_preset(1);
-ui_button(995, 19, 122, 24, "CRYPT DRONE", slider60 == 2) ? recall_global_preset(2);
+gfx_x = 610; gfx_y = 25;
+gfx_drawstr("GLOBAL PRESET:");
+ui_button(715, 19, 130, 24, "TIGHT RHYTHM", slider60 == 0) ? recall_global_preset(0);
+ui_button(855, 19, 130, 24, "COLD LEAD", slider60 == 1) ? recall_global_preset(1);
+ui_button(995, 19, 122, 24, "DOOM WALL", slider60 == 2) ? recall_global_preset(2);
 
 // Module 0: Input & Gate (Left Column)
 col_chassis(); draw_box(12, 62, 168, 354, 1);
@@ -162,9 +162,9 @@ gfx_line(952, 90, 1128, 90);
 ui_button(962, 67, 156, 18, slider49 > 0.5 ? "05: CAB SIM [ON]" : "05: CAB SIM [BYP]", slider49 > 0.5) ? ( slider49 = !(slider49 > 0.5); ui_param_changed = 1; );
 
 col_dim(); gfx_x = 962; gfx_y = 102; gfx_drawstr("CABINET PROFILE:");
-ui_button(962, 120, 156, 24, "RAW 4x12 (V30/SM57)", slider50 == 0) ? ( slider50 = 0; ui_param_changed = 1; );
-ui_button(962, 150, 156, 24, "COLD 2x12 (COMBO)", slider50 == 1) ? ( slider50 = 1; ui_param_changed = 1; );
-ui_button(962, 180, 156, 24, "DARK CRYPT (DAMPED)", slider50 == 2) ? ( slider50 = 2; ui_param_changed = 1; );
+ui_button(962, 120, 156, 24, "4x12 (V30 / SM57)", slider50 == 0) ? ( slider50 = 0; ui_param_changed = 1; );
+ui_button(962, 150, 156, 24, "2x12 (COMBO)", slider50 == 1) ? ( slider50 = 1; ui_param_changed = 1; );
+ui_button(962, 180, 156, 24, "4x12 (DAMPED)", slider50 == 2) ? ( slider50 = 2; ui_param_changed = 1; );
 
 col_dim(); gfx_x = 962; gfx_y = 224; gfx_drawstr("FIXED FILTERS:");
 col_bone(); gfx_x = 962; gfx_y = 242; gfx_drawstr("HPF: 90 Hz / LPF: 5.5 kHz");

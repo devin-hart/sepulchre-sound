@@ -20,8 +20,8 @@
 - `AGENTS.md`: Project rules, tech stack, verification commands, and file index.
 - `SPEC.md`: Project specification, architecture, implementation roadmap, and decision log.
 - `sepulchre_sound.jsfx`: Main JSFX entry point, slider declarations, routing matrix, and section dispatch (`@init`, `@slider`, `@block`, `@sample`, `@gfx`).
-- `sepulchre_dsp_core.jsfx-inc`: Biquad filters, parameter smoothing, memory allocation helpers, Input/Gate (Module 0), Dirt/Distortion (Module 1), and Cabinet/Master (Module 5).
-- `sepulchre_dsp_fx.jsfx-inc`: Buffer-based time/modulation effects: Frost Chorus (Module 2), Echo Delay (Module 3), and Cavern Reverb (Module 4).
-- `sepulchre_presets.jsfx-inc`: Global preset templates (*Human Worms*, *Transylvanian Frost*, *Crypt Drone*) and local 3-preset module quick toggles.
+- `sepulchre_dsp_core.jsfx-inc`: Biquad filters, parameter smoothing, memory allocation helpers, Input/Gate (Module 0), Distortion (Module 1), and Cabinet/Master (Module 5).
+- `sepulchre_dsp_fx.jsfx-inc`: Buffer-based time/modulation effects: Chorus (Module 2), Delay (Module 3), and Reverb (Module 4).
+- `sepulchre_presets.jsfx-inc`: Global preset templates (*Tight Rhythm*, *Cold Lead*, *Doom Wall*) and local 3-preset module quick toggles.
 - `sepulchre_ui.jsfx-inc`: `@gfx` dark industrial custom pedalboard UI (`#111113` background, `#1A1A1E` chassis, horizontal sliders, click toggles, block swap headers).
 - `tests/verify_jsfx.py`: Automated EEL2 syntax, memory overlap, balanced-block, and numerical DSP response verifier.
