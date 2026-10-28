@@ -76,6 +76,9 @@ def check_files_and_syntax():
         if line_count >= 300:
             raise AssertionError(f"{fname} exceeds 300-line modular threshold ({line_count} lines)")
 
+        if fname.endswith(".jsfx-inc") and not re.search(r"^@init\b", raw, flags=re.MULTILINE):
+            raise AssertionError(f"{fname} is missing required '@init' section header for REAPER import")
+
         cleaned = strip_comments_and_strings(raw)
         all_cleaned[fname] = cleaned
 

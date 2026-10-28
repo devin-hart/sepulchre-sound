@@ -1,5 +1,6 @@
 // sepulchre_dsp_fx.jsfx-inc
 // Buffer-based modulation & spatial effects: Frost Chorus (Mod 2), Echo Delay (Mod 3), Cavern Reverb (Mod 4)
+@init
 
 function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac) (
   rpos = wpos - delay_spl;

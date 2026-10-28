@@ -1,5 +1,6 @@
 // sepulchre_presets.jsfx-inc
 // Global template recalls and per-module 3-preset quick toggles
+@init
 
 function sync_all_DSP() (
   update_core_coeffs();

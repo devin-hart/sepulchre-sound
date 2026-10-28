@@ -1,5 +1,6 @@
 // sepulchre_dsp_core.jsfx-inc
 // Core biquad filters, memory management, Input/Gate (Mod 0), Dirt (Mod 1), and Cabinet/Master (Mod 5)
+@init
 
 function alloc_buf(size) local(ptr) (
   ptr = mem_top;

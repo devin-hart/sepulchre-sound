@@ -1,5 +1,6 @@
 // sepulchre_ui.jsfx-inc
 // Dark industrial pedalboard UI: strictly horizontal sliders and click toggles, zero rotary knobs
+@init
 
 function set_rgb(r, g, b) (
   gfx_r = r / 255.0; gfx_g = g / 255.0; gfx_b = b / 255.0; gfx_a = 1.0;
