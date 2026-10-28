@@ -34,3 +34,4 @@ Build **Sepulchre Sound**, a native Cockos REAPER JSFX multi-effect pedalboard p
 | 2026-10-28 | Split implementation into `sepulchre_sound.jsfx` and 4 `.jsfx-inc` files | Keeps every file well under the ~300-line limit along clear DSP, preset, and UI boundaries. |
 | 2026-10-28 | Hide default REAPER sliders (`-` prefix) and drive parameters from custom `@gfx` + `slider_automate()` | Ensures full DAW automation and state recall while strictly enforcing the custom dark industrial horizontal-slider UI. |
 | 2026-10-28 | Build `tests/verify_jsfx.py` linter and DSP math verifier | REAPER binary is not in system PATH; automated syntax/paren/memory check and filter stability tests verify code logic deterministically. |
+| 2026-10-28 | Deploy runtime JSFX to `%APPDATA%\REAPER\Effects\sepulchre_sound\` and house source repo at `D:\VSTs\sepulchre_sound` | REAPER scans `%APPDATA%\REAPER\Effects` for JSFX scripts while `D:\VSTs` groups plugin folders on `D:`. |

@@ -14,7 +14,7 @@
 
 ## 3. Commands
 - **Run Syntax & DSP Verification:** `python tests/verify_jsfx.py`
-- **Deploy to REAPER Effects folder (Windows):** `Copy-Item -Path "sepulchre_*.jsfx*" -Destination "$env:APPDATA\REAPER\Effects\" -Force`
+- **Deploy to REAPER Effects folder (Windows):** `New-Item -ItemType Directory -Force -Path "$env:APPDATA\REAPER\Effects\sepulchre_sound" | Out-Null; Copy-Item -Path "sepulchre_*.jsfx*" -Destination "$env:APPDATA\REAPER\Effects\sepulchre_sound\" -Force`
 
 ## 4. Code Map
 - `AGENTS.md`: Project rules, tech stack, verification commands, and file index.
