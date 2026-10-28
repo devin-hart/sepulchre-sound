@@ -1,0 +1,212 @@
+// sepulchre_dsp_amp_cab.jsfx-inc
+// Module 5: Amp Stage (Tube / Solid-State), WAV IR FFT Convolution Loader, IIR Cabinet Fallback, and Master Limiter
+@init
+
+function init_amp_cab_dsp() (
+  bq_amp_hp = alloc_buf(9);
+  bq_amp_bass = alloc_buf(9);
+  bq_amp_mid = alloc_buf(9);
+  bq_amp_treb = alloc_buf(9);
+  bq_amp_pres = alloc_buf(9);
+
+  bq_cab_hp = alloc_buf(9);
+  bq_cab_lp1 = alloc_buf(9);
+  bq_cab_lp2 = alloc_buf(9);
+  bq_cab_f1 = alloc_buf(9);
+  bq_cab_f2 = alloc_buf(9);
+  bq_cab_f3 = alloc_buf(9);
+
+  // Align FFT & IR convolution buffers to 65536 boundary
+  mem_top = ((mem_top + 65535) & ~65535);
+  ir_raw_buf = alloc_buf(32768);
+  ir_fft_kern = alloc_buf(32768);
+  ir_blk_cur = alloc_buf(32768);
+  ir_blk_last = alloc_buf(32768);
+
+  ir_loaded_slot = -1;
+  ir_need_refft = 0;
+  ir_filter_len = 0;
+  ir_fft_size = 4096;
+  ir_chunk_size = 2048;
+  ir_bpos = 0;
+);
+
+function reset_amp_cab_state() (
+  bq_clear(bq_amp_hp); bq_clear(bq_amp_bass); bq_clear(bq_amp_mid);
+  bq_clear(bq_amp_treb); bq_clear(bq_amp_pres);
+  bq_clear(bq_cab_hp); bq_clear(bq_cab_lp1); bq_clear(bq_cab_lp2);
+  bq_clear(bq_cab_f1); bq_clear(bq_cab_f2); bq_clear(bq_cab_f3);
+  memset(ir_blk_cur, 0, 32768);
+  memset(ir_blk_last, 0, 32768);
+  ir_bpos = 0;
+);
+
+function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
+  ir_loaded_slot = slot_idx;
+  ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
+  slot_idx > 0 ? (
+    fh = file_open(slider53);
+    fh > 0 ? (
+      file_riff(fh, nch, ir_sr);
+      nch > 0 ? (
+        avail = floor(file_avail(fh) / nch);
+        ir_raw_len = min(4096, avail);
+        ir_raw_nch = nch;
+        ir_raw_srate = ir_sr;
+        file_mem(fh, ir_raw_buf, ir_raw_len * nch);
+        ir_need_refft = 1;
+      );
+      file_close(fh);
+    );
+  ) : (
+    ir_filter_len = 0;
+  );
+);
+
+function prepare_ir_fft() local(isc, i, i2, ipos, frac, val, energy, norm_g) (
+  ir_raw_len > 0 && ir_raw_srate > 0 ? (
+    isc = ir_raw_srate / srate;
+    ir_filter_len = min(2047, floor(ir_raw_len / isc));
+    ir_fft_size = 4096;
+    ir_chunk_size = ir_fft_size - ir_filter_len - 1;
+    ir_chunk_size2 = ir_chunk_size * 2;
+    memset(ir_fft_kern, 0, ir_fft_size * 2);
+    memset(ir_blk_cur, 0, ir_fft_size * 2);
+    memset(ir_blk_last, 0, ir_fft_size * 2);
+    ir_bpos = 0;
+
+    energy = 0.0;
+    i = 0; i2 = 0;
+    loop(ir_filter_len,
+      ipos = floor(i);
+      frac = i - ipos;
+      val = ir_raw_buf[ipos * ir_raw_nch] * (1.0 - frac) + ir_raw_buf[min(ir_raw_len - 1, ipos + 1) * ir_raw_nch] * frac;
+      ir_fft_kern[i2] = val;
+      ir_fft_kern[i2 + 1] = 0.0;
+      energy += val * val;
+      i += isc;
+      i2 += 2;
+    );
+    norm_g = (1.0 / ir_fft_size) * (energy > 0.00001 ? (0.18 / sqrt(energy)) : 1.0);
+    fft(ir_fft_kern, ir_fft_size);
+    i = 0;
+    loop(ir_fft_size * 2,
+      ir_fft_kern[i] *= norm_g;
+      i += 1;
+    );
+  ) : (
+    ir_filter_len = 0;
+  );
+  ir_need_refft = 0;
+);
+
+function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
+  // Amp Stage (Tube JCM/5150 vs Solid-State Death/Black Metal voicing)
+  bq_hp(bq_amp_hp, 75.0, 0.707);
+  bass_db = (slider55 - 50.0) * 0.20;
+  mid_db  = (slider56 - 50.0) * 0.22 - (slider54 > 1.5 ? 2.5 : 1.0);
+  treb_db = (slider57 - 50.0) * 0.20 + 1.5;
+  pres_db = (slider58 - 50.0) * 0.24;
+
+  bq_lshelf(bq_amp_bass, 125.0, bass_db);
+  bq_peak(bq_amp_mid, slider54 > 1.5 ? 620.0 : 520.0, 1.15, mid_db);
+  bq_hshelf(bq_amp_treb, 2400.0, treb_db);
+  bq_peak(bq_amp_pres, 3800.0, 1.25, pres_db);
+
+  // IIR Cabinet Shaper (loosened upper-mid/air roll-off per REVIEW.md)
+  bq_hp(bq_cab_hp, 85.0, 0.7071);
+  bq_lp(bq_cab_lp1, 7800.0, 0.7071);
+  bq_cab_profile = slider50;
+  bq_cab_profile == 0 ? ( // 4x12 (V30 / SM57)
+    bq_peak(bq_cab_f1, 125.0, 1.6, 3.2);
+    bq_peak(bq_cab_f2, 650.0, 1.2, -3.8);
+    bq_peak(bq_cab_f3, 2850.0, 1.4, 4.8);
+    bq_lp(bq_cab_lp2, 6200.0, 0.95);
+    cab_comp_lin = 0.72;
+  ) : bq_cab_profile == 1 ? ( // 2x12 (Combo)
+    bq_hp(bq_cab_f1, 145.0, 1.0);
+    bq_peak(bq_cab_f2, 1150.0, 1.3, 4.2);
+    bq_peak(bq_cab_f3, 3400.0, 1.5, 4.0);
+    bq_lp(bq_cab_lp2, 5900.0, 0.88);
+    cab_comp_lin = 0.70;
+  ) : ( // 4x12 (Damped)
+    bq_peak(bq_cab_f1, 110.0, 1.8, 4.5);
+    bq_peak(bq_cab_f2, 2900.0, 1.8, -5.5);
+    bq_peak(bq_cab_f3, 1750.0, 1.2, 3.2);
+    bq_lp(bq_cab_lp2, 5100.0, 0.92);
+    cab_comp_lin = 0.76;
+  );
+
+  master_out_t = db2lin(slider51);
+  tmp_ir = floor(slider53 + 0.001);
+  tmp_ir != ir_loaded_slot ? load_ir_slot(tmp_ir);
+);
+
+function proc_amp_stage(x, mode) (
+  mode == 1 ? ( // Tube Head: asymmetric cathode/plate saturation (unity-calibrated)
+    (x >= 0.0 ? soft_tanh(x * 1.45) : (0.85 * soft_tanh(x * 1.70))) * 0.56;
+  ) : ( // Solid-State Combo: MOSFET crisp rail clip (unity-calibrated)
+    (clamp(x * 1.35, -0.82, 0.82) * 0.65 + 0.35 * soft_tanh(x * 1.85)) * 0.56;
+  );
+);
+
+function proc_cab_master() local(l, r, t, bp2) (
+  l = spl0; r = spl1;
+
+  // Amp Stage (0=Off, 1=Tube Head, 2=Solid-State)
+  slider54 > 0.5 ? (
+    l = bq_proc_l(bq_amp_hp, l); r = bq_proc_r(bq_amp_hp, r);
+    l = proc_amp_stage(l, slider54);
+    r = proc_amp_stage(r, slider54);
+    l = bq_proc_l(bq_amp_bass, l); r = bq_proc_r(bq_amp_bass, r);
+    l = bq_proc_l(bq_amp_mid, l);  r = bq_proc_r(bq_amp_mid, r);
+    l = bq_proc_l(bq_amp_treb, l); r = bq_proc_r(bq_amp_treb, r);
+  );
+
+  // Cabinet: External WAV IR Convolution if selected & loaded, else IIR Cabinet network
+  slider49 > 0.5 ? (
+    slider53 > 0.5 && ir_filter_len > 0 ? (
+      ir_bpos >= ir_chunk_size ? (
+        t = ir_blk_last; ir_blk_last = ir_blk_cur; ir_blk_cur = t;
+        memset(ir_blk_cur + ir_chunk_size2, 0, (ir_fft_size - ir_chunk_size) * 2);
+        fft(ir_blk_cur, ir_fft_size);
+        convolve_c(ir_blk_cur, ir_fft_kern, ir_fft_size);
+        ifft(ir_blk_cur, ir_fft_size);
+        ir_bpos = 0;
+      );
+      bp2 = ir_bpos * 2;
+      ir_blk_last[bp2] = l;
+      ir_blk_last[bp2 + 1] = r;
+      l = ir_blk_cur[bp2];
+      r = ir_blk_cur[bp2 + 1];
+      ir_bpos < (ir_fft_size - ir_chunk_size) ? (
+        l += ir_blk_last[ir_chunk_size2 + bp2];
+        r += ir_blk_last[ir_chunk_size2 + bp2 + 1];
+      );
+      ir_bpos += 1;
+      l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);
+    ) : (
+      l = bq_proc_l(bq_cab_hp, l);  r = bq_proc_r(bq_cab_hp, r);
+      l = bq_proc_l(bq_cab_f1, l);  r = bq_proc_r(bq_cab_f1, r);
+      l = bq_proc_l(bq_cab_f2, l);  r = bq_proc_r(bq_cab_f2, r);
+      l = bq_proc_l(bq_cab_f3, l);  r = bq_proc_r(bq_cab_f3, r);
+      l = bq_proc_l(bq_cab_lp2, l); r = bq_proc_r(bq_cab_lp2, r);
+      l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
+      l *= cab_comp_lin; r *= cab_comp_lin;
+    );
+  );
+
+  // Presence / Air shaping
+  l = bq_proc_l(bq_amp_pres, l);
+  r = bq_proc_r(bq_amp_pres, r);
+
+  master_out_s = param_smooth_c * master_out_s + (1.0 - param_smooth_c) * master_out_t;
+  l *= master_out_s;
+  r *= master_out_s;
+
+  // Linear below -6 dBFS, exact -1.0 dBFS (0.89125) ceiling
+  spl0 = limit_sample(l, 0.89125);
+  spl1 = limit_sample(r, 0.89125);
+
+  meter_out_peak = max(meter_out_peak * meter_decay_c, max(abs(spl0), abs(spl1)));
+);

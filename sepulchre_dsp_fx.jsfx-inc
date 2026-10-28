@@ -1,5 +1,5 @@
 // sepulchre_dsp_fx.jsfx-inc
-// Buffer-based modulation & spatial effects: Frost Chorus (Mod 2), Echo Delay (Mod 3), Cavern Reverb (Mod 4)
+// Buffer-based modulation & spatial effects: Chorus (Mod 2), Delay (Mod 3), Reverb (Mod 4)
 @init
 
 function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac) (
@@ -36,33 +36,38 @@ function allpass_proc(buf, len, idx_ptr, x, g) local(idx, buf_out, y) (
   y;
 );
 
+function rt60_fb(comb_len, decay_s) (
+  clamp(exp(-6.907755 * comb_len / (srate * max(0.2, decay_s))), 0.15, 0.9992);
+);
+
 function init_fx_dsp() (
-  // Frost Chorus buffers (~90 ms max)
-  frost_len = 8192;
-  frost_buf_l = alloc_buf(frost_len);
-  frost_buf_r = alloc_buf(frost_len);
-  frost_wpos = 0;
-  frost_phase = 0.0;
-  frost_drift = 0.0;
-  bq_frost_lp = alloc_buf(9);
+  // Chorus buffers (~170 ms at 48 kHz)
+  chorus_len = 8192;
+  chorus_buf_l = alloc_buf(chorus_len);
+  chorus_buf_r = alloc_buf(chorus_len);
+  chorus_wpos = 0;
+  chorus_phase = 0.0;
+  chorus_drift = 0.0;
+  chorus_rng = 22222;
+  bq_chorus_lp = alloc_buf(9);
 
-  // Echo Delay buffers (~2 sec max at 96 kHz)
-  echo_len = 192000;
-  echo_buf_l = alloc_buf(echo_len);
-  echo_buf_r = alloc_buf(echo_len);
-  echo_wpos = 0;
-  echo_phase = 0.0;
-  echo_delay_smooth = 16000.0;
-  bq_echo_lp = alloc_buf(9);
-  bq_echo_hp = alloc_buf(9);
+  // Delay buffers (4.0 s at 48 kHz / 2.0 s at 96 kHz)
+  delay_len = 192000;
+  delay_buf_l = alloc_buf(delay_len);
+  delay_buf_r = alloc_buf(delay_len);
+  delay_wpos = 0;
+  delay_phase = 0.0;
+  delay_smooth = 0.0;
+  delay_smooth_init = 0;
+  bq_delay_lp = alloc_buf(9);
+  bq_delay_hp = alloc_buf(9);
 
-  // Cavern Reverb buffers: Pre-delay + 4 prime combs (L/R stereo spread) + 2 series allpasses
+  // Reverb buffers: Pre-delay + 4 stereo-spread combs + 2 series allpasses
   rev_pre_len = 16384;
   rev_pre_l = alloc_buf(rev_pre_len);
   rev_pre_r = alloc_buf(rev_pre_len);
   rev_pre_wpos = 0;
 
-  // Prime comb lengths scaled at @slider for srate
   comb_max = 12288;
   comb_l1 = alloc_buf(comb_max); comb_l2 = alloc_buf(comb_max);
   comb_l3 = alloc_buf(comb_max); comb_l4 = alloc_buf(comb_max);
@@ -73,165 +78,194 @@ function init_fx_dsp() (
   ap_l1 = alloc_buf(ap_max); ap_l2 = alloc_buf(ap_max);
   ap_r1 = alloc_buf(ap_max); ap_r2 = alloc_buf(ap_max);
 
-  // State arrays for comb/allpass indices and filter states
   rev_state = alloc_buf(32);
   bq_rev_shelf = alloc_buf(9);
-  rev_swell_env = 0.0;
 );
 
-function update_fx_coeffs() local(frost_fc, echo_fc, rev_fc, s_scale, mode_scale) (
-  // Frost Chorus
-  frost_fc = 900.0 + (slider24 * 0.01) * 7500.0;
-  bq_lp(bq_frost_lp, frost_fc, 0.707);
+function reset_fx_state() (
+  memset(chorus_buf_l, 0, chorus_len); memset(chorus_buf_r, 0, chorus_len);
+  memset(delay_buf_l, 0, delay_len);   memset(delay_buf_r, 0, delay_len);
+  memset(rev_pre_l, 0, rev_pre_len);   memset(rev_pre_r, 0, rev_pre_len);
+  memset(comb_l1, 0, comb_max); memset(comb_l2, 0, comb_max);
+  memset(comb_l3, 0, comb_max); memset(comb_l4, 0, comb_max);
+  memset(comb_r1, 0, comb_max); memset(comb_r2, 0, comb_max);
+  memset(comb_r3, 0, comb_max); memset(comb_r4, 0, comb_max);
+  memset(ap_l1, 0, ap_max);     memset(ap_l2, 0, ap_max);
+  memset(ap_r1, 0, ap_max);     memset(ap_r2, 0, ap_max);
+  memset(rev_state, 0, 32);
+  bq_clear(bq_chorus_lp); bq_clear(bq_delay_lp); bq_clear(bq_delay_hp); bq_clear(bq_rev_shelf);
+  delay_smooth_init = 0;
+);
 
-  // Echo Delay
-  echo_fc = slider31 == 0 ? (950.0 + (slider34 * 0.01) * 3200.0) : (2200.0 + (slider34 * 0.01) * 9500.0);
-  bq_lp(bq_echo_lp, echo_fc, 0.707);
-  bq_hp(bq_echo_hp, slider31 == 0 ? 135.0 : 80.0, 0.707);
+function get_delay_sync_div(time_ms) (
+  time_ms < 200 ? 0.50 :
+  time_ms < 350 ? 0.6666667 :
+  time_ms < 550 ? 0.75 : 1.0;
+);
 
-  // Cavern Reverb
+function update_fx_coeffs() local(chorus_fc, delay_fc, rev_fc, s_scale, mode_scale, eff_decay) (
+  chorus_fc = 900.0 + (slider24 * 0.01) * 7500.0;
+  bq_lp(bq_chorus_lp, chorus_fc, 0.707);
+  chorus_mix_t = slider25 * 0.01;
+  chorus_drift_c = exp(-1.0 / (0.150 * srate));
+
+  delay_fc = slider31 == 0 ? (950.0 + (slider34 * 0.01) * 3200.0) : (2200.0 + (slider34 * 0.01) * 9500.0);
+  bq_lp(bq_delay_lp, delay_fc, 0.707);
+  bq_hp(bq_delay_hp, slider31 == 0 ? 135.0 : 80.0, 0.707);
+  delay_time_smooth_c = exp(-1.0 / (0.030 * srate));
+  delay_mix_t = slider35 * 0.01;
+
+  // Mutual-prime comb lengths (1559, 1619, 1493, 1423) scaled for sample rate
   s_scale = srate / 44100.0;
   mode_scale = slider41 == 1 ? 0.68 : (slider41 == 2 ? 1.32 : 1.0);
-  c_len_l1 = min(comb_max - 4, floor(1557 * s_scale * mode_scale));
-  c_len_l2 = min(comb_max - 4, floor(1617 * s_scale * mode_scale));
-  c_len_l3 = min(comb_max - 4, floor(1491 * s_scale * mode_scale));
-  c_len_l4 = min(comb_max - 4, floor(1422 * s_scale * mode_scale));
-  c_len_r1 = min(comb_max - 4, floor((1557 + 23) * s_scale * mode_scale));
-  c_len_r2 = min(comb_max - 4, floor((1617 + 29) * s_scale * mode_scale));
-  c_len_r3 = min(comb_max - 4, floor((1491 + 31) * s_scale * mode_scale));
-  c_len_r4 = min(comb_max - 4, floor((1422 + 37) * s_scale * mode_scale));
+  c_len_l1 = min(comb_max - 4, floor(1559 * s_scale * mode_scale));
+  c_len_l2 = min(comb_max - 4, floor(1619 * s_scale * mode_scale));
+  c_len_l3 = min(comb_max - 4, floor(1493 * s_scale * mode_scale));
+  c_len_l4 = min(comb_max - 4, floor(1423 * s_scale * mode_scale));
+  c_len_r1 = min(comb_max - 4, floor((1559 + 23) * s_scale * mode_scale));
+  c_len_r2 = min(comb_max - 4, floor((1619 + 29) * s_scale * mode_scale));
+  c_len_r3 = min(comb_max - 4, floor((1493 + 31) * s_scale * mode_scale));
+  c_len_r4 = min(comb_max - 4, floor((1423 + 37) * s_scale * mode_scale));
 
-  ap_len_l1 = min(ap_max - 4, floor(225 * s_scale));
-  ap_len_l2 = min(ap_max - 4, floor(556 * s_scale));
-  ap_len_r1 = min(ap_max - 4, floor((225 + 17) * s_scale));
-  ap_len_r2 = min(ap_max - 4, floor((556 + 19) * s_scale));
+  ap_len_l1 = min(ap_max - 4, floor(227 * s_scale));
+  ap_len_l2 = min(ap_max - 4, floor(557 * s_scale));
+  ap_len_r1 = min(ap_max - 4, floor((227 + 17) * s_scale));
+  ap_len_r2 = min(ap_max - 4, floor((557 + 19) * s_scale));
 
+  // Calibrated RT60 feedback per comb length (Bug #1 fix)
+  eff_decay = slider42 * (slider41 == 2 ? 1.25 : 1.0);
+  c_fb_l1 = rt60_fb(c_len_l1, eff_decay); c_fb_l2 = rt60_fb(c_len_l2, eff_decay);
+  c_fb_l3 = rt60_fb(c_len_l3, eff_decay); c_fb_l4 = rt60_fb(c_len_l4, eff_decay);
+  c_fb_r1 = rt60_fb(c_len_r1, eff_decay); c_fb_r2 = rt60_fb(c_len_r2, eff_decay);
+  c_fb_r3 = rt60_fb(c_len_r3, eff_decay); c_fb_r4 = rt60_fb(c_len_r4, eff_decay);
+
+  rev_damp = clamp((slider44 * 0.0070 + (slider41 == 0 ? 0.16 : 0.05)) * (44100.0 / srate), 0.03, 0.85);
+  rev_ap_g = slider41 == 1 ? 0.68 : 0.55;
   rev_fc = 1200.0 + (1.0 - slider44 * 0.01) * 6500.0;
   bq_hshelf(bq_rev_shelf, rev_fc, -3.0 - (slider44 * 0.12));
+  reverb_mix_t = slider45 * 0.01;
 );
 
-function proc_frost() local(rate, depth, mix, lfo1, lfo2, d_l, d_r, wet_l, wet_r, tap2_l, tap2_r) (
-  slider20 > 0.5 ? (
-    rate = slider22;
-    depth = slider23 * 0.01;
-    mix = slider25 * 0.01;
-    frost_buf_l[frost_wpos] = spl0;
-    frost_buf_r[frost_wpos] = spl1;
+// Always runs buffer & LFO for clean bypass spillover (Bug #2 fix)
+function proc_chorus() local(en, rate, depth, rnd, lfo1, lfo2, d_l, d_r, wet_l, wet_r, tap2_l, tap2_r) (
+  en = slider20 > 0.5;
+  chorus_mix_s = param_smooth_c * chorus_mix_s + (1.0 - param_smooth_c) * (en ? chorus_mix_t : 0.0);
+  rate = slider22;
+  depth = slider23 * 0.01;
+  chorus_buf_l[chorus_wpos] = en ? spl0 : 0.0;
+  chorus_buf_r[chorus_wpos] = en ? spl1 : 0.0;
 
-    frost_phase += rate / srate;
-    frost_phase >= 1.0 ? frost_phase -= 1.0;
+  chorus_phase += rate / srate;
+  chorus_phase >= 1.0 ? chorus_phase -= 1.0;
 
-    slider21 == 0 ? ( // Analog BBD with organic drift
-      frost_drift = 0.9995 * frost_drift + 0.0005 * sin(frost_phase * 2.0 * $pi * 0.37);
-      lfo1 = sin(frost_phase * 2.0 * $pi + frost_drift * 0.8);
-      lfo2 = cos(frost_phase * 2.0 * $pi - frost_drift * 0.8);
-      d_l = (0.0065 + depth * 0.0048 * (1.0 + lfo1)) * srate;
-      d_r = (0.0072 + depth * 0.0048 * (1.0 + lfo2)) * srate;
-      wet_l = buf_read_interp(frost_buf_l, frost_len, frost_wpos, d_l);
-      wet_r = buf_read_interp(frost_buf_r, frost_len, frost_wpos, d_r);
-    ) : ( // Dimension static multi-tap spatial widening
-      lfo1 = 1.0 - 2.0 * abs(2.0 * frost_phase - 1.0); // subtle triangle motion
-      d_l = (0.0085 + depth * 0.0014 * lfo1) * srate;
-      d_r = (0.0115 - depth * 0.0014 * lfo1) * srate;
-      tap2_l = (0.0168 - depth * 0.0011 * lfo1) * srate;
-      tap2_r = (0.0142 + depth * 0.0011 * lfo1) * srate;
-      wet_l = 0.65 * buf_read_interp(frost_buf_l, frost_len, frost_wpos, d_l)
-            - 0.35 * buf_read_interp(frost_buf_r, frost_len, frost_wpos, tap2_l);
-      wet_r = 0.65 * buf_read_interp(frost_buf_r, frost_len, frost_wpos, d_r)
-            - 0.35 * buf_read_interp(frost_buf_l, frost_len, frost_wpos, tap2_r);
-    );
-
-    wet_l = bq_proc_l(bq_frost_lp, wet_l);
-    wet_r = bq_proc_r(bq_frost_lp, wet_r);
-
-    frost_wpos += 1;
-    frost_wpos >= frost_len ? frost_wpos = 0;
-
-    spl0 = spl0 * (1.0 - mix * 0.55) + wet_l * mix;
-    spl1 = spl1 * (1.0 - mix * 0.55) + wet_r * mix;
+  slider21 == 0 ? ( // Analog BBD with smoothed white-noise LFO drift (no wrap hitch)
+    chorus_rng = (chorus_rng * 196314165 + 907633515) & 0x7fffffff;
+    rnd = (chorus_rng / 1073741824.0) - 1.0;
+    chorus_drift = chorus_drift_c * chorus_drift + (1.0 - chorus_drift_c) * rnd;
+    lfo1 = sin(chorus_phase * 2.0 * $pi + chorus_drift * 0.35);
+    lfo2 = cos(chorus_phase * 2.0 * $pi - chorus_drift * 0.35);
+    d_l = (0.0065 + depth * 0.0048 * (1.0 + lfo1)) * srate;
+    d_r = (0.0072 + depth * 0.0048 * (1.0 + lfo2)) * srate;
+    wet_l = buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, d_l);
+    wet_r = buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, d_r);
+  ) : ( // Dimension static multi-tap spatial widening
+    lfo1 = 1.0 - 2.0 * abs(2.0 * chorus_phase - 1.0);
+    d_l = (0.0085 + depth * 0.0014 * lfo1) * srate;
+    d_r = (0.0115 - depth * 0.0014 * lfo1) * srate;
+    tap2_l = (0.0168 - depth * 0.0011 * lfo1) * srate;
+    tap2_r = (0.0142 + depth * 0.0011 * lfo1) * srate;
+    wet_l = 0.65 * buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, d_l)
+          - 0.35 * buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, tap2_l);
+    wet_r = 0.65 * buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, d_r)
+          - 0.35 * buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, tap2_r);
   );
+
+  wet_l = bq_proc_l(bq_chorus_lp, wet_l);
+  wet_r = bq_proc_r(bq_chorus_lp, wet_r);
+
+  chorus_wpos += 1;
+  chorus_wpos >= chorus_len ? chorus_wpos = 0;
+
+  spl0 = spl0 * (1.0 - chorus_mix_s * 0.55) + wet_l * chorus_mix_s;
+  spl1 = spl1 * (1.0 - chorus_mix_s * 0.55) + wet_r * chorus_mix_s;
 );
 
-function proc_echo() local(time_ms, target_del, fb, mix, mod_spl, r_l, r_r, fb_l, fb_r) (
-  slider30 > 0.5 ? (
-    slider36 > 0.5 && tempo > 20.0 ? (
-      // Tempo sync: quarter-note triplet / eighth / dotted eighth / quarter based on Time slider range
-      time_ms = (60000.0 / tempo) * (slider32 < 200 ? 0.5 : (slider32 < 450 ? 0.75 : 1.0));
-      time_ms = clamp(time_ms, 20.0, 1500.0);
-    ) : (
-      time_ms = slider32;
-    );
-    target_del = clamp(time_ms * 0.001 * srate, 32.0, echo_len - 64.0);
-    echo_delay_smooth = 0.999 * echo_delay_smooth + 0.001 * target_del;
+// Always runs delay buffer for natural tail spillover when bypassed (Bug #2 fix)
+function proc_delay() local(en, time_ms, target_del, fb, mod_spl, r_l, r_r, in_l, in_r) (
+  en = slider30 > 0.5;
+  delay_mix_s = param_smooth_c * delay_mix_s + (1.0 - param_smooth_c) * delay_mix_t;
 
-    echo_phase += 0.65 / srate;
-    echo_phase >= 1.0 ? echo_phase -= 1.0;
-    mod_spl = slider31 == 0 ? (sin(echo_phase * 2.0 * $pi) * 0.00055 * srate) : 0.0;
-
-    r_l = buf_read_interp(echo_buf_l, echo_len, echo_wpos, echo_delay_smooth + mod_spl);
-    r_r = buf_read_interp(echo_buf_r, echo_len, echo_wpos, echo_delay_smooth - mod_spl + 11.0);
-
-    r_l = bq_proc_l(bq_echo_lp, bq_proc_l(bq_echo_hp, r_l));
-    r_r = bq_proc_r(bq_echo_lp, bq_proc_r(bq_echo_hp, r_r));
-
-    fb = slider33 * 0.01;
-    fb_l = soft_tanh(spl0 + r_l * fb);
-    fb_r = soft_tanh(spl1 + r_r * fb);
-
-    echo_buf_l[echo_wpos] = fb_l;
-    echo_buf_r[echo_wpos] = fb_r;
-    echo_wpos += 1;
-    echo_wpos >= echo_len ? echo_wpos = 0;
-
-    mix = slider35 * 0.01;
-    spl0 = spl0 * (1.0 - mix * 0.4) + r_l * mix;
-    spl1 = spl1 * (1.0 - mix * 0.4) + r_r * mix;
+  slider36 > 0.5 && tempo > 20.0 ? (
+    time_ms = clamp((60000.0 / tempo) * get_delay_sync_div(slider32), 20.0, 1500.0);
+  ) : (
+    time_ms = slider32;
   );
+  delay_eff_ms = time_ms;
+  target_del = clamp(time_ms * 0.001 * srate, 32.0, delay_len - 64.0);
+  !delay_smooth_init ? ( delay_smooth = target_del; delay_smooth_init = 1; );
+  delay_smooth = delay_time_smooth_c * delay_smooth + (1.0 - delay_time_smooth_c) * target_del;
+
+  delay_phase += 0.65 / srate;
+  delay_phase >= 1.0 ? delay_phase -= 1.0;
+  mod_spl = slider31 == 0 ? (sin(delay_phase * 2.0 * $pi) * 0.00055 * srate) : 0.0;
+
+  r_l = buf_read_interp(delay_buf_l, delay_len, delay_wpos, delay_smooth + mod_spl);
+  r_r = buf_read_interp(delay_buf_r, delay_len, delay_wpos, delay_smooth - mod_spl + 11.0);
+
+  r_l = bq_proc_l(bq_delay_lp, bq_proc_l(bq_delay_hp, r_l));
+  r_r = bq_proc_r(bq_delay_lp, bq_proc_r(bq_delay_hp, r_r));
+
+  fb = slider33 * 0.01;
+  in_l = en ? spl0 : 0.0;
+  in_r = en ? spl1 : 0.0;
+  delay_buf_l[delay_wpos] = soft_tanh(in_l + r_l * fb);
+  delay_buf_r[delay_wpos] = soft_tanh(in_r + r_r * fb);
+  delay_wpos += 1;
+  delay_wpos >= delay_len ? delay_wpos = 0;
+
+  spl0 = spl0 * (1.0 - (en ? delay_mix_s * 0.4 : 0.0)) + r_l * delay_mix_s;
+  spl1 = spl1 * (1.0 - (en ? delay_mix_s * 0.4 : 0.0)) + r_r * delay_mix_s;
 );
 
-function proc_cavern() local(decay_s, fb, damp, ap_g, pre_spl, in_l, in_r, sum_l, sum_r, mix) (
-  slider40 > 0.5 ? (
-    decay_s = slider42;
-    fb = clamp(exp(-3.0 * (1500.0 / srate) / max(0.2, decay_s)), 0.55, 0.985);
-    slider41 == 2 ? fb = min(0.992, fb * 1.03); // Abyss extended tail
-    damp = clamp(slider44 * 0.0075 + (slider41 == 0 ? 0.18 : 0.05), 0.05, 0.88);
-    ap_g = slider41 == 1 ? 0.68 : 0.55; // Cold Plate higher density
+// Always runs reverb combs/allpasses for natural tail spillover when bypassed (Bug #1 & #2 fix)
+function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cross_r) (
+  en = slider40 > 0.5;
+  reverb_mix_s = param_smooth_c * reverb_mix_s + (1.0 - param_smooth_c) * reverb_mix_t;
 
-    pre_spl = clamp(slider43 * 0.001 * srate, 1.0, rev_pre_len - 16.0);
-    rev_pre_l[rev_pre_wpos] = spl0;
-    rev_pre_r[rev_pre_wpos] = spl1;
-    in_l = buf_read_interp(rev_pre_l, rev_pre_len, rev_pre_wpos, pre_spl);
-    in_r = buf_read_interp(rev_pre_r, rev_pre_len, rev_pre_wpos, pre_spl);
-    rev_pre_wpos += 1;
-    rev_pre_wpos >= rev_pre_len ? rev_pre_wpos = 0;
+  pre_spl = clamp(slider43 * 0.001 * srate, 1.0, rev_pre_len - 16.0);
+  rev_pre_l[rev_pre_wpos] = en ? spl0 : 0.0;
+  rev_pre_r[rev_pre_wpos] = en ? spl1 : 0.0;
+  in_l = buf_read_interp(rev_pre_l, rev_pre_len, rev_pre_wpos, pre_spl);
+  in_r = buf_read_interp(rev_pre_r, rev_pre_len, rev_pre_wpos, pre_spl);
+  rev_pre_wpos += 1;
+  rev_pre_wpos >= rev_pre_len ? rev_pre_wpos = 0;
 
-    sum_l = comb_proc(comb_l1, c_len_l1, rev_state + 0, rev_state + 8,  in_l, fb, damp)
-          + comb_proc(comb_l2, c_len_l2, rev_state + 1, rev_state + 9,  in_l, fb, damp)
-          + comb_proc(comb_l3, c_len_l3, rev_state + 2, rev_state + 10, in_l, fb, damp)
-          + comb_proc(comb_l4, c_len_l4, rev_state + 3, rev_state + 11, in_l, fb, damp);
+  sum_l = comb_proc(comb_l1, c_len_l1, rev_state + 0, rev_state + 8,  in_l, c_fb_l1, rev_damp)
+        + comb_proc(comb_l2, c_len_l2, rev_state + 1, rev_state + 9,  in_l, c_fb_l2, rev_damp)
+        + comb_proc(comb_l3, c_len_l3, rev_state + 2, rev_state + 10, in_l, c_fb_l3, rev_damp)
+        + comb_proc(comb_l4, c_len_l4, rev_state + 3, rev_state + 11, in_l, c_fb_l4, rev_damp);
 
-    sum_r = comb_proc(comb_r1, c_len_r1, rev_state + 4, rev_state + 12, in_r, fb, damp)
-          + comb_proc(comb_r2, c_len_r2, rev_state + 5, rev_state + 13, in_r, fb, damp)
-          + comb_proc(comb_r3, c_len_r3, rev_state + 6, rev_state + 14, in_r, fb, damp)
-          + comb_proc(comb_r4, c_len_r4, rev_state + 7, rev_state + 15, in_r, fb, damp);
+  sum_r = comb_proc(comb_r1, c_len_r1, rev_state + 4, rev_state + 12, in_r, c_fb_r1, rev_damp)
+        + comb_proc(comb_r2, c_len_r2, rev_state + 5, rev_state + 13, in_r, c_fb_r2, rev_damp)
+        + comb_proc(comb_r3, c_len_r3, rev_state + 6, rev_state + 14, in_r, c_fb_r3, rev_damp)
+        + comb_proc(comb_r4, c_len_r4, rev_state + 7, rev_state + 15, in_r, c_fb_r4, rev_damp);
 
-    sum_l *= 0.25; sum_r *= 0.25;
-    sum_l = allpass_proc(ap_l1, ap_len_l1, rev_state + 16, sum_l, ap_g);
-    sum_l = allpass_proc(ap_l2, ap_len_l2, rev_state + 17, sum_l, ap_g);
-    sum_r = allpass_proc(ap_r1, ap_len_r1, rev_state + 18, sum_r, ap_g);
-    sum_r = allpass_proc(ap_r2, ap_len_r2, rev_state + 19, sum_r, ap_g);
+  sum_l *= 0.25; sum_r *= 0.25;
+  sum_l = allpass_proc(ap_l1, ap_len_l1, rev_state + 16, sum_l, rev_ap_g);
+  sum_l = allpass_proc(ap_l2, ap_len_l2, rev_state + 17, sum_l, rev_ap_g);
+  sum_r = allpass_proc(ap_r1, ap_len_r1, rev_state + 18, sum_r, rev_ap_g);
+  sum_r = allpass_proc(ap_r2, ap_len_r2, rev_state + 19, sum_r, rev_ap_g);
 
-    sum_l = bq_proc_l(bq_rev_shelf, sum_l);
-    sum_r = bq_proc_r(bq_rev_shelf, sum_r);
+  sum_l = bq_proc_l(bq_rev_shelf, sum_l);
+  sum_r = bq_proc_r(bq_rev_shelf, sum_r);
 
-    // Abyss cross-feed wash
-    slider41 == 2 ? (
-      rev_swell_env = 0.95 * sum_l + 0.05 * sum_r;
-      sum_r = 0.95 * sum_r + 0.05 * rev_swell_env;
-    );
-
-    mix = slider45 * 0.01;
-    spl0 = spl0 * (1.0 - mix * 0.45) + sum_l * mix;
-    spl1 = spl1 * (1.0 - mix * 0.45) + sum_r * mix;
+  // Symmetric stereo cross-wash in Ambient mode
+  slider41 == 2 ? (
+    cross_l = 0.78 * sum_l + 0.22 * sum_r;
+    cross_r = 0.78 * sum_r + 0.22 * sum_l;
+    sum_l = cross_l; sum_r = cross_r;
   );
+
+  spl0 = spl0 * (1.0 - (en ? reverb_mix_s * 0.45 : 0.0)) + sum_l * reverb_mix_s;
+  spl1 = spl1 * (1.0 - (en ? reverb_mix_s * 0.45 : 0.0)) + sum_r * reverb_mix_s;
 );
