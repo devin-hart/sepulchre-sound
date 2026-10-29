@@ -185,8 +185,8 @@ function ui_header() (
   ui_alpha = 1;
   draw_preset_dropdown_bar(936, 36, 250, 28);
   f_small(); u_rgb(125, 120, 111);
-  pdc_delay > 0 ? sprintf(#hdr, "4x OVERSAMPLED  /  IR LATENCY %d SPL (%.1f MS)", pdc_delay, pdc_delay * 1000 / srate)
-                : strcpy(#hdr, "4x OVERSAMPLED  /  ZERO LATENCY");
+  pdc_delay > 0 ? sprintf(#hdr, "8x OVERSAMPLED  /  IR LATENCY %d SPL (%.1f MS)", pdc_delay, pdc_delay * 1000 / srate)
+                : strcpy(#hdr, "8x OVERSAMPLED  /  ZERO LATENCY");
   u_text_sp(1186 - u_tw_sp(#hdr, 1.5), 76, #hdr, 1.5);
 );
 function ui_draw_all() (

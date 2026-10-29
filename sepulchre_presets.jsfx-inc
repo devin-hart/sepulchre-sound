@@ -23,7 +23,7 @@ function sync_all_DSP() (
   update_amp_cab_coeffs();
 );
 
-// Name table matching %APPDATA%\REAPER\Data\sepulchre_irs\ (EEL2 file sliders expose numeric index only)
+// Name table matching %APPDATA%\REAPER\Data\sepulchre_irs\
 function get_ir_slot_name(idx) (
   idx == 0 ? "01 BlackWizard C" :
   idx == 1 ? "02 BlackWizard E" :
@@ -53,7 +53,6 @@ function recall_global_preset(idx) (
   last_global_preset = idx;
   preset_dirty = 0;
   slider5 = 0; slider6 = 1; slider7 = 2; slider8 = 3;
-  slider52 = 0;
 
   idx == 0 ? ( // 01: Tight Rhythm (Metal Zone + Tube Amp + 4x12 V30)
     slider1 = 0.0; slider2 = 120; slider3 = -48; slider4 = 1;
@@ -94,7 +93,7 @@ function recall_global_preset(idx) (
     slider30 = 0; slider31 = 0; slider32 = 300; slider33 = 30; slider34 = 50; slider35 = 0; slider36 = 0;
     slider40 = 1; slider41 = 1; slider42 = 1.6; slider43 = 12; slider44 = 45; slider45 = 14;
     slider49 = 1; slider50 = 0; slider51 = -1.8;
-    slider52 = 0; slider54 = 2; slider55 = 64; slider56 = 58; slider57 = 64; slider58 = 68;
+    slider54 = 2; slider55 = 64; slider56 = 58; slider57 = 64; slider58 = 68;
   ) : idx == 5 ? ( // 06: Freezing Clean (Distortion bypassed + Tube Amp + BBD Chorus + Digital Delay + Hall)
     slider1 = 3.5; slider2 = 75; slider3 = -62; slider4 = 1;
     slider10 = 0; slider11 = 0; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;

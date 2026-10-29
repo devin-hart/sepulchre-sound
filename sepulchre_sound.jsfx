@@ -69,8 +69,8 @@ slider45:15<0,100,1>-Reverb Mix (%)
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
 slider50:0<0,2,1{4x12 V30/SM57,2x12 Combo,4x12 Damped}>-Cabinet Profile
 slider51:-0.5<-24.0,6.0,0.1>-Master Output (dB)
-slider52:0<0,1,1{IIR Cabinet,WAV IR Convolution}>-Cabinet Source Mode
-slider53:/sepulchre_irs:none:Cabinet WAV Impulse
+slider52:1<0,1,1{IIR Cabinet,WAV IR Convolution}>-Cabinet Source Mode
+slider53:0<0,9,1{01 BlackWizard Center,02 BlackWizard Edge,03 Destroyer Center,04 Destroyer Edge,05 LordOfGoats Center,06 LordOfGoats Edge,07 MysteriousSatan Center,08 Swordman Center,09 HeadKrush Center,10 PlagueBearer Center}>-Cabinet WAV Impulse Slot
 slider54:1<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
 slider55:54<0,100,1>-Amp Bass (%)
 slider56:44<0,100,1>-Amp Mid (%)
@@ -102,6 +102,7 @@ ext_noinit = 1;
   last_global_preset = slider60;
   dsp_initialized = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
+  ir_loaded_slot = -1;
   slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
 );
 sync_all_DSP();

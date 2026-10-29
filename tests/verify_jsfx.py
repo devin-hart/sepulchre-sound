@@ -599,6 +599,32 @@ def check_no_resonant_filters():
 
 
 
+def check_ir_loudness_constant():
+    # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
+    # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
+    print("[4c] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
+    m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
+    if not m:
+        raise AssertionError("IR_E48 constant not found")
+    sr = 48000.0
+    hp = bq_hp_coeffs(85.0, 0.7071, sr)
+    chain = [hp, bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr),
+             bq_lp_coeffs(6200.0, 0.95, sr), bq_lp_coeffs(7800.0, 0.7071, sr)]
+    weight = [bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False), bq_lp_coeffs(6000.0, 0.7071, sr)]
+    x = [1.0] + [0.0] * 4094
+    for b in chain:
+        b = list(b); x = [bq_step(b, v) for v in x]
+    x = [v * 0.72 for v in x[:2047]] + [0.0] * 2048
+    for b in weight:
+        b = list(b); x = [bq_step(b, v) for v in x]
+    e = sum(v * v for v in x)
+    print(f"  - IR_E48 file {float(m.group(1)):.6f} vs computed {e:.6f}")
+    if abs(float(m.group(1)) / e - 1.0) > 0.01:
+        raise AssertionError("IR_E48 does not match the IIR profile 0 weighted energy")
+
+
+
 def check_delay_bypass_clamp():
     print("[6/6] Verifying bypassed Delay at 105% feedback decays to silence (R2-2 verification)...")
     fb_slider = 105.0
@@ -640,6 +666,7 @@ if __name__ == "__main__":
         check_presets_dc_and_levels(raw_files["sepulchre_presets.jsfx-inc"])
         check_pre_cab_aliasing_all_bins(raw_files["sepulchre_presets.jsfx-inc"])
         check_no_resonant_filters()
+        check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
         check_delay_bypass_clamp()
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
