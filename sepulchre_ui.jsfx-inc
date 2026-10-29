@@ -36,6 +36,8 @@ function ui_begin() (
   ui_mx = (mouse_x - ui_ox) / ui_S;
   ui_my = (mouse_y - ui_oy) / ui_S;
   ui_alpha = 1;
+  ui_last_drag_id = ui_drag_id;
+  !(mouse_cap & 1) ? ui_drag_id = 0;               // Round 16 safety net: no drag survives a release
 );
 function u_px(x) ( floor(ui_ox + x * ui_S + 0.5); );
 function u_py(y) ( floor(ui_oy + y * ui_S + 0.5); );
@@ -167,6 +169,7 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
   u_text_r(x + w, y, #val_str);
 
   ty = y + 21; new_val = val;
+  ui_last_drag_id == id && !(mouse_cap & 1) ? auto_slider(id, 1);   // drag just released: end automation touch
   ui_hit(x - 3, y + 13, w + 6, 16) ? (
     time_precise(now_t);
     (ui_last_click_id == id && (now_t - ui_last_click_t) < 0.32) ? (
