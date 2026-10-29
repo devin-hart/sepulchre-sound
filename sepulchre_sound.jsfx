@@ -99,7 +99,6 @@ ext_noinit = 1;
   init_core_dsp();
   init_fx_dsp();
   init_amp_cab_dsp();
-  last_global_preset = slider60;
   dsp_initialized = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
   ir_loaded_slot = -1;
@@ -122,6 +121,7 @@ ir_reload_req ? (
 );
 
 (last_srate != srate || ui_need_sync) ? (
+  last_srate != srate && ir_raw_len > 0 ? ir_need_refft = 1;   // re-resample the IR at the new rate
   last_srate = srate;
   ui_need_sync = 0;
   sync_all_DSP();
@@ -168,12 +168,7 @@ ui_draw_background();
 
 ui_mouse_down = mouse_cap & 1;
 ui_mouse_clicked = ui_mouse_down && !ui_last_mouse_down;
-// Send end-touch notification when mouse drag ends (Fixes R2-5)
-!ui_mouse_down && ui_last_mouse_down && ui_drag_id > 0 ? (
-  auto_slider(ui_drag_id, 1);
-  ui_drag_id = 0;
-);
-!ui_mouse_down ? ui_drag_id = 0;
+// Drag release + automation end-touch: ui_begin() / ui_hslider() (Round 16)
 ui_last_mouse_down = ui_mouse_down;
 
 ui_draw_all();

@@ -1,20 +1,18 @@
 #!/usr/bin/env python3
 """
-Static & Numerical DSP Execution Verifier for Sepulchre Sound JSFX.
-Addresses Round 1 & Round 2 audit requirements:
-1. Parses actual EEL2 source files: checks <300 line limit, @init headers, balanced parens, slider definitions,
-   zero remaining legacy identifiers, and dynamically parses all `alloc_buf(...)` and `mem_top` statements from
-   the JSFX code to verify non-overlapping memory layout.
-2. Verifies Round 2 bug fixes in code:
-   - R2-1: @init does not call recall_global_preset().
-   - R2-2: proc_delay clamps feedback on bypass (`!en ? fb = min(fb, 0.75)`).
-   - R2-3: @block reports `pdc_delay = ir_chunk_size` when WAV IR is active.
-   - R2-4: Separate `slider52` (Cabinet Source Mode) + `slider53` (0..9 WAV IR file index).
-   - R2-5: `auto_slider` uses bitmask `2 ^ (id - 1)` with end_touch on mouse release.
-   - R2-6: `load_ir_slot` is called only from `@slider`/`@init`/`@gfx`, never from `@block`.
-3. Runs actual sample-by-sample Reverb comb+allpass impulse simulation to measure true RT60 decay time.
-4. Measures pre-cabinet 4x oversampling (8th-order Butterworth @ 8.5 kHz) total non-harmonic alias power across all FFT bins.
-5. Verifies all 5 high-gain presets peak strictly within [-10.0, -8.0] dBFS with DC offset < 0.004.
+Static checks and offline DSP mirror for Sepulchre Sound (run before every commit).
+1. Source checks: every JSFX file < 300 lines, @init headers, balanced parentheses, no unary '~', declared UI assets
+   exist, non-overlapping alloc_buf() memory map, and the Round 2 invariants (no preset recall in @init, delay
+   bypass feedback clamp, pdc_delay in @block, IR reload handler, no file I/O in coefficient updates, slider
+   automation masks).
+2. Python mirror of the pedals (8x oversampled), amp, IIR cab and limiter:
+   - presets peak in [-10, -8] dBFS with DC < 0.004 (IIR cab path);
+   - in-band aliasing per pedal (2578 Hz tone);
+   - no pedal filter with pole Q > 3.5 at any knob extreme (no ringing);
+   - IR_E48 matches the IIR cab's weighted energy;
+   - high-gain saturation curve (Metal Zone preset).
+Round 30: the reverb RT60 and delay-bypass simulations were removed. They re-implemented formulas in Python without
+reading the EEL2 source, so they could never catch a regression in the plugin.
 """
 
 import math
@@ -67,7 +65,7 @@ def strip_comments_and_strings(code):
 
 
 def check_syntax_and_r2_fixes():
-    print("[1/5] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
+    print("[1/6] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
     raw_by_file = {}
     cleaned_by_file = {}
     for fname in EXPECTED_FILES:
@@ -152,50 +150,6 @@ def check_syntax_and_r2_fixes():
     return raw_by_file
 
 
-def check_reverb_simulated_rt60():
-    print("[2/5] Running sample-by-sample comb+allpass impulse response to measure true RT60...")
-    srate = 48000.0
-    s_scale = srate / 44100.0
-    for decay_target in [1.5, 3.0]:
-        lens = [int(L * s_scale) for L in (1559, 1619, 1493, 1423)]
-        fbs = [min(0.9992, max(0.15, math.exp(-6.907755 * L / (srate * decay_target)))) for L in lens]
-        bufs = [[0.0] * L for L in lens]
-        idxs = [0, 0, 0, 0]
-        lps = [0.0, 0.0, 0.0, 0.0]
-        damp = 0.0  # Un-damped RT60 measurement
-        n_steps = int((decay_target * 1.15) * srate)
-        peak_init = 0.0
-        peak_end = 0.0
-        w_init_end = max(lens) + 10
-        w_tail_start = int(decay_target * srate)
-        w_tail_end = int(decay_target * srate) + max(lens) + 10
-
-        for n in range(n_steps):
-            x = 1.0 if n == 0 else 0.0
-            s = 0.0
-            for c in range(4):
-                idx = idxs[c]
-                out = bufs[c][idx]
-                lp = lps[c] * damp + out * (1.0 - damp)
-                lps[c] = lp
-                bufs[c][idx] = x + lp * fbs[c]
-                idx += 1
-                if idx >= lens[c]:
-                    idx = 0
-                idxs[c] = idx
-                s += out
-            s *= 0.25
-            if 10 <= n <= w_init_end:
-                peak_init = max(peak_init, abs(s))
-            if w_tail_start <= n <= w_tail_end:
-                peak_end = max(peak_end, abs(s))
-
-        atten_db = 20.0 * math.log10(peak_end / peak_init)
-        print(f"  - Simulated 4-comb impulse at t={decay_target:.1f}s: attenuation = {atten_db:.2f} dB (target -60.0 dB)")
-        if not (-64.0 <= atten_db <= -56.0):
-            raise AssertionError(f"Simulated comb attenuation {atten_db:.2f} dB outside [-64, -56] dB at {decay_target}s")
-
-
 def bq_lp_coeffs(freq, q, sr):
     freq = max(20.0, min(sr * 0.46, freq))
     w0 = 2.0 * math.pi * freq / sr
@@ -269,7 +223,7 @@ def soft_tanh(x):
 
 
 def limit_sample(x, L=0.89125):
-    k = 0.5
+    k = 0.7
     ax = abs(x)
     if ax <= k:
         return x
@@ -519,7 +473,7 @@ def parse_global_presets(presets_src):
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[3/5] Running offline DSP simulation across the 6 distorted presets (Target: [-10.0, -8.0] dBFS)...")
+    print("[2/6] Running offline DSP simulation across the 6 distorted presets (Target: [-10.0, -8.0] dBFS)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n_samples = int(0.45 * sr)
@@ -545,8 +499,8 @@ def check_presets_dc_and_levels(presets_src):
 
 def check_pre_cab_aliasing_all_bins(presets_src):
     # Round 9: every pedal model, at its preset settings (grit off), 8x oversampled. In-band (20 Hz - 8 kHz)
-    # limit -40 dB; HM-2 with every knob on 10 (preset 4) is allowed -34 dB (it is the harshest case by design).
-    print("[4/6] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
+    # limit -40 dB for every pedal (Round 30: HM-2 tightened from -34 dB after its Round 23/27 rebuild measured -47 dB).
+    print("[3/6] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
@@ -555,7 +509,7 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 4096)]
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
     bin_8k = int(8000.0 * n / sr)
-    for idx, name, limit in ((1, "RAT", -40.0), (3, "DS-1", -40.0), (0, "Metal Zone", -40.0), (4, "HM-2 (all 10)", -34.0)):
+    for idx, name, limit in ((1, "RAT", -40.0), (3, "DS-1", -40.0), (0, "Metal Zone", -40.0), (4, "HM-2 (all 10)", -40.0)):
         p = dict(presets[idx])
         p[16] = 0.0
         out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
@@ -586,7 +540,7 @@ def pole_q(b):
 def check_no_resonant_filters():
     # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
     # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
-    print("[4b] Checking pedal filter pole Q (no ringing resonances) across knob extremes...")
+    print("[4/6] Checking pedal filter pole Q (no ringing resonances) across knob extremes...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     worst = 0.0
@@ -607,7 +561,7 @@ def check_no_resonant_filters():
 def check_ir_loudness_constant():
     # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
     # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
-    print("[4c] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    print("[5/6] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
     src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
@@ -630,25 +584,10 @@ def check_ir_loudness_constant():
 
 
 
-def check_delay_bypass_clamp():
-    print("[6/6] Verifying bypassed Delay at 105% feedback decays to silence (R2-2 verification)...")
-    fb_slider = 105.0
-    en = False
-    fb = fb_slider * 0.01
-    if not en:
-        fb = min(fb, 0.75)
-    state = 0.9
-    for _ in range(100):
-        state = soft_tanh(0.0 + state * fb)
-    print(f"  - After 100 delay loops while bypassed at 105% slider: state = {state:.2e}")
-    assert abs(state) < 1e-6, "Bypassed 105% delay did not decay!"
-
-
-
 def check_distortion_gain_curve(presets_src):
     # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
     # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
-    print("[5/6] Verifying high-gain saturation curve (distortion output vs input level)...")
+    print("[6/6] Verifying high-gain saturation curve (distortion output vs input level)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = int(0.25 * sr)
@@ -667,13 +606,11 @@ def check_distortion_gain_curve(presets_src):
 if __name__ == "__main__":
     try:
         raw_files = check_syntax_and_r2_fixes()
-        check_reverb_simulated_rt60()
         check_presets_dc_and_levels(raw_files["sepulchre_presets.jsfx-inc"])
         check_pre_cab_aliasing_all_bins(raw_files["sepulchre_presets.jsfx-inc"])
         check_no_resonant_filters()
         check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
-        check_delay_bypass_clamp()
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)

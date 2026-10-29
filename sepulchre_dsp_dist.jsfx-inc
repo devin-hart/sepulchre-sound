@@ -11,7 +11,8 @@
 //                Low 88 Hz / High 920 + 1200 Hz gyrators (run at 8x) -> EQ op-amp rails (clips at High 10) -> Level
 // Round 11: every gyrator EQ uses gyro_peak() = constant pole/zero Q. RBJ bq_peak's Q is NOT the pole Q: at +30 dB
 // its pole Q is Q*5.6, which made the old MT-2 pre-hump ring at ~1 kHz (the reported 'whistle').
-// Uses biquads allocated in init_core_dsp(): bq_os_up1..4, bq_os_dn1..4, bq_dist_tb (MT-2 hump @ 8x), bq_dist_p1..p6 (post EQ).
+// Uses biquads allocated in init_core_dsp(): bq_os_up1..4 / bq_os_dn1..4 (8x resampling), bq_dist_tb (MT-2 hump @ 8x),
+// bq_dist_gyr1 / bq_dist_gyr2 / bq_dist_post (HM-2 Color Mix coefficients @ 8x), bq_dist_p1..p6 (base-rate post EQ).
 @init
 
 DIST_OS = 8;
@@ -19,7 +20,7 @@ MT_MK = 0.54; HM_MK = 1.6;   // Level make-up, calibrated by tests/verify_jsfx.p
 function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
 function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
-function sclip(x, v) local(y) ( y = x / v; v * y / ((1 + y * y * y * y) ^ 0.25); );           // smooth rail
+function sclip(x, v) local(y) ( y = x / v; v * y / sqrt(sqrt(1 + y * y * y * y)); );        // smooth rail (sqrt^2, not pow)
 function dclip(x, v, p) local(y) ( y = x / v; v * y / ((1 + abs(y) ^ p) ^ (1 / p)); );       // diode pair
 function aclip(x, vp, vn) ( x >= 0 ? sclip(x, vp) : sclip(x, vn); );
 function bq_unity(b) ( b[0] = 1; b[1] = 0; b[2] = 0; b[3] = 0; b[4] = 0; );
@@ -185,5 +186,4 @@ function proc_distortion() local(k, xl, xr, l, r, gk) (
     spl0 = l * dist_mk_s * gk;
     spl1 = r * dist_mk_s * gk;
   );
-  meter_dist_peak = max(meter_dist_peak * meter_decay_c, max(abs(spl0), abs(spl1)));
 );

@@ -201,6 +201,10 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   );
 
   master_out_t = db2lin(slider51);
+  // Round 29: per-pedal WAV IR trim (dB). With IR_MATCH_DB = 3.8 (Devin's ear-match on the Metal Zone), Antigravity's
+  // Round 28 table gave WAV-IIR LUFS deltas RAT +4.17, DS-1 +0.67/-0.23, MT-2 +3.38, HM-2 +3.73/+4.83/+3.87. These trims
+  // bring every pedal to the Metal Zone's ear-matched +3.4 dB. The DS-1's brightness gets the most help from the IIR cab's 2.85 kHz peak.
+  ir_ped_g = slider10 < 0.5 ? 1 : db2lin(dist_ped == 0 ? -0.8 : dist_ped == 1 ? 3.1 : dist_ped == 3 ? -0.6 : 0.0);
 );
 
 function proc_amp_stage(x, mode) (
@@ -211,7 +215,7 @@ function proc_amp_stage(x, mode) (
   );
 );
 
-function proc_cab_master() local(l, r, t, bp2, dc_l, dc_r_out, grit, steps) (
+function proc_cab_master() local(l, r, bp2, dc_l, dc_r_out, grit, steps) (
   l = spl0; r = spl1;
 
   // Amp Stage (0=Off, 1=Tube Head, 2=Solid-State) + post-amp DC blocker
@@ -231,7 +235,7 @@ function proc_cab_master() local(l, r, t, bp2, dc_l, dc_r_out, grit, steps) (
     slider52 > 0.5 && ir_filter_len > 0 ? (
       bp2 = ir_bpos * 2;
       cv_frame[CV_B * 2 + bp2] = l; cv_frame[CV_B * 2 + bp2 + 1] = r;   // L/R in, as real/imag
-      l = cv_out[bp2]; r = cv_out[bp2 + 1];                              // previous block's output (latency CV_B)
+      l = cv_out[bp2] * ir_ped_g; r = cv_out[bp2 + 1] * ir_ped_g;        // previous block's output (latency CV_B)
       ir_bpos += 1;
       ir_bpos >= CV_B ? conv_block();
       l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);

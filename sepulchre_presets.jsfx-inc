@@ -1,5 +1,5 @@
 // sepulchre_presets.jsfx-inc
-// Global template recalls (7 presets), per-module 3-preset quick toggles, and routing validation
+// Global template recalls (7 presets), routing validation, sync_all_DSP, and name tables
 @init
 
 // Validates that slider5..slider8 are a strict permutation of {0,1,2,3} (Bug #3 fix)
@@ -50,7 +50,6 @@ function get_global_preset_name(idx) (
 // Global Presets (0..6), all calibrated for -10 dBFS to -8 dBFS tracking headroom
 function recall_global_preset(idx) (
   slider60 = idx;
-  last_global_preset = idx;
   preset_dirty = 0;
   slider5 = 0; slider6 = 1; slider7 = 2; slider8 = 3;
 

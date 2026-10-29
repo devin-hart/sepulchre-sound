@@ -14,9 +14,10 @@ function soft_tanh(x) local(x2) (
   x * (27.0 + x2) / (27.0 + 9.0 * x2);
 );
 
-// Linear below -6 dBFS (0.50), C1 cubic Hermite knee to exact ceiling L (-1.0 dBFS = 0.89125)
+// Linear below -3.1 dBFS (0.70), C1 cubic knee to exact ceiling L (-1.0 dBFS = 0.89125). Round 30: knee raised from
+// -6 dBFS so WAV IR mode (peaks about -7..-4 dBFS since the +3.8 dB ear-match) passes untouched.
 function limit_sample(x, L) local(k, ax, t, d, s) (
-  k = 0.5; ax = abs(x);
+  k = 0.7; ax = abs(x);
   ax <= k ? x : (
     d = L - k; t = (ax - k) / d;
     s = t >= 1.5 ? L : (k + d * (t - (4.0 / 27.0) * t * t * t));
@@ -110,7 +111,7 @@ function bq_proc_r(b, x) local(y) (
 );
 
 function init_core_dsp() (
-  bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9); bq_dist_pre_hp = alloc_buf(9);
+  bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9);
   bq_dist_low = alloc_buf(9); bq_dist_mid = alloc_buf(9); bq_dist_high = alloc_buf(9);
   bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9); bq_dist_tb = alloc_buf(9);
   bq_dist_p1 = alloc_buf(9); bq_dist_p2 = alloc_buf(9); bq_dist_p3 = alloc_buf(9);
@@ -119,24 +120,21 @@ function init_core_dsp() (
   bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
   bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
-  dist_slew_l = 0.0; dist_slew_r = 0.0;
-  dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = 1.0; dist_mk_s = 0.0; dist_out_s = 1.0; master_out_s = 1.0;
+  in_trim_s = 1.0; dist_mk_s = 0.0; master_out_s = 1.0;
   chorus_mix_s = 0.0; delay_mix_s = 0.0; reverb_mix_s = 0.0;
-  meter_in_peak = 0.0; meter_dist_peak = 0.0; meter_out_peak = 0.0;
+  meter_in_peak = 0.0; meter_out_peak = 0.0;
 );
 
 function reset_core_state() (
-  bq_clear(bq_in_hp); bq_clear(bq_gate_det); bq_clear(bq_dist_pre_hp);
+  bq_clear(bq_in_hp); bq_clear(bq_gate_det);
   bq_clear(bq_dist_low); bq_clear(bq_dist_mid); bq_clear(bq_dist_high);
   bq_clear(bq_dist_gyr1); bq_clear(bq_dist_gyr2); bq_clear(bq_dist_post);
   bq_clear(bq_os_up1); bq_clear(bq_os_up2); bq_clear(bq_os_up3); bq_clear(bq_os_up4);
   bq_clear(bq_os_dn1); bq_clear(bq_os_dn2); bq_clear(bq_os_dn3); bq_clear(bq_os_dn4);
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
-  dist_slew_l = 0.0; dist_slew_r = 0.0; dist_hold_l = 0.0; dist_hold_r = 0.0; dist_hold_phase = 0.0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = in_trim_t; dist_mk_s = dist_mk_t; dist_out_s = dist_out_t; master_out_s = master_out_t;
+  in_trim_s = in_trim_t; dist_mk_s = dist_mk_t; master_out_s = master_out_t;
 );
 
 function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_fc) (
