@@ -1,9 +1,10 @@
 // sepulchre_ui.jsfx-inc
 // "Crypt" theme: baked stone/slab/logo background (sepulchre_bg.jpg) + Cinzel title sprites (sepulchre_titles.png),
-// with all interactive widgets drawn live on top. Coordinates are in a 1204x500 design space scaled to the window.
+// with all interactive widgets drawn live on top. Coordinates are in a 1376x500 design space scaled to the window
+// (Round 31: widened from 1204 for the fifth routing slot).
 @init
 
-UI_DW = 1204; UI_DH = 500;
+UI_DW = 1376; UI_DH = 500;
 gfx_ext_retina = 1;
 
 // ---------- Palette ----------
@@ -75,24 +76,24 @@ function ui_hit(x, y, w, h) ( ui_mouse_clicked && !ui_dropdown_open && mouse_in(
 function ui_load_images() (
   !ui_img_tried ? (
     ui_img_tried = 1;
-    ui_img_bg = gfx_loadimg(10, 0);       // filename:0 sepulchre_bg.jpg (2408x1000)
+    ui_img_bg = gfx_loadimg(10, 0);       // filename:0 sepulchre_bg.jpg (2752x1000)
     ui_img_ti = gfx_loadimg(11, 1);       // filename:1 sepulchre_titles.png
   );
 );
 function ui_draw_background() (
   ui_alpha = 1; c_void(); gfx_rect(0, 0, gfx_w, gfx_h);
-  ui_img_bg >= 0 ? ( gfx_a = 1; gfx_blit(10, 1, 0, 0, 0, 2408, 1000, ui_ox, ui_oy, UI_DW * ui_S, UI_DH * ui_S); );
+  ui_img_bg >= 0 ? ( gfx_a = 1; gfx_blit(10, 1, 0, 0, 0, 2752, 1000, ui_ox, ui_oy, UI_DW * ui_S, UI_DH * ui_S); );
 );
-// Title sprite rows (2x px, 48 px tall): 0..7 names, 8..15 numerals I..VIII
-function t_name_w(i) ( i == 0 ? 107 : i == 1 ? 214 : i == 2 ? 144 : i == 3 ? 109 : i == 4 ? 130 : i == 5 ? 73 : i == 6 ? 148 : 140; );
-function t_num_w(i)  ( i == 0 ? 13 : i == 1 ? 23 : i == 2 ? 33 : i == 3 ? 31 : i == 4 ? 21 : i == 5 ? 31 : i == 6 ? 42 : 52; );
+// Title sprite rows (2x px, 48 px tall): 0..7 names, 8..15 numerals I..VIII, 16 EQUALIZER, 17 IX
+function t_name_w(i) ( i == 0 ? 107 : i == 1 ? 214 : i == 2 ? 144 : i == 3 ? 109 : i == 4 ? 130 : i == 5 ? 73 : i == 6 ? 148 : i == 7 ? 140 : 191; );
+function t_num_w(i)  ( i == 0 ? 13 : i == 1 ? 23 : i == 2 ? 33 : i == 3 ? 31 : i == 4 ? 21 : i == 5 ? 31 : i == 6 ? 42 : i == 7 ? 52 : 33; );
 function ui_sprite(row, w2, x, y) (
   ui_img_ti >= 0 ? ( gfx_a = ui_alpha; gfx_blit(11, 1, 0, 0, row * 48, w2, 48, u_px(x), u_py(y), w2 * 0.5 * ui_S, 24 * ui_S); );
 );
 // Numeral + name, e.g. "II DISTORTION"; returns right edge
 function ui_title(x, y, num_i, name_i) (
-  ui_sprite(8 + num_i, t_num_w(num_i), x, y + 1);
-  ui_sprite(name_i, t_name_w(name_i), x + t_num_w(num_i) * 0.5 + 6, y);
+  ui_sprite(num_i < 8 ? 8 + num_i : 17, t_num_w(num_i), x, y + 1);
+  ui_sprite(name_i < 8 ? name_i : 16, t_name_w(name_i), x + t_num_w(num_i) * 0.5 + 6, y);
   x + t_num_w(num_i) * 0.5 + 6 + t_name_w(name_i) * 0.5;
 );
 
@@ -117,7 +118,12 @@ function auto_slider(id, end_touch) (
   id == 47 ? slider_automate(slider47, end_touch) : id == 48 ? slider_automate(slider48, end_touch) :
   id == 59 ? slider_automate(slider59, end_touch) : id == 61 ? slider_automate(slider61, end_touch) :
   id == 62 ? slider_automate(slider62, end_touch) : id == 63 ? slider_automate(slider63, end_touch) :
-  id == 64 ? slider_automate(slider64, end_touch);
+  id == 64 ? slider_automate(slider64, end_touch) : id == 65 ? slider_automate(slider65, end_touch) :
+  id == 66 ? slider_automate(slider66, end_touch) : id == 67 ? slider_automate(slider67, end_touch) :
+  id == 68 ? slider_automate(slider68, end_touch) : id == 69 ? slider_automate(slider69, end_touch) :
+  id == 70 ? slider_automate(slider70, end_touch) : id == 71 ? slider_automate(slider71, end_touch) :
+  id == 72 ? slider_automate(slider72, end_touch) : id == 73 ? slider_automate(slider73, end_touch) :
+  id == 74 ? slider_automate(slider74, end_touch);
 );
 function set_param(id, v) (
   slider(id) = v; auto_slider(id, 1);
@@ -125,9 +131,8 @@ function set_param(id, v) (
   (id == 52 || id == 53) && slider52 > 0.5 ? ir_reload_req = 1;
 );
 function swap_routing_slots(slot_a, slot_b) local(tmp) (
-  slot_a == 0 && slot_b == 1 ? ( tmp = slider5; slider5 = slider6; slider6 = tmp; auto_slider(5, 1); auto_slider(6, 1); );
-  slot_a == 1 && slot_b == 2 ? ( tmp = slider6; slider6 = slider7; slider7 = tmp; auto_slider(6, 1); auto_slider(7, 1); );
-  slot_a == 2 && slot_b == 3 ? ( tmp = slider7; slider7 = slider8; slider8 = tmp; auto_slider(7, 1); auto_slider(8, 1); );
+  tmp = slider(slot_id(slot_a)); slider(slot_id(slot_a)) = slider(slot_id(slot_b)); slider(slot_id(slot_b)) = tmp;
+  auto_slider(slot_id(slot_a), 1); auto_slider(slot_id(slot_b), 1);
   ui_need_sync = 1; preset_dirty = 1;
 );
 

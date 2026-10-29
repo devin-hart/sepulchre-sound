@@ -540,7 +540,7 @@ def pole_q(b):
 def check_no_resonant_filters():
     # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
     # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
-    print("[4/6] Checking pedal filter pole Q (no ringing resonances) across knob extremes...")
+    print("[4/6] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     worst = 0.0
@@ -552,6 +552,9 @@ def check_no_resonant_filters():
             P = pedal_setup(s, 48000.0)
             for b in P["post"] + ([P["hump"]] if "hump" in P else []) + P.get("eq", []):
                 worst = max(worst, pole_q(b))
+    for f in (100.0, 200.0, 400.0, 800.0, 1600.0, 3200.0, 6400.0):   # Round 31: GE-7 bands at +/-15 dB
+        for db in (-15.0, 15.0):
+            worst = max(worst, pole_q(bq_peak_coeffs(f, 1.0, db, 48000.0)))
     print(f"  - Worst pole Q: {worst:.2f} (limit 3.5)")
     if worst > 3.5:
         raise AssertionError(f"Pedal filter pole Q {worst:.2f} > 3.5: will ring")

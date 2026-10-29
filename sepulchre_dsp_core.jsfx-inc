@@ -1,5 +1,6 @@
 // sepulchre_dsp_core.jsfx-inc
-// Core biquad filters, parameter smoothing, and Input/Gate (Mod 0). Distortion (Mod 1) is in sepulchre_dsp_dist.jsfx-inc
+// Core biquad filters, parameter smoothing, Input/Gate (Mod 0) and the GE-7 graphic EQ (Mod 4, swappable slot).
+// Distortion (Mod 1) is in sepulchre_dsp_dist.jsfx-inc
 @init
 
 function alloc_buf(size) local(ptr) (
@@ -110,6 +111,34 @@ function bq_proc_r(b, x) local(y) (
   y = b[0] * x + b[7]; b[7] = b[1] * x - b[3] * y + b[8]; b[8] = b[2] * x - b[4] * y; y;
 );
 
+// ---------- Module 4: Boss GE-7 style 7-band graphic EQ (Round 31) ----------
+// Bands 100 / 200 / 400 / 800 / 1.6k / 3.2k / 6.4 kHz, +/-15 dB each, Level +/-15 dB. The pedal's gyrator band
+// filters are reciprocal boost/cut with Q that rises with boost; an RBJ peak with fixed Q 1.0 does the same
+// (pole Q 1.0 flat -> 2.4 at +15 dB). Placed by the user in any of the five routing slots.
+function eq_clear() (
+  bq_clear(bq_eq1); bq_clear(bq_eq2); bq_clear(bq_eq3); bq_clear(bq_eq4);
+  bq_clear(bq_eq5); bq_clear(bq_eq6); bq_clear(bq_eq7);
+);
+function update_eq_coeffs() (
+  bq_peak(bq_eq1, 100.0, 1.0, slider66);  bq_peak(bq_eq2, 200.0, 1.0, slider67);
+  bq_peak(bq_eq3, 400.0, 1.0, slider68);  bq_peak(bq_eq4, 800.0, 1.0, slider69);
+  bq_peak(bq_eq5, 1600.0, 1.0, slider70); bq_peak(bq_eq6, 3200.0, 1.0, slider71);
+  bq_peak(bq_eq7, 6400.0, 1.0, slider72);
+  eq_lvl_t = db2lin(slider73);
+);
+// Bypass crossfades over ~20 ms (no click); filters idle and clear once fully bypassed
+function proc_eq() local(l, r) (
+  eq_mix_s = param_smooth_c * eq_mix_s + (1.0 - param_smooth_c) * (slider65 > 0.5 ? 1.0 : 0.0);
+  eq_lvl_s = param_smooth_c * eq_lvl_s + (1.0 - param_smooth_c) * eq_lvl_t;
+  eq_mix_s > 0.0001 ? (
+    l = bq_proc_l(bq_eq4, bq_proc_l(bq_eq3, bq_proc_l(bq_eq2, bq_proc_l(bq_eq1, spl0))));
+    r = bq_proc_r(bq_eq4, bq_proc_r(bq_eq3, bq_proc_r(bq_eq2, bq_proc_r(bq_eq1, spl1))));
+    l = bq_proc_l(bq_eq7, bq_proc_l(bq_eq6, bq_proc_l(bq_eq5, l))) * eq_lvl_s;
+    r = bq_proc_r(bq_eq7, bq_proc_r(bq_eq6, bq_proc_r(bq_eq5, r))) * eq_lvl_s;
+    spl0 += eq_mix_s * (l - spl0); spl1 += eq_mix_s * (r - spl1);
+  ) : ( eq_mix_s > 0 ? ( eq_mix_s = 0; eq_clear(); ); );
+);
+
 function init_core_dsp() (
   bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9);
   bq_dist_low = alloc_buf(9); bq_dist_mid = alloc_buf(9); bq_dist_high = alloc_buf(9);
@@ -119,6 +148,9 @@ function init_core_dsp() (
   // 8th-order (4-stage) steep oversampling filters for up and down conversion
   bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
   bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
+  bq_eq1 = alloc_buf(9); bq_eq2 = alloc_buf(9); bq_eq3 = alloc_buf(9); bq_eq4 = alloc_buf(9);   // GE-7 bands
+  bq_eq5 = alloc_buf(9); bq_eq6 = alloc_buf(9); bq_eq7 = alloc_buf(9);
+  eq_mix_s = 0.0; eq_lvl_s = 1.0;
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
   in_trim_s = 1.0; dist_mk_s = 0.0; master_out_s = 1.0;
@@ -132,6 +164,7 @@ function reset_core_state() (
   bq_clear(bq_dist_gyr1); bq_clear(bq_dist_gyr2); bq_clear(bq_dist_post);
   bq_clear(bq_os_up1); bq_clear(bq_os_up2); bq_clear(bq_os_up3); bq_clear(bq_os_up4);
   bq_clear(bq_os_dn1); bq_clear(bq_os_dn2); bq_clear(bq_os_dn3); bq_clear(bq_os_dn4);
+  eq_clear();
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
   in_trim_s = in_trim_t; dist_mk_s = dist_mk_t; master_out_s = master_out_t;

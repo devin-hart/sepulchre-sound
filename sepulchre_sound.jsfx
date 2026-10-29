@@ -8,11 +8,13 @@ slider2:105.0<40.0,180.0,1.0>-Pre-Cut HPF (Hz)
 slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
 slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 
-// Dynamic Middle Routing Slots (0=Distortion, 1=Chorus, 2=Delay, 3=Reverb)
-slider5:0<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot A Module
-slider6:1<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot B Module
-slider7:2<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot C Module
-slider8:3<0,3,1{Distortion,Chorus,Delay,Reverb}>-Slot D Module
+// Dynamic Middle Routing Slots (0=Distortion, 1=Chorus, 2=Delay, 3=Reverb, 4=EQ). Slot E (slider74) added in Round 31;
+// old 4-slot projects load with EQ appended last (validate_routing repairs the permutation).
+slider5:0<0,4,1{Distortion,Chorus,Delay,Reverb,EQ}>-Slot A Module
+slider6:4<0,4,1{Distortion,Chorus,Delay,Reverb,EQ}>-Slot B Module
+slider7:1<0,4,1{Distortion,Chorus,Delay,Reverb,EQ}>-Slot C Module
+slider8:2<0,4,1{Distortion,Chorus,Delay,Reverb,EQ}>-Slot D Module
+slider74:3<0,4,1{Distortion,Chorus,Delay,Reverb,EQ}>-Slot E Module
 
 // Module 1: Distortion — four pedal models, each with only its real knobs (0..10 like the hardware)
 slider10:1<0,1,1{Bypass,On}>-Distortion Enable
@@ -64,6 +66,17 @@ slider42:2.0<0.5,10.0,0.1>-Reverb Decay (s)
 slider43:18<0,60,1>-Reverb Pre-Delay (ms)
 slider44:64<0,100,1>-Reverb Dampening (%)
 slider45:15<0,100,1>-Reverb Mix (%)
+
+// Module 4 (Round 31): Boss GE-7 style 7-band graphic EQ (+/-15 dB bands, +/-15 dB level)
+slider65:0<0,1,1{Bypass,On}>-EQ Enable
+slider66:0<-15,15,0.5>-EQ 100 Hz (dB)
+slider67:0<-15,15,0.5>-EQ 200 Hz (dB)
+slider68:0<-15,15,0.5>-EQ 400 Hz (dB)
+slider69:0<-15,15,0.5>-EQ 800 Hz (dB)
+slider70:0<-15,15,0.5>-EQ 1.6 kHz (dB)
+slider71:0<-15,15,0.5>-EQ 3.2 kHz (dB)
+slider72:0<-15,15,0.5>-EQ 6.4 kHz (dB)
+slider73:0<-15,15,0.5>-EQ Level (dB)
 
 // Module 5: Amp Stage, IR Loader / Cabinet Shaper & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
@@ -150,7 +163,8 @@ function dispatch_slot(mod_id) (
   mod_id == 0 ? proc_distortion() :
   mod_id == 1 ? proc_chorus() :
   mod_id == 2 ? proc_delay() :
-  proc_reverb();
+  mod_id == 3 ? proc_reverb() :
+  proc_eq();
 );
 
 proc_input_gate();
@@ -158,9 +172,10 @@ dispatch_slot(slider5);
 dispatch_slot(slider6);
 dispatch_slot(slider7);
 dispatch_slot(slider8);
+dispatch_slot(slider74);
 proc_cab_master();
 
-@gfx 1204 500
+@gfx 1376 500
 // "Crypt" UI: baked background + title sprites, live widgets (sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)
 ui_begin();
 ui_load_images();
