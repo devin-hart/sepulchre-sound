@@ -312,7 +312,7 @@ def gyro_peak_coeffs(f, qg, db, sr):
     return bq_peak_coeffs(f, qg / 10.0 ** (abs(db) / 40.0), db, sr)
 
 
-MT_MK, HM_MK = 0.54, 1.98
+MT_MK, HM_MK = 0.54, 3.1
 
 
 def unity():
@@ -345,9 +345,10 @@ def pedal_setup(s, sr):
                      gyro_peak_coeffs(300 * (4000 / 300) ** (s[59] * 0.1), 1.2, (s[48] - 5) * 2.4, sr)]
     else:
         t = a_taper(s[62] * 0.1)
-        P.update(g1=2 + 12 * t, g2=3 + 60 * t, a40=c1x(40), aL=c1x(7000), mk=HM_MK * a_taper(s[9] * 0.1))
-        P["post"] = [gyro_peak_coeffs(87, 1.2, (s[63] - 5) * 3.2, sr), gyro_peak_coeffs(958, 2.0, (s[64] - 5) * 1.8, sr),
-                     gyro_peak_coeffs(1279, 2.0, (s[64] - 5) * 1.8, sr), unity(), unity(), unity()]
+        P.update(g1=1 + 5 * t, G=3 + 60 * t, a40=c1x(40), a720=c1x(720), aT=c1x(9000), a16=c1x(8000),
+                 mk=HM_MK * a_taper(s[9] * 0.1),
+                 eq=[gyro_peak_coeffs(88, 1.2, (s[63] - 5) * 3.2, os_sr), gyro_peak_coeffs(920, 2.0, (s[64] - 5) * 1.8, os_sr),
+                     gyro_peak_coeffs(1200, 2.0, (s[64] - 5) * 1.8, os_sr)])
     return P
 
 
@@ -382,13 +383,17 @@ def pedal_os(P, st, x):
         st[7] = w + P["aC28"] * (st[7] - w)
         return dclip(sclip(st[7], 4.0) + 0.08, 0.65, 1.8) - P["dco"]
     st[1] = (1 + P["a40"]) * 0.5 * (x - st[0]) + P["a40"] * st[1]; st[0] = x
-    v = aclip(st[1] * P["g1"], 3.5, 2.5)
-    st[2] = v + P["aL"] * (st[2] - v)
-    v = aclip(st[2] * P["g2"], 0.65, 0.45)
-    st[3] = v + P["aL"] * (st[3] - v)
-    v = dclip(dclip(st[3] * 1.5, 0.6, 2.5) * 1.5, 0.35, 1.6)
-    st[4] = v + P["aL"] * (st[4] - v)
-    return st[4] - 0.012 * soft_tanh(st[4] / 0.012)
+    v = aclip(st[1] * P["g1"], 4.0, 2.0)
+    st[3] = (1 + P["a720"]) * 0.5 * (v - st[2]) + P["a720"] * st[3]; st[2] = v
+    w = v + dclip(P["G"] * st[3], 0.6, 2.5)
+    st[4] = w + P["aT"] * (st[4] - w); w = sclip(st[4], 4.0)
+    w = w - 0.3 * soft_tanh(w / 0.3)
+    st[5] = w + P["a16"] * (st[5] - w)
+    w = dclip(st[5], 0.6, 2.5)
+    for j, q in enumerate(P["eq"]):
+        k = 6 + 2 * j
+        y = q[0] * w + st[k]; st[k] = q[1] * w - q[3] * y + st[k + 1]; st[k + 1] = q[2] * w - q[4] * y; w = y
+    return sclip(w, 3.5)
 
 
 def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
@@ -403,7 +408,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
     bq_mid = bq_peak_coeffs(850.0, 1.1, (sliders[14] - 50.0) * 0.28, sr)
     bq_high = bq_shelf_coeffs(2600.0, (sliders[15] - 50.0) * 0.24, sr, True)
     P = pedal_setup(sliders, sr)
-    pst = [0.0] * 10
+    pst = [0.0] * 16
     tone_st = [0.0, 0.0, 0.0]
     qs = [0.5098, 0.6013, 0.9000, 2.5629]
     up_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
@@ -591,7 +596,7 @@ def check_no_resonant_filters():
             for i in (26, 27, 29, 37, 39, 46, 47, 48, 59, 62, 63, 64):
                 s[i] = k
             P = pedal_setup(s, 48000.0)
-            for b in P["post"] + ([P["hump"]] if "hump" in P else []):
+            for b in P["post"] + ([P["hump"]] if "hump" in P else []) + P.get("eq", []):
                 worst = max(worst, pole_q(b))
     print(f"  - Worst pole Q: {worst:.2f} (limit 3.5)")
     if worst > 3.5:

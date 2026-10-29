@@ -65,6 +65,12 @@ function get_ir_filename(idx) (
   idx == 8 ? "sepulchre_irs/09_HeadKrush_Center.wav" :
              "sepulchre_irs/10_PlagueBearer_Center.wav";
 );
+// Round 22: per-slot loudness trim (dB) = -(slot LUFS - IIR cab LUFS) from Antigravity's Round 21 render
+// (preset 01 chain). Corrects the weighted-energy match's +/-2.1 dB residual for the bundled IRs.
+function get_ir_slot_trim_db(idx) (
+  idx == 0 ? -1.33 : idx == 1 ? -2.13 : idx == 2 ? 1.42 : idx == 3 ? 0.0 : idx == 4 ? -0.11 :
+  idx == 5 ? -0.16 : idx == 6 ? 1.85 : idx == 7 ? -1.20 : idx == 8 ? -1.39 : idx == 9 ? -1.06 : 0.0;
+);
 
 // Called on one-shot ir_reload_req from @init / @slider / @gfx (Fixes R2-6 & R3-1)
 function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
@@ -99,6 +105,7 @@ function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
 // 90 Hz HP + 500 Hz +12 dB low shelf + 6 kHz LP ~ average distorted-guitar spectrum x K-weighting) vs IR_E48 = the
 // same measure of IIR profile 0 at 48 kHz (tests/verify_jsfx.py). Fitted over 4 pedals x 11 test IRs: rms error 1.6 dB.
 IR_E48 = 0.283543;
+IR_MATCH_DB = 0.0;   // Round 23: global WAV-IR vs IIR offset, set by Devin's ear-match (LUFS matched, ears disagree)
 function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
     isc = ir_raw_srate / srate;
@@ -117,6 +124,7 @@ function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
     bq_buf(bq_irw2, ir_blk_last, n); bq_buf(bq_irw3, ir_blk_last, n);
     e = 0.0; i = 0; loop(n, e += ir_blk_last[i] * ir_blk_last[i]; i += 1; );
     norm_g = (1.0 / CV_N) * (e > 0.0000000001 ? sqrt(IR_E48 * (48000.0 / srate) / e) : 1.0);
+    norm_g *= 10 ^ ((get_ir_slot_trim_db(ir_loaded_slot) + IR_MATCH_DB) / 20);
     memset(ir_fft_kern, 0, 32768);
     p = 0;
     loop(ir_parts,                                   // kernel spectra: [h(pB..pB+B-1), B zeros] -> FFT

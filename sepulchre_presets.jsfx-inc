@@ -72,7 +72,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 48; slider56 = 56; slider57 = 64; slider58 = 66;
   ) : idx == 2 ? ( // 03: Doom Wall (HM-2 + Tube Amp + Dimension + Tape Delay + Ambient Reverb)
     slider1 = 0.0; slider2 = 85; slider3 = -52; slider4 = 1;
-    slider10 = 1; slider11 = 3; slider62 = 8.5; slider63 = 8.0; slider64 = 7.5; slider9 = 6.5; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
+    slider10 = 1; slider11 = 3; slider62 = 8.5; slider63 = 8.0; slider64 = 7.5; slider9 = 6.7; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
     slider20 = 1; slider21 = 1; slider22 = 0.35; slider23 = 55; slider24 = 52; slider25 = 28;
     slider30 = 1; slider31 = 0; slider32 = 520; slider33 = 50; slider34 = 38; slider35 = 28; slider36 = 0;
     slider40 = 1; slider41 = 2; slider42 = 6.0; slider43 = 32; slider44 = 62; slider45 = 34;
@@ -88,7 +88,7 @@ function recall_global_preset(idx) (
     slider54 = 2; slider55 = 42; slider56 = 60; slider57 = 68; slider58 = 70;
   ) : idx == 4 ? ( // 05: Swedish Chainsaw (HM-2 everything on 10 + Solid-State Amp + 4x12 V30)
     slider1 = 0.0; slider2 = 95; slider3 = -48; slider4 = 1;
-    slider10 = 1; slider11 = 3; slider62 = 10.0; slider63 = 10.0; slider64 = 10.0; slider9 = 5.2; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
+    slider10 = 1; slider11 = 3; slider62 = 10.0; slider63 = 10.0; slider64 = 10.0; slider9 = 5.0; slider13 = 50; slider14 = 50; slider15 = 50; slider16 = 0;
     slider20 = 0; slider21 = 0; slider22 = 0.5; slider23 = 50; slider24 = 50; slider25 = 0;
     slider30 = 0; slider31 = 0; slider32 = 300; slider33 = 30; slider34 = 50; slider35 = 0; slider36 = 0;
     slider40 = 1; slider41 = 1; slider42 = 1.6; slider43 = 12; slider44 = 45; slider45 = 14;
