@@ -21,7 +21,10 @@ function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIS
 function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
 function sclip(x, v) local(y) ( y = x / v; v * y / sqrt(sqrt(1 + y * y * y * y)); );        // smooth rail (sqrt^2, not pow)
-function dclip(x, v, p) local(y) ( y = x / v; v * y / ((1 + abs(y) ^ p) ^ (1 / p)); );       // diode pair
+function dclip(x, v, p) local(y) (                                                          // diode pair
+  y = x / v;
+  p == 2.5 ? v * y / ((1 + y * y * sqrt(abs(y))) ^ 0.4) : v * y / ((1 + abs(y) ^ p) ^ (1 / p));   // |y|^2.5 = y^2*sqrt|y|
+);
 function aclip(x, vp, vn) ( x >= 0 ? sclip(x, vp) : sclip(x, vn); );
 function bq_unity(b) ( b[0] = 1; b[1] = 0; b[2] = 0; b[3] = 0; b[4] = 0; );
 function gyro_peak_sr(b, f, qg, db, sr) ( bq_peak_sr(b, f, qg / 10 ^ (abs(db) / 40), db, sr); );   // gyrator: pole (boost) / zero (cut) Q = qg
@@ -151,10 +154,12 @@ function reset_dist_state() (
   dist_mk_s = dist_mk_t;
 );
 
-function proc_distortion() local(k, xl, xr, l, r, gk) (
+// Round 39: on/off crossfades over ~20 ms (was a hard switch: click). Fully bypassed = idle + state cleared.
+function proc_distortion() local(k, xl, xr, l, r, gk, dl, dr) (
   dist_mk_s = param_smooth_c * dist_mk_s + (1.0 - param_smooth_c) * dist_mk_t;
-  slider10 > 0.5 ? (
-    l = spl0; r = spl1;
+  dist_mix_s = param_smooth_c * dist_mix_s + (1.0 - param_smooth_c) * (slider10 > 0.5 ? 1.0 : 0.0);
+  dist_mix_s > 0.0001 ? (
+    l = spl0; r = spl1; dl = l; dr = r;
     k = 0;
     loop(DIST_OS,
       xl = (k == 0) ? (l * DIST_OS) : 0.0;
@@ -183,7 +188,11 @@ function proc_distortion() local(k, xl, xr, l, r, gk) (
     dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
     dc_ro = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_ro; r = dc_ro;
     gk = slider4 > 0.5 ? gate_gain : 1.0;
-    spl0 = l * dist_mk_s * gk;
-    spl1 = r * dist_mk_s * gk;
-  );
+    spl0 = dl + dist_mix_s * (l * dist_mk_s * gk - dl);
+    spl1 = dr + dist_mix_s * (r * dist_mk_s * gk - dr);
+  ) : ( dist_mix_s > 0 ? (
+    dist_mix_s = 0; reset_dist_state(); dc_x1_l = 0; dc_y1_l = 0; dc_x1_r = 0; dc_y1_r = 0;
+    bq_clear(bq_os_up1); bq_clear(bq_os_up2); bq_clear(bq_os_up3); bq_clear(bq_os_up4);
+    bq_clear(bq_os_dn1); bq_clear(bq_os_dn2); bq_clear(bq_os_dn3); bq_clear(bq_os_dn4);
+  ); );
 );

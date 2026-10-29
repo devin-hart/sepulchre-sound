@@ -14,25 +14,25 @@ function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac
 );
 
 function comb_proc(buf, len, idx_ptr, lp_ptr, x, fb, damp) local(idx, out, lp) (
-  idx = mem[idx_ptr];
+  idx = idx_ptr[0];                                 // Round 39: ptr[0], not mem[ptr] (mem was an undeclared 0)
   out = buf[idx];
-  lp = mem[lp_ptr] * damp + out * (1.0 - damp);
-  mem[lp_ptr] = lp;
+  lp = lp_ptr[0] * damp + out * (1.0 - damp);
+  lp_ptr[0] = lp;
   buf[idx] = x + lp * fb;
   idx += 1;
   idx >= len ? idx = 0;
-  mem[idx_ptr] = idx;
+  idx_ptr[0] = idx;
   out;
 );
 
 function allpass_proc(buf, len, idx_ptr, x, g) local(idx, buf_out, y) (
-  idx = mem[idx_ptr];
+  idx = idx_ptr[0];
   buf_out = buf[idx];
   y = -g * x + buf_out;
   buf[idx] = x + g * buf_out;
   idx += 1;
   idx >= len ? idx = 0;
-  mem[idx_ptr] = idx;
+  idx_ptr[0] = idx;
   y;
 );
 

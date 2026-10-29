@@ -109,7 +109,7 @@ IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 
 function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
     isc = ir_raw_srate / srate;
-    ir_filter_len = min(2048, floor(ir_raw_len / isc));
+    ir_filter_len = min(floor(2048 * srate / 48000), floor(ir_raw_len / isc));   // Round 39: 42.7 ms at any rate (<= 8192 taps / 64 parts)
     ir_parts = ceil(ir_filter_len / CV_B);
     i = 0;                                           // resample channel 0 into ir_blk_cur (FDL is cleared below)
     loop(ir_filter_len,
@@ -228,7 +228,11 @@ function proc_cab_master() local(l, r, bp2, dc_l, dc_r_out, grit, steps) (
     l = bq_proc_l(bq_amp_bass, l); r = bq_proc_r(bq_amp_bass, r);
     l = bq_proc_l(bq_amp_mid, l);  r = bq_proc_r(bq_amp_mid, r);
     l = bq_proc_l(bq_amp_treb, l); r = bq_proc_r(bq_amp_treb, r);
-  ) : ( l *= 0.84; r *= 0.84; );                     // Round 35: Amp OFF -1.5 dB = Tube's loudness (mirror, 4 pedals)
+    amp_was_on = 1;
+  ) : ( l *= 0.84; r *= 0.84;                         // Round 35: Amp OFF -1.5 dB = Tube's loudness (mirror, 4 pedals)
+    amp_was_on ? ( amp_was_on = 0; amp_dc_x1_l = 0; amp_dc_y1_l = 0; amp_dc_x1_r = 0; amp_dc_y1_r = 0;   // Round 39:
+      bq_clear(bq_amp_hp); bq_clear(bq_amp_bass); bq_clear(bq_amp_mid); bq_clear(bq_amp_treb); );   // no stale thump
+  );
 
   // Cabinet: External WAV IR Convolution when slider52 (IR Mode) == 1, else IIR Cabinet network (Fixes R2-4)
   slider49 > 0.5 ? (

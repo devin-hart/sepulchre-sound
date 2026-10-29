@@ -117,6 +117,7 @@ ext_noinit = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
   ir_loaded_slot = -1;
   eq_last_preset = floor(slider75 + 0.5);   // saved fader values win over the preset table on project load
+  gp_last = floor(slider60 + 0.5);          // same for the global preset (R2-1: never recall on load)
   slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
 );
 sync_all_DSP();
@@ -124,6 +125,8 @@ sync_all_DSP();
 @slider
 // EQ preset chosen from REAPER's slider list / automation (the UI calls recall_eq_preset directly)
 floor(slider75 + 0.5) != eq_last_preset ? recall_eq_preset(floor(slider75 + 0.5));
+// Global preset changed by host automation / control surface (Round 39)
+floor(slider60 + 0.5) != gp_last ? recall_global_preset(floor(slider60 + 0.5));
 slider52 > 0.5 ? (
   tmp_ir_idx = clamp(floor(slider53 + 0.001), 0, 9);
   tmp_ir_idx != ir_loaded_slot ? load_ir_slot(tmp_ir_idx);
@@ -150,6 +153,7 @@ ir_reload_req ? (
   reset_dist_state();
   reset_fx_state();
   reset_amp_cab_state();
+  dist_mix_s = slider10 > 0.5; eq_mix_s = slider65 > 0.5;   // start renders at full mix (no 20 ms fade-in)
 );
 last_play_state = play_state;
 
