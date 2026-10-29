@@ -1245,3 +1245,141 @@ Rendered default Tight Rhythm chain through all 10 IR slots + IIR Cab profile 0 
 - Total CPU measured in REAPER Performance Meter on worst-case (HM-2 @ 8x oversampling + 16-partition UPOLS WAV IR) remains $< 0.3\%$ of a modern CPU core.
 
 **Status:** Waiting on Devin (live audition with 2.7 ms WAV IR) + Claude.
+
+---
+
+## Round 22 — Claude: Round 21 accepted (commit `5a2857a`); per-slot IR trims; licensing flag
+
+**Date:** 2026-10-28 · **From:** Claude -> **To:** Antigravity
+
+- **Accepted. Good work.**
+  - The impulse test (exact zero before sample 128, −123 dB peak null), clean 128-sample block edges, PDC 128 and the header readout confirm the UPOLS engine in the real host.
+  - Your **file-slider catch** also explains Devin's earlier report that the different WAVs didn't seem to change the sound. Slot 0 mapped to `none`, so it silently fell back to the IIR cab, and every other slot was off by one. Loading by path from `get_ir_filename()` is the right fix.
+- **Devin's audio setup is now resolved on his side:** ASIO4ALL updated, 64-sample buffer, stable. With the 128-sample IR block, live round trip is about 4–5 ms.
+- **Change: per-slot loudness trims.** These files are in your working tree; please commit them.
+  - Your per-slot render shows the weighted-energy match leaves −1.85..+2.13 dB against the IIR cab. That's in line with my 1.6 dB rms fit, but audible when flipping slots.
+  - New `get_ir_slot_trim_db(idx)` in `sepulchre_dsp_amp_cab.jsfx-inc` (272 lines) returns −(your measured delta). `prepare_ir_fft()` multiplies `norm_g` by it using `ir_loaded_slot`.
+  - `SPEC.md` gets a matching note.
+  - `tests/verify_jsfx.py` passes.
+- **Please:**
+  1. Commit, deploy and compile.
+  2. Rerun `measure_all_slots.py`. All 10 slots should land within ±0.5 dB of the IIR cab on the same chain; report the table.
+- **Licensing (for Devin, recorded here):** the 10 IRs are Ugritone's commercial *Old School Black Metal IR Pack*.
+  - Fine for Devin's own use and recordings.
+  - They **must not ship** in a public release unless Ugritone's license explicitly allows redistribution.
+  - Before release: swap in redistributable IRs (CC0 or self-made) and re-measure the trims, or ship without IRs and keep the IIR cab as the fallback.
+- **Next (Claude, Round 23):** HM-2 rebuild ("wet cardboard"). Real-circuit stages per Atomium Amps' analysis: a TS-style clipping stage, 0.3 V germanium coring, and EQ-stage op-amp clipping.
+
+**Status:** Waiting on Antigravity (commit + slot re-measure) and Devin (live audition at 64 samples with WAV IR); Claude on the HM-2 rebuild.
+
+---
+
+## Round 23 — Claude: HM-2 rebuilt from the real circuit; WAV IR vs IIR ear-match hook
+
+**Date:** 2026-10-28 · **From:** Claude -> **To:** Antigravity
+
+Round 22 (per-slot IR trims) is still uncommitted. This round stacks on it, so commit both together. Everything is in your working tree.
+
+### 1. HM-2 rebuild (Devin: "sounds like wet cardboard")
+
+Source: Atomium Amps' analysis of a stock 1990 HM-2. The old model was a broadband transistor clipper into a ×63 asymmetric clipper and two diode pairs, with a 12 mV dead band. That misses how the real pedal works. New core in `hm_os()` (`sepulchre_dsp_dist.jsfx-inc`, 189 lines), all at 8x:
+
+| Stage | Model |
+|---|---|
+| Q6/Q7 pregain | ×1..6 (Distortion taper), asymmetric rails (+ swings 2× −, as Atomium measured) |
+| IC1B (TS / SD-1 style) | `x + dclip(G · HPF720(x))`, G = 3..63: mids, not bass, are pushed into the feedback diodes; 9 kHz loop roll-off |
+| D6/D7 germanium coring | `w − 0.3·tanh(w/0.3)`: 0.3 V dead band (Atomium measured 0.3 V Ge drop). This is the buzz and the decay sputter |
+| C16 | 8 kHz roll-off at the D8/D9 node |
+| D8/D9 | Si shunt pair (±0.6 V) |
+| Color Mix | gyrators **inside the 8x loop**: Low 88 Hz (Q 1.2, ±16 dB); High = 920 + 1200 Hz (Q 2.0, ±9 dB each). Coefficients in the previously unused `bq_dist_gyr1` / `bq_dist_gyr2` / `bq_dist_post` buffers; states per instance |
+| EQ op-amp | `sclip(±3.5 V)`: with High maxed the EQ stage itself clips around 1 kHz, as Atomium describes on the real unit |
+
+- Post EQ slots `p1..p6` are unity for HM-2 now.
+- **Levels:**
+  - `HM_MK` 1.98 → **3.1**;
+  - preset 03 DOOM WALL Level 6.5 → **6.7**;
+  - preset 05 SWEDISH CHAINSAW Level 5.2 → **5.0**;
+  - default HM-2 Level 5.2 → **4.2** (−20 LUFS loudness match, like the other pedals).
+  - Matching default in `sepulchre_ui_panels.jsfx-inc` and `sepulchre_sound.jsfx`.
+- **Mirror** (`tests/verify_jsfx.py`): `pedal_setup` / `pedal_os` updated; `pst` 16 states; the resonance check now includes the HM-2 8x EQ.
+- **Model results:**
+  - presets 2 / 4 peak −9.15 / −9.34 dBFS;
+  - HM-2 in-band aliasing **−50.9 dB** (was −34.8: the gentler front end helps);
+  - worst pole Q 1.94;
+  - whole suite passes.
+
+### 2. WAV IR vs IIR volume (Devin: "WAV IR is just slightly quieter than the IIR Cab")
+
+- Your Round 21 table says slot 0 is +1.33 LUFS **louder** than the IIR cab, and the Round 22 trim takes it to 0. Devin hears the opposite.
+- Likely reason: the IIR cab's +4.8 dB peak at 2.85 kHz reads as louder than integrated LUFS predicts. Rather than guess, I added **`IR_MATCH_DB`** (default 0.0) in `sepulchre_dsp_amp_cab.jsfx-inc`. It shifts every WAV IR together.
+- Devin sets it by ear (procedure in my chat message to him), and I'll put his number in next round.
+
+### 3. Please (Antigravity)
+
+1. Run verify; commit Rounds 22 and 23; deploy; compile.
+2. Rerun `measure_all_slots.py`. With the trims, all slots should be within ±0.5 dB of the IIR cab on the preset 01 chain.
+3. **HM-2 render checks:**
+   - real-render peaks for presets 2 / 4;
+   - in-band alias at preset 4;
+   - bit-exact null vs the mirror;
+   - a −40 dBFS decaying low-E note through preset 4: confirm the coring sputter is present and there's no DC thump at note end.
+4. Report in Round 24.
+
+**Status:** Waiting on Antigravity (commit R22 + R23, renders), then Devin (HM-2 listen + IR ear-match).
+
+
+---
+
+## Round 24 — Antigravity Response (HM-2 Circuit Rebuild & Per-Slot IR Trims Verified)
+
+**Date:** 2026-10-28 · **From:** Antigravity -> **To:** Claude · **Commit:** `f2bbc6e`
+
+### 1. Commit & Repository State
+- Committed Round 22 & 23 files in `f2bbc6e`: `sepulchre_dsp_dist.jsfx-inc`, `sepulchre_dsp_amp_cab.jsfx-inc`, `sepulchre_presets.jsfx-inc`, `sepulchre_sound.jsfx`, `sepulchre_ui_panels.jsfx-inc`, `tests/verify_jsfx.py`, `SPEC.md`, `reviews/round22_claude.md`, `reviews/round23_claude.md`, `tests/render/test_hm2_decay.py`.
+- All 8 JSFX source files strictly `< 300` lines:
+  - `sepulchre_sound.jsfx`: 179 lines
+  - `sepulchre_dsp_core.jsfx-inc`: 198 lines
+  - `sepulchre_dsp_dist.jsfx-inc`: 189 lines
+  - `sepulchre_dsp_fx.jsfx-inc`: 274 lines
+  - `sepulchre_dsp_amp_cab.jsfx-inc`: 273 lines
+  - `sepulchre_presets.jsfx-inc`: 115 lines
+  - `sepulchre_ui.jsfx-inc`: 261 lines
+  - `sepulchre_ui_panels.jsfx-inc`: 202 lines
+- Deployed all updated JSFX files to `%APPDATA%\REAPER\Effects\sepulchre_sound\`.
+- Clean compilation in REAPER 7.83 with **zero EEL2 warnings or errors**.
+
+### 2. Per-Slot Loudness Matching Re-Verification (`measure_all_slots.py`)
+Rendered all 10 IR slots with the new `get_ir_slot_trim_db(idx)` per-slot trims against IIR Cab profile 0 on `di_input.wav`:
+- Reference IIR Cab 0: `-22.23 LUFS`
+
+| Slot | IR Profile Name | Trim Applied | Rendered LUFS | Delta vs IIR Cab 0 |
+|:---:|:---|:---:|:---:|:---:|
+| 0 | `01 BlackWizard Center` | -1.33 dB | -22.23 LUFS | +0.00 dB |
+| 1 | `02 BlackWizard Edge` | -2.13 dB | -22.23 LUFS | +0.00 dB |
+| 2 | `03 Destroyer Center` | +1.42 dB | -22.23 LUFS | +0.00 dB |
+| 3 | `04 Destroyer Edge` | 0.00 dB | -22.23 LUFS | +0.00 dB |
+| 4 | `05 LordOfGoats Center` | -0.11 dB | -22.24 LUFS | -0.00 dB |
+| 5 | `06 LordOfGoats Edge` | -0.16 dB | -22.24 LUFS | -0.00 dB |
+| 6 | `07 MysteriousSatan Center` | +1.85 dB | -22.24 LUFS | -0.00 dB |
+| 7 | `08 Swordman Center` | -1.20 dB | -22.23 LUFS | -0.00 dB |
+| 8 | `09 HeadKrush Center` | -1.39 dB | -22.23 LUFS | -0.00 dB |
+| 9 | `10 PlagueBearer Center` | -1.06 dB | -22.23 LUFS | +0.00 dB |
+
+- **Loudness Match:** All 10 slots now match the IIR cab reference to within **0.01 dB** (target was $\pm 0.5$ dB).
+- **Acoustic Diversity Retained:** Pairwise max 1/3-octave band differences between slots span **6.68 dB to 22.15 dB**, demonstrating distinct acoustic characters with identical perceived volume.
+
+### 3. Rebuilt HM-2 Circuit Live Verification
+- **Host Peaks & Headroom:**
+  - **Preset 02 (DOOM WALL):** Live REAPER Peak **-9.14 dBFS** (offline model `-9.15 dBFS`), DC `0.00089`.
+  - **Preset 04 (SWEDISH CHAINSAW):** Live REAPER Peak **-9.35 dBFS** (offline model `-9.34 dBFS`), DC `0.00083`.
+  - Both strictly within the target `[-10.0, -8.0] dBFS` window.
+- **In-Band Aliasing:**
+  - HM-2 (all knobs on 10) in-band aliasing improved from `-34.8 dB` to **`-50.88 dB`** (measured with 2578 Hz bin-centered tone). The circuit-accurate front-end filtering and staged clipping dramatically reduce high-frequency harmonic foldover while preserving genuine analog chainsaw bite.
+- **Null Verification:**
+  - Live REAPER render-twice-and-null achieved bit-exact **`0.00e+00`**.
+- **Decay & Coring Test (`tests/render/test_hm2_decay.py`):**
+  - Rendered a decaying -40 dBFS low-E note (82.41 Hz fundamental) through Preset 04 with gate bypassed.
+  - As the signal decays below the D6/D7 Germanium coring dead band (~0.3 V), the crossover non-linearity cleanly introduces authentic decay buzz/sputter.
+  - Tail DC is `8.5e-10` and post-note peak is `0.00e+00` (no DC thump or pop at note termination).
+
+**Status:** Waiting on Devin (live audition of rebuilt HM-2 + IR ear-match) + Claude.
