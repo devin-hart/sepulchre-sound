@@ -1,5 +1,5 @@
 // sepulchre_dsp_fx.jsfx-inc
-// Buffer-based modulation & spatial effects: Chorus (Mod 2), Delay (Mod 3), Reverb (Mod 4)
+// Buffer-based modulation & spatial effects in the amp's FX loop: CE-2 Chorus (Mod 2), Delay (Mod 3), Reverb (Mod 4)
 @init
 
 function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac) (
@@ -47,9 +47,8 @@ function init_fx_dsp() (
   chorus_buf_r = alloc_buf(chorus_len);
   chorus_wpos = 0;
   chorus_phase = 0.0;
-  chorus_drift = 0.0;
-  chorus_rng = 22222;
-  bq_chorus_lp = alloc_buf(9);
+  bq_chorus_lp = alloc_buf(9);                      // CE-2 reconstruction filter (2nd-order part)
+  bq_chorus_aa = alloc_buf(9);                      // CE-2 anti-alias filter (2nd-order part)
 
   // Delay buffers (4.0 s at 48 kHz / 2.0 s at 96 kHz)
   delay_len = 192000;
@@ -93,8 +92,9 @@ function reset_fx_state() (
   memset(ap_l1, 0, ap_max);     memset(ap_l2, 0, ap_max);
   memset(ap_r1, 0, ap_max);     memset(ap_r2, 0, ap_max);
   memset(rev_state, 0, 32);
-  bq_clear(bq_chorus_lp); bq_clear(bq_delay_lp); bq_clear(bq_delay_hp); bq_clear(bq_rev_shelf);
-  chorus_wpos = 0; chorus_phase = 0.0; chorus_drift = 0.0; chorus_rng = 22222;
+  bq_clear(bq_chorus_lp); bq_clear(bq_chorus_aa); bq_clear(bq_delay_lp); bq_clear(bq_delay_hp); bq_clear(bq_rev_shelf);
+  chorus_wpos = 0; chorus_phase = 0.0;
+  ch_hp_xl = 0; ch_hp_yl = 0; ch_hp_xr = 0; ch_hp_yr = 0; ch_a1l = 0; ch_a1r = 0; ch_r1l = 0; ch_r1r = 0;
   delay_wpos = 0; delay_phase = 0.0; delay_smooth = 0.0; delay_smooth_init = 0;
   rev_pre_wpos = 0;
 );
@@ -106,10 +106,14 @@ function get_delay_sync_div(time_ms) (
 );
 
 function update_fx_coeffs() local(chorus_fc, delay_fc, rev_fc, s_scale, mode_scale, eff_decay) (
-  chorus_fc = 900.0 + (slider24 * 0.01) * 7500.0;
-  bq_lp(bq_chorus_lp, chorus_fc, 0.707);
-  chorus_mix_t = slider25 * 0.01;
-  chorus_drift_c = exp(-1.0 / (0.150 * srate));
+  // Round 42: Boss CE-2 (ElectroSmash analysis). Wet path: 48 Hz HPF -> 3rd-order anti-alias LPF (6.6 kHz pole +
+  // 6.9 kHz pair) -> MN3007 BBD delay swept by a triangle LFO -> same 3rd-order reconstruction LPF. Dry + wet summed
+  // with equal resistors (50/50); x0.78 keeps the engaged RMS level within 0.1 dB of bypass on a guitar DI. Pre/de-emphasis cancel (no BBD noise modelled).
+  bq_lp(bq_chorus_aa, 6900.0, 0.7071); bq_lp(bq_chorus_lp, 6900.0, 0.7071);
+  ch_a66 = exp(-2 * $pi * 6600 / srate); ch_a48 = exp(-2 * $pi * 48 / srate);
+  ch_rate = 0.1 * 35 ^ (slider77 * 0.1);                       // Rate knob: 0.1 .. 3.5 Hz (pedal max 3.5 Hz)
+  ch_dmin = 0.003 * srate;                                      // BBD delay: 3 ms ..
+  ch_dsw = (0.0003 + 0.0047 * slider78 * 0.1) * srate;          //   + 0.3 .. 5 ms sweep (Depth knob)
 
   delay_fc = slider31 == 0 ? (950.0 + (slider34 * 0.01) * 3200.0) : (2200.0 + (slider34 * 0.01) * 9500.0);
   bq_lp(bq_delay_lp, delay_fc, 0.707);
@@ -148,48 +152,24 @@ function update_fx_coeffs() local(chorus_fc, delay_fc, rev_fc, s_scale, mode_sca
   reverb_mix_t = slider45 * 0.01;
 );
 
-// Always runs buffer & LFO for clean bypass spillover (Bug #2 fix)
-function proc_chorus() local(en, rate, depth, rnd, lfo1, lfo2, d_l, d_r, wet_l, wet_r, tap2_l, tap2_r) (
-  en = slider20 > 0.5;
-  chorus_mix_s = param_smooth_c * chorus_mix_s + (1.0 - param_smooth_c) * (en ? chorus_mix_t : 0.0);
-  rate = slider22;
-  depth = slider23 * 0.01;
-  chorus_buf_l[chorus_wpos] = en ? spl0 : 0.0;
-  chorus_buf_r[chorus_wpos] = en ? spl1 : 0.0;
-
-  chorus_phase += rate / srate;
-  chorus_phase >= 1.0 ? chorus_phase -= 1.0;
-
-  slider21 == 0 ? ( // Analog BBD with smoothed white-noise LFO drift (no wrap hitch)
-    chorus_rng = (chorus_rng * 196314165 + 907633515) & 0x7fffffff;
-    rnd = (chorus_rng / 1073741824.0) - 1.0;
-    chorus_drift = chorus_drift_c * chorus_drift + (1.0 - chorus_drift_c) * rnd;
-    lfo1 = sin(chorus_phase * 2.0 * $pi + chorus_drift * 0.35);
-    lfo2 = cos(chorus_phase * 2.0 * $pi - chorus_drift * 0.35);
-    d_l = (0.0065 + depth * 0.0048 * (1.0 + lfo1)) * srate;
-    d_r = (0.0072 + depth * 0.0048 * (1.0 + lfo2)) * srate;
-    wet_l = buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, d_l);
-    wet_r = buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, d_r);
-  ) : ( // Dimension static multi-tap spatial widening
-    lfo1 = 1.0 - 2.0 * abs(2.0 * chorus_phase - 1.0);
-    d_l = (0.0085 + depth * 0.0014 * lfo1) * srate;
-    d_r = (0.0115 - depth * 0.0014 * lfo1) * srate;
-    tap2_l = (0.0168 - depth * 0.0011 * lfo1) * srate;
-    tap2_r = (0.0142 + depth * 0.0011 * lfo1) * srate;
-    wet_l = 0.65 * buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, d_l)
-          - 0.35 * buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, tap2_l);
-    wet_r = 0.65 * buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, d_r)
-          - 0.35 * buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, tap2_r);
-  );
-
-  wet_l = bq_proc_l(bq_chorus_lp, wet_l);
-  wet_r = bq_proc_r(bq_chorus_lp, wet_r);
-
-  chorus_wpos += 1;
-  chorus_wpos >= chorus_len ? chorus_wpos = 0;
-
-  spl0 = spl0 * (1.0 - chorus_mix_s * 0.55) + wet_l * chorus_mix_s;
-  spl1 = spl1 * (1.0 - chorus_mix_s * 0.55) + wet_r * chorus_mix_s;
+// Boss CE-2 chorus. Bypass crossfades over ~20 ms; buffer keeps running so engaging it is click-free.
+function proc_chorus() local(tri, d, x, wl, wr) (
+  chorus_mix_s = param_smooth_c * chorus_mix_s + (1.0 - param_smooth_c) * (slider20 > 0.5 ? 1.0 : 0.0);
+  chorus_phase += ch_rate / srate; chorus_phase >= 1.0 ? chorus_phase -= 1.0;
+  tri = 1.0 - 2.0 * abs(2.0 * chorus_phase - 1.0);             // triangle -1..1 (CE-2 TL022 integrator)
+  d = ch_dmin + ch_dsw * (tri + 1.0) * 0.5;
+  // wet input: 48 Hz HPF -> 6.6 kHz 1-pole -> 6.9 kHz biquad, written into the BBD line
+  x = spl0; ch_hp_yl = ch_a48 * (ch_hp_yl + x - ch_hp_xl); ch_hp_xl = x;
+  ch_a1l = ch_hp_yl + ch_a66 * (ch_a1l - ch_hp_yl); chorus_buf_l[chorus_wpos] = bq_proc_l(bq_chorus_aa, ch_a1l);
+  x = spl1; ch_hp_yr = ch_a48 * (ch_hp_yr + x - ch_hp_xr); ch_hp_xr = x;
+  ch_a1r = ch_hp_yr + ch_a66 * (ch_a1r - ch_hp_yr); chorus_buf_r[chorus_wpos] = bq_proc_r(bq_chorus_aa, ch_a1r);
+  wl = buf_read_interp(chorus_buf_l, chorus_len, chorus_wpos, d);
+  wr = buf_read_interp(chorus_buf_r, chorus_len, chorus_wpos, d);
+  chorus_wpos += 1; chorus_wpos >= chorus_len ? chorus_wpos = 0;
+  ch_r1l = wl + ch_a66 * (ch_r1l - wl); wl = bq_proc_l(bq_chorus_lp, ch_r1l);   // reconstruction filter
+  ch_r1r = wr + ch_a66 * (ch_r1r - wr); wr = bq_proc_r(bq_chorus_lp, ch_r1r);
+  spl0 += chorus_mix_s * ((spl0 + wl) * 0.78 - spl0);
+  spl1 += chorus_mix_s * ((spl1 + wr) * 0.78 - spl1);
 );
 
 // Always runs delay buffer for natural tail spillover when bypassed (Bug #2 fix)

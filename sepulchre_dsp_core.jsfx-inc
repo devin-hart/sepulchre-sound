@@ -114,7 +114,7 @@ function bq_proc_r(b, x) local(y) (
 // ---------- Module 4: Boss GE-7 style 7-band graphic EQ (Round 31) ----------
 // Bands 100 / 200 / 400 / 800 / 1.6k / 3.2k / 6.4 kHz, +/-15 dB each, Level +/-15 dB. The pedal's gyrator band
 // filters are reciprocal boost/cut with Q that rises with boost; an RBJ peak with fixed Q 1.0 does the same
-// (pole Q 1.0 flat -> 2.4 at +15 dB). Placed by the user in any of the five routing slots.
+// (pole Q 1.0 flat -> 2.4 at +15 dB). Round 42: fixed position, before or after the pedal (slider76).
 function eq_clear() (
   bq_clear(bq_eq1); bq_clear(bq_eq2); bq_clear(bq_eq3); bq_clear(bq_eq4);
   bq_clear(bq_eq5); bq_clear(bq_eq6); bq_clear(bq_eq7);
@@ -141,7 +141,6 @@ function proc_eq() local(l, r) (
 
 function init_core_dsp() (
   bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9);
-  bq_dist_low = alloc_buf(9); bq_dist_mid = alloc_buf(9); bq_dist_high = alloc_buf(9);
   bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9); bq_dist_tb = alloc_buf(9);
   bq_dist_p1 = alloc_buf(9); bq_dist_p2 = alloc_buf(9); bq_dist_p3 = alloc_buf(9);
   bq_dist_p4 = alloc_buf(9); bq_dist_p5 = alloc_buf(9); bq_dist_p6 = alloc_buf(9);
@@ -160,7 +159,6 @@ function init_core_dsp() (
 
 function reset_core_state() (
   bq_clear(bq_in_hp); bq_clear(bq_gate_det);
-  bq_clear(bq_dist_low); bq_clear(bq_dist_mid); bq_clear(bq_dist_high);
   bq_clear(bq_dist_gyr1); bq_clear(bq_dist_gyr2); bq_clear(bq_dist_post);
   bq_clear(bq_os_up1); bq_clear(bq_os_up2); bq_clear(bq_os_up3); bq_clear(bq_os_up4);
   bq_clear(bq_os_dn1); bq_clear(bq_os_dn2); bq_clear(bq_os_dn3); bq_clear(bq_os_dn4);
@@ -187,10 +185,6 @@ function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_
   gate_open_gain_c = exp(-1.0 / (0.003 * srate));
   gate_rel_gain_c = exp(-1.0 / (0.035 * srate));
 
-  // Pre-EQ (Input column): applied to every pedal's input
-  bq_lshelf(bq_dist_low, 160.0, (slider13 - 50.0) * 0.24);
-  bq_peak(bq_dist_mid, 850.0, 1.1, (slider14 - 50.0) * 0.28);
-  bq_hshelf(bq_dist_high, 2600.0, (slider15 - 50.0) * 0.24);
   // Pedal coefficients live in update_dist_coeffs() (sepulchre_dsp_dist.jsfx-inc)
 );
 
@@ -224,6 +218,4 @@ function proc_input_gate() local(det_l, det_r, det, target_g) (
     );
     spl0 *= gate_gain; spl1 *= gate_gain;
   ) : ( gate_gain = 1.0; );
-  spl0 = bq_proc_l(bq_dist_high, bq_proc_l(bq_dist_mid, bq_proc_l(bq_dist_low, spl0)));
-  spl1 = bq_proc_r(bq_dist_high, bq_proc_r(bq_dist_mid, bq_proc_r(bq_dist_low, spl1)));
 );

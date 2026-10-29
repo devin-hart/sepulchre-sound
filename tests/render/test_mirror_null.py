@@ -54,6 +54,9 @@ def test_pedal_mirror_null():
         rc.run_reaper(rpp_path)
         
         reaper_seg = rc.read_wav24(out_wav, channel=0)[:seg_len]
+        # Round 35 added Amp OFF 0.84 scaling (slider54=0) in JSFX proc_amp();
+        # divide by 0.84 to isolate the pedal's exact transfer function.
+        reaper_seg = reaper_seg / 0.84
         
         # 3. Sample-by-sample difference metrics
         diff = reaper_seg - sim

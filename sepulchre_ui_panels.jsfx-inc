@@ -1,6 +1,7 @@
 // sepulchre_ui_panels.jsfx-inc
 // Crypt layout: logo + preset header, then eight numbered stages on stone slabs in signal order:
-// I INPUT -> II..VI swappable slots (5) -> VII AMP -> VIII CABINET / IX OUTPUT.
+// Round 42 fixed chain: I INPUT, II DISTORTION, III EQUALIZER, IV AMP, V CHORUS, VI DELAY, VII REVERB (amp FX loop),
+// VIII CABINET / IX OUTPUT.
 // Slab and header-band geometry must match the baked sepulchre_bg.jpg.
 @init
 
@@ -26,37 +27,20 @@ function recall_eq_preset(i) local(k) (
 function lay_begin(tot, n) ( ui_cy = UI_BODY_Y; ui_gap = clamp((320 - tot) / max(1, n - 1), 12, 30); );
 function lay(h) local(y) ( y = ui_cy; ui_cy += h + ui_gap; y; );
 
-// Header strip of a slab: numeral + name sprites, optional power LED, optional MOVE arrows on hover
+// Header strip of a slab: numeral + name sprites, optional power LED
 function ui_slab_head(x, w, num_i, name_i, alpha, has_power, on) local(hit) (
   ui_alpha = alpha; ui_title(x + 10, 114, num_i, name_i);
   ui_alpha = 1;
   hit = has_power ? ui_power_led(x + w - 21, 121, on) : 0;
   hit;
 );
-function ui_move_arrows(slot_idx, x, w) (
-  ui_alpha = 1;
-  mouse_in(x, 106, w, 40) && !ui_dropdown_open ? (
-    slot_idx > 0 ? (
-      u_rgb(14, 14, 14); u_rect(x + 1, 107, 22, 38);
-      ui_seg(x + 3, 116, 18, 20, "<", 0) ? swap_routing_slots(slot_idx - 1, slot_idx);
-    );
-    slot_idx < 4 ? (
-      u_rgb(14, 14, 14); u_rect(x + w - 50, 107, 24, 38);
-      ui_seg(x + w - 48, 116, 18, 20, ">", 0) ? swap_routing_slots(slot_idx, slot_idx + 1);
-    );
-  );
-);
-
 // ---------- I: Input & gate ----------
 function panel_input(x, w) local(ix, iw, g, y) (
   ui_slab_head(x, w, 0, 0, 1, 0, 0);
   ix = x + 10; iw = w - 20; g = slider4 > 0.5;
-  lay_begin(244, 8);
+  lay_begin(154, 5);
   slider1 = ui_hslider(1, ix, lay(30), iw, "TRIM", slider1, -12, 18, 0, 0.1, "%+.1f dB", 0);
   slider2 = ui_hslider(2, ix, lay(30), iw, "LOW CUT", slider2, 40, 180, 105, 1, "%d Hz", 0);
-  slider13 = ui_hslider(13, ix, lay(30), iw, "EQ LOW", slider13, 0, 100, 50, 1, "%+.1f dB", 0.24);
-  slider14 = ui_hslider(14, ix, lay(30), iw, "EQ MID", slider14, 0, 100, 50, 1, "%+.1f dB", 0.28);
-  slider15 = ui_hslider(15, ix, lay(30), iw, "EQ HIGH", slider15, 0, 100, 50, 1, "%+.1f dB", 0.24);
   ui_toggle(ix, lay(24), iw, 24, g ? "NOISE GATE  ON" : "NOISE GATE  OFF", g) ? set_param(4, !g);
   ui_alpha = g ? 1 : UI_DIM;
   y = lay(30);
@@ -99,12 +83,12 @@ function ui_vslider(id, x, y, h, label, val, min_v, max_v, dflt_v, step_v) local
   new_val;
 );
 
-// ---------- II..VI: swappable slots ----------
-function panel_slot(mod_id, slot_idx, x, w) local(ix, iw, en, bw, div, a, y, p, n) (
+// ---------- Pedal / EQ / chorus / delay / reverb panels ----------
+function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, div, a, y, p, n) (
   ix = x + 10; iw = w - 20;
   en = mod_id == 0 ? slider10 > 0.5 : mod_id == 1 ? slider20 > 0.5 : mod_id == 2 ? slider30 > 0.5 : mod_id == 3 ? slider40 > 0.5 : slider65 > 0.5;
   a = en ? 1 : UI_DIM;
-  ui_slab_head(x, w, slot_idx + 1, mod_id == 4 ? 8 : mod_id + 1, a, 1, en)
+  ui_slab_head(x, w, num_i, mod_id == 4 ? 8 : mod_id + 1, a, 1, en)
     ? set_param(mod_id == 0 ? 10 : mod_id == 1 ? 20 : mod_id == 2 ? 30 : mod_id == 3 ? 40 : 65, !en);
   ui_alpha = a;
 
@@ -141,13 +125,9 @@ function panel_slot(mod_id, slot_idx, x, w) local(ix, iw, en, bw, div, a, y, p, 
       slider9 = ui_hslider(9, ix, lay(30), iw, "LEVEL", slider9, 0, 10, 4.4, 0.1, "%.1f", 0);
     );
   ) : mod_id == 1 ? (
-    lay_begin(144, 5); y = lay(24); bw = (iw - 3) / 2;
-    ui_seg(ix, y, bw, 24, "BBD", slider21 == 0) ? set_param(21, 0);
-    ui_seg(ix + bw + 3, y, bw, 24, "DIMENSION", slider21 == 1) ? set_param(21, 1);
-    slider22 = ui_hslider(22, ix, lay(30), iw, "RATE", slider22, 0.1, 4.0, 0.6, 0.05, "%.2f Hz", 0);
-    slider23 = ui_hslider(23, ix, lay(30), iw, "DEPTH", slider23, 0, 100, 45, 1, "%d%%", 0);
-    slider24 = ui_hslider(24, ix, lay(30), iw, "TONE", slider24, 0, 100, 55, 1, "%d%%", 0);
-    slider25 = ui_hslider(25, ix, lay(30), iw, "MIX", slider25, 0, 100, 0, 1, "%d%%", 0);
+    lay_begin(72, 3); f_tiny(); c_lab(); u_text_sp(ix, lay(12), "BOSS CE-2  /  MN3007 BBD", 0.6);   // Round 42
+    slider77 = ui_hslider(77, ix, lay(30), iw, "RATE", slider77, 0, 10, 4, 0.1, "%.1f", 0);
+    slider78 = ui_hslider(78, ix, lay(30), iw, "DEPTH", slider78, 0, 10, 6, 0.1, "%.1f", 0);
   ) : mod_id == 2 ? (
     lay_begin(198, 6); y = lay(24); bw = (iw - 3) / 2;
     ui_seg(ix, y, bw, 24, "TAPE", slider31 == 0) ? set_param(31, 0);
@@ -175,17 +155,20 @@ function panel_slot(mod_id, slot_idx, x, w) local(ix, iw, en, bw, div, a, y, p, 
     f_value(); c_fill(); u_text(ix + 5, UI_BODY_Y, "<"); u_text_r(ix + iw - 5, UI_BODY_Y, ">");
     f_tiny(); c_bone(); strcpy(#eq_pn, get_eq_preset_name(n)); eq_dirty && n > 0 ? strcat(#eq_pn, " *");
     u_text_sp_c(ix + iw * 0.5, UI_BODY_Y + 8, #eq_pn, 0.6);
+    bw = (iw - 3) / 2;                                       // Round 42: EQ before / after the pedal
+    ui_seg(ix, UI_BODY_Y + 26, bw, 20, "PRE PEDAL", slider76 < 0.5) ? set_param(76, 0);
+    ui_seg(ix + bw + 3, UI_BODY_Y + 26, bw, 20, "POST PEDAL", slider76 > 0.5) ? set_param(76, 1);
     p = 0;
     loop(8,
       y = ix + 8 + p * ((iw - 16) / 7);
-      slider(66 + p) = ui_vslider(66 + p, y, UI_BODY_Y + 48, 210,
+      slider(66 + p) = ui_vslider(66 + p, y, UI_BODY_Y + 76, 182,
         p == 0 ? "100" : p == 1 ? "200" : p == 2 ? "400" : p == 3 ? "800" : p == 4 ? "1.6K" : p == 5 ? "3.2K" : p == 6 ? "6.4K" : "LVL",
         slider(66 + p), -15, 15, 0, 0.5);
       p += 1;
     );
     f_value(); c_bone();
     ui_vs_hot ? sprintf(#eq_v, "%s  %+.1f dB", ui_vs_lab, ui_vs_val) : strcpy(#eq_v, "+15 / 0 / -15 dB");
-    u_text_r(ix + iw, UI_BODY_Y + 26, #eq_v);
+    u_text_r(ix + iw, UI_BODY_Y + 54, #eq_v);
   ) : (
     lay_begin(144, 5); y = lay(24); bw = (iw - 6) / 3;
     ui_seg(ix, y, bw, 24, "HALL", slider41 == 0) ? set_param(41, 0);
@@ -196,14 +179,13 @@ function panel_slot(mod_id, slot_idx, x, w) local(ix, iw, en, bw, div, a, y, p, 
     slider44 = ui_hslider(44, ix, lay(30), iw, "DAMPING", slider44, 0, 100, 64, 1, "%d%%", 0);
     slider45 = ui_hslider(45, ix, lay(30), iw, "MIX", slider45, 0, 100, 15, 1, "%d%%", 0);
   );
-  ui_move_arrows(slot_idx, x, w);
   ui_alpha = 1;
 );
 
-// ---------- VII: Amp ----------
+// ---------- IV: Amp ----------
 function panel_amp(x, w) local(ix, iw, on, bw, y) (
   ix = x + 10; iw = w - 20; on = slider54 > 0.5;
-  ui_slab_head(x, w, 6, 5, on ? 1 : UI_DIM, 0, 0);
+  ui_slab_head(x, w, 3, 5, on ? 1 : UI_DIM, 0, 0);
   ui_alpha = 1; lay_begin(114, 4); y = lay(24); bw = (iw - 6) / 3;
   ui_seg(ix, y, bw, 24, "OFF", slider54 == 0) ? set_param(54, 0);
   ui_seg(ix + bw + 3, y, bw, 24, "TUBE", slider54 == 1) ? set_param(54, 1);
@@ -219,32 +201,21 @@ function panel_amp(x, w) local(ix, iw, on, bw, y) (
 function panel_cab_out(x, w) local(ix, iw, on, bw, k) (
   ix = x + 10; iw = w - 20; on = slider49 > 0.5;
   ui_slab_head(x, w, 7, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
-  ui_alpha = on ? 1 : UI_DIM; bw = (iw - 3) / 2;
-  ui_seg(ix, 158, bw, 24, "IIR CAB", slider52 < 0.5) ? set_param(52, 0);
-  ui_seg(ix + bw + 3, 158, bw, 24, "WAV IR", slider52 > 0.5) ? set_param(52, 1);
-  slider52 < 0.5 ? (
-    bw = (iw - 6) / 3;
-    ui_seg(ix, 198, bw, 26, "4x12", slider50 == 0) ? set_param(50, 0);
-    ui_seg(ix + bw + 3, 198, bw, 26, "2x12", slider50 == 1) ? set_param(50, 1);
-    ui_seg(ix + 2 * (bw + 3), 198, bw, 26, "DAMPED", slider50 == 2) ? set_param(50, 2);
-  ) : (
-    k = floor(slider53 + 0.5);
-    c_border(); u_frame(ix, 194, iw, 34);
-    ui_hit(ix, 194, 22, 34) ? set_param(53, max(0, k - 1));
-    ui_hit(ix + iw - 22, 194, 22, 34) ? set_param(53, min(9, k + 1));
-    f_value(); c_fill(); u_text(ix + 6, 202, "<"); u_text_r(ix + iw - 6, 202, ">");
-    sprintf(#ir_n, "SLOT %d / 10", k + 1);
-    f_label(); c_bone(); u_text_sp_c(ix + iw * 0.5, 205, get_ir_slot_name(k), 0.5);
-    f_tiny(); c_lab(); u_text_sp_c(ix + iw * 0.5, 219, #ir_n, 1.5);
-  );
+  ui_alpha = on ? 1 : UI_DIM;                              // Round 42: WAV IR only (IIR 4x12 = silent fallback)
+  k = floor(slider53 + 0.5);
+  c_border(); u_frame(ix, 162, iw, 34);
+  ui_hit(ix, 162, 22, 34) ? set_param(53, max(0, k - 1));
+  ui_hit(ix + iw - 22, 162, 22, 34) ? set_param(53, min(9, k + 1));
+  f_value(); c_fill(); u_text(ix + 6, 170, "<"); u_text_r(ix + iw - 6, 170, ">");
+  ir_filter_len > 0 ? sprintf(#ir_n, "SLOT %d / 10", k + 1) : strcpy(#ir_n, "IR MISSING: BUILT-IN 4x12");
+  f_label(); c_bone(); u_text_sp_c(ix + iw * 0.5, 173, get_ir_slot_name(k), 0.5);
+  f_tiny(); ir_filter_len > 0 ? c_lab() : c_ember(); u_text_sp_c(ix + iw * 0.5, 187, #ir_n, ir_filter_len > 0 ? 1.5 : 0.4);
 
   ui_alpha = 1;
   ui_title(x + 10, 251, 8, 7);
   slider58 = ui_hslider(58, ix, 290, iw, "AIR", slider58, 0, 100, 64, 1, "%+.1f dB", 0.24);
-  slider16 = ui_hslider(16, ix, 334, iw, "LO-FI GRIT", slider16, 0, 100, 0, 1, "%d%%", 0);
-  slider51 = ui_hslider(51, ix, 378, iw, "MASTER", slider51, -24, 6, -0.5, 0.1, "%+.1f dB", 0);
-  ui_meter(ix, 418, iw, "OUTPUT", meter_out_peak, -999, 1);
-  f_tiny(); c_tick(); u_text_sp(ix, 467, "TARGET  -10 / -8 dBFS", 1);
+  slider51 = ui_hslider(51, ix, 340, iw, "MASTER", slider51, -24, 6, -0.5, 0.1, "%+.1f dB", 0);
+  ui_meter(ix, 396, iw, "OUTPUT", meter_out_peak, -999, 0);
 );
 
 // ---------- Header + whole frame ----------
@@ -259,12 +230,12 @@ function ui_header() (
 function ui_draw_all() (
   ui_header();
   panel_input(14, 150);
-  panel_slot(slider5, 0, 174, 162);
-  panel_slot(slider6, 1, 346, 162);
-  panel_slot(slider7, 2, 518, 162);
-  panel_slot(slider8, 3, 690, 162);
-  panel_slot(slider74, 4, 862, 162);
-  panel_amp(1034, 150);
-  panel_cab_out(1194, 168);
+  panel_mod(0, 1, 174, 162);                               // II   DISTORTION
+  panel_mod(4, 2, 346, 162);                               // III  EQUALIZER
+  panel_amp(518, 162);                                     // IV   AMP
+  panel_mod(1, 4, 690, 162);                               // V    CHORUS   } amp FX loop
+  panel_mod(2, 5, 862, 162);                               // VI   DELAY    }
+  panel_mod(3, 6, 1034, 150);                              // VII  REVERB   }
+  panel_cab_out(1194, 168);                                // VIII CABINET / IX OUTPUT
   draw_preset_dropdown_menu(1108, 66, 250, 24);
 );

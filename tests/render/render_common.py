@@ -12,13 +12,13 @@ REAPER_EXE = os.environ.get("REAPER_EXE", "D:/Reaper/reaper.exe")
 APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))
 IR_DIR = os.path.join(APPDATA_DIR, "REAPER", "Data", "sepulchre_irs")
 
-# Base slider defaults for clean/bypass conditions
+# Base slider defaults for clean/bypass conditions (Round 42 simplified architecture)
 BASE_DEFAULTS = {
     1: 0.0, 2: 40.0, 3: -52.0, 4: 0,
-    5: 0, 6: 1, 7: 2, 8: 3,
-    10: 1, 13: 50.0, 14: 50.0, 15: 50.0, 16: 0.0,
+    10: 1,
     20: 0, 30: 0, 40: 0,
-    49: 0, 50: 0, 51: 0.0, 52: 0, 54: 0, 58: 50.0
+    49: 0, 51: 0.0, 54: 0, 58: 50.0,
+    65: 0, 76: 1
 }
 
 # Pedal slider definitions at factory defaults
@@ -30,12 +30,8 @@ PEDAL_DEFAULTS = {
 }
 
 def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
-    # Support up to slider 74 (Boss GE-7 EQ added in Round 32)
-    # In REAPER's RPP `<JS ... ""` format:
-    #   Tokens 1..64 correspond to sliders 1..64.
-    #   Token 65 is REAPER's reserved JSFX preset / serialized state token ('-').
-    #   Tokens 66+ correspond to sliders 65+.
-    max_slider = max(74, max(s_dict.keys()) if s_dict else 74)
+    # Support up to slider 78 (Round 42 additions: 76 EQ Pos, 77 CE-2 Rate, 78 CE-2 Depth)
+    max_slider = max(78, max(s_dict.keys()) if s_dict else 78)
     tokens = [str(s_dict.get(i, "-")) for i in range(1, 65)]
     if max_slider >= 65:
         tokens.append("-")  # Token 65: REAPER internal preset/state placeholder

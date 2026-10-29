@@ -358,17 +358,17 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
     os_sr = sr * DIST_OS
     os_fc = min(16500.0, sr * 0.36)
     bq_in = bq_hp_coeffs(sliders[2], 0.7071, sr)
-    bq_low = bq_shelf_coeffs(160.0, (sliders[13] - 50.0) * 0.24, sr, False)
-    bq_mid = bq_peak_coeffs(850.0, 1.1, (sliders[14] - 50.0) * 0.28, sr)
-    bq_high = bq_shelf_coeffs(2600.0, (sliders[15] - 50.0) * 0.24, sr, True)
+    # Round 42: GE-7 EQ (slider65 on, slider76 0 = before pedal / 1 = after), replaces the Input Pre-EQ
+    eq_on = sliders.get(65, 0) > 0.5
+    eq_pre = sliders.get(76, 1) < 0.5
+    eq_f = [bq_peak_coeffs(f, 1.0, sliders.get(66 + i, 0.0), sr) for i, f in enumerate((100, 200, 400, 800, 1600, 3200, 6400))]
+    eq_lvl = 10.0 ** (sliders.get(73, 0.0) * 0.05)
     P = pedal_setup(sliders, sr)
     pst = [0.0] * 16
     tone_st = [0.0, 0.0, 0.0]
     qs = [0.5098, 0.6013, 0.9000, 2.5629]
     up_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
     dn_f = [bq_lp_coeffs(os_fc, q, os_sr) for q in qs]
-    grit = sliders[16] * 0.01
-    grit_phase = grit_h = 0.0
 
     amp_mode = int(sliders[54])
     bq_amp_hp = bq_hp_coeffs(75.0, 0.707, sr)
@@ -377,18 +377,11 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
     bq_amp_t = bq_shelf_coeffs(2400.0, (sliders[57] - 50.0) * 0.20 + 1.5, sr, True)
     bq_amp_p = bq_peak_coeffs(3800.0, 1.25, (sliders[58] - 50.0) * 0.24, sr)
 
-    cab_prof = int(sliders[50])
+    # IIR 4x12 cab (the plugin's fallback / loudness reference; WAV IRs are not in the repo)
     bq_cab_hp = bq_hp_coeffs(85.0, 0.7071, sr)
     bq_cab_lp1 = bq_lp_coeffs(7800.0, 0.7071, sr)
-    if cab_prof == 0:
-        cf1, cf2, cf3 = bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr)
-        clp2, cab_comp = bq_lp_coeffs(6200.0, 0.95, sr), 0.72
-    elif cab_prof == 1:
-        cf1, cf2, cf3 = bq_hp_coeffs(145.0, 1.0, sr), bq_peak_coeffs(1150.0, 1.3, 4.2, sr), bq_peak_coeffs(3400.0, 1.5, 4.0, sr)
-        clp2, cab_comp = bq_lp_coeffs(5900.0, 0.88, sr), 0.70
-    else:
-        cf1, cf2, cf3 = bq_peak_coeffs(110.0, 1.8, 4.5, sr), bq_peak_coeffs(2900.0, 1.8, -5.5, sr), bq_peak_coeffs(1750.0, 1.2, 3.2, sr)
-        clp2, cab_comp = bq_lp_coeffs(5100.0, 0.92, sr), 0.76
+    cf1, cf2, cf3 = bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr)
+    clp2, cab_comp = bq_lp_coeffs(6200.0, 0.95, sr), 0.72
 
     master_lin = 10.0 ** (sliders[51] * 0.05)
     dc_r = math.exp(-2.0 * math.pi * 10.0 / sr)
@@ -397,7 +390,10 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
 
     for x in signal:
         l = bq_step(bq_in, x * (10.0 ** (sliders[1] * 0.05)))
-        l = bq_step(bq_high, bq_step(bq_mid, bq_step(bq_low, l)))
+        if eq_on and eq_pre:
+            for b in eq_f:
+                l = bq_step(b, l)
+            l *= eq_lvl
         if sliders[10] > 0.5:
             for k in range(DIST_OS):
                 xl = (l * DIST_OS) if k == 0 else 0.0
@@ -420,6 +416,10 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
             dc_out = l - dc_x1 + dc_r * dc_y1
             dc_x1, dc_y1 = l, dc_out
             l = dc_out * P["mk"]
+        if eq_on and not eq_pre:
+            for b in eq_f:
+                l = bq_step(b, l)
+            l *= eq_lvl
 
         if not include_amp_cab:
             out.append(l)
@@ -440,13 +440,6 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
         if sliders[49] > 0.5:
             l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp
 
-        if grit > 0.02:
-            grit_phase += 48000.0 / (1.0 + grit * 5.0) / sr
-            if grit_phase >= 1.0:
-                grit_phase -= math.floor(grit_phase)
-                steps = max(12.0, 256.0 * ((1.0 - grit * 0.85) ** 2)) / 0.35
-                grit_h = math.floor(l * steps + 0.5) / steps
-            l = l * (1.0 - grit * 0.65) + grit_h * grit * 0.65
         l = limit_sample(bq_step(bq_amp_p, l) * master_lin, 0.89125)
         out.append(l)
     return out
@@ -500,7 +493,7 @@ def check_presets_dc_and_levels(presets_src):
 
 
 def check_pre_cab_aliasing_all_bins(presets_src):
-    # Round 9: every pedal model, at its preset settings (grit off), 8x oversampled. In-band (20 Hz - 8 kHz)
+    # Round 9: every pedal model, at its preset settings, 8x oversampled. In-band (20 Hz - 8 kHz)
     # limit -40 dB for every pedal (Round 30: HM-2 tightened from -34 dB after its Round 23/27 rebuild measured -47 dB).
     print("[3/6] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
