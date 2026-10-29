@@ -105,7 +105,7 @@ function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
 // 90 Hz HP + 500 Hz +12 dB low shelf + 6 kHz LP ~ average distorted-guitar spectrum x K-weighting) vs IR_E48 = the
 // same measure of IIR profile 0 at 48 kHz (tests/verify_jsfx.py). Fitted over 4 pedals x 11 test IRs: rms error 1.6 dB.
 IR_E48 = 0.283543;
-IR_MATCH_DB = 0.0;   // Round 23: global WAV-IR vs IIR offset, set by Devin's ear-match (LUFS matched, ears disagree)
+IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 dB over the LUFS match)
 function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
     isc = ir_raw_srate / srate;
