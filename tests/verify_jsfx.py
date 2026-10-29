@@ -434,6 +434,8 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
             adc = l - amp_dc_x1 + dc_r * amp_dc_y1
             amp_dc_x1, amp_dc_y1 = l, adc
             l = bq_step(bq_amp_t, bq_step(bq_amp_m, bq_step(bq_amp_b, adc)))
+        else:
+            l *= 0.84  # Round 35: Amp OFF level match
 
         if sliders[49] > 0.5:
             l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp

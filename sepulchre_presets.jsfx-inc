@@ -34,6 +34,8 @@ function sync_all_DSP() (
 
 // Round 34: GE-7 settings for classic black metal records, read off Devin's reference photos (approximate, +/-1.5 dB).
 // Order: 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (dB). recall_eq_preset() lives in sepulchre_ui_panels (needs auto_slider).
+// Round 35: Level is NOT the photo's +3 (that was relative to each player's amp). It is the loudness match: minus the
+// mean LUFS rise of the 7-band curve over the 4 pedals, amp Tube and Off (mirror, IIR cab), so presets are as loud as flat.
 function get_eq_preset_name(i) (
   i == 1 ? "BATHORY '84" : i == 2 ? "DEATHCRUSH '87" : i == 3 ? "TRANSILVANIAN '94" : i == 4 ? "NIGHTSIDE '94" :
   i == 5 ? "FILOSOFEM '96" : i == 6 ? "IN SORTE '07" : i == 7 ? "EVANGELION '09" : "CUSTOM";

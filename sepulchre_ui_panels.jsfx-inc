@@ -9,13 +9,13 @@ UI_BODY_Y = 158;     // first control row (slab top 106 + 40 header + 12 padding
 
 // Load a record EQ preset (values in sepulchre_presets.jsfx-inc). Turns the EQ on; routing is left alone.
 function recall_eq_preset(i) local(k) (
-  i == 1 ? eq_set8(-2.5, -12.5, -6, -2.5, 12.5, 9, 3, 3) :      // Bathory - Bathory (1984)
-  i == 2 ? eq_set8(5, -2, -1, 5.5, -7, 12, -3, 3.5) :          // Mayhem - Deathcrush (1987)
-  i == 3 ? eq_set8(-9, -2, 0, 12, -2, 9, -3.5, 3) :            // Darkthrone - Transilvanian Hunger (1994)
-  i == 4 ? eq_set8(3, 7, -5, -4, 5.5, 7.5, -2, 3) :            // Emperor - In the Nightside Eclipse (1994)
-  i == 5 ? eq_set8(3.5, 4, -5, 9.5, 12.5, 3.5, 14, 3) :        // Burzum - Filosofem (1996)
-  i == 6 ? eq_set8(0, -3.5, -1.5, 3.5, 6, 3.5, 3, 3) :         // Dimmu Borgir - In Sorte Diaboli (2007)
-  i == 7 ? eq_set8(4, 0, -1, 8, 10, 1, 9.5, 3);                // Behemoth - Evangelion (2009)
+  i == 1 ? eq_set8(-2.5, -12.5, -6, -2.5, 12.5, 9, 3, -7.5) :      // Bathory - Bathory (1984)
+  i == 2 ? eq_set8(5, -2, -1, 5.5, -7, 12, -3, -4) :          // Mayhem - Deathcrush (1987)
+  i == 3 ? eq_set8(-9, -2, 0, 12, -2, 9, -3.5, -3.5) :            // Darkthrone - Transilvanian Hunger (1994)
+  i == 4 ? eq_set8(3, 7, -5, -4, 5.5, 7.5, -2, -5.5) :            // Emperor - In the Nightside Eclipse (1994)
+  i == 5 ? eq_set8(3.5, 4, -5, 9.5, 12.5, 3.5, 14, -8) :        // Burzum - Filosofem (1996)
+  i == 6 ? eq_set8(0, -3.5, -1.5, 3.5, 6, 3.5, 3, -3) :         // Dimmu Borgir - In Sorte Diaboli (2007)
+  i == 7 ? eq_set8(4, 0, -1, 8, 10, 1, 9.5, -6);                // Behemoth - Evangelion (2009)
   i > 0 ? slider65 = 1;
   slider75 = i; eq_last_preset = i; eq_dirty = 0;
   k = 65; loop(9, auto_slider(k, 1); k += 1; ); auto_slider(75, 1);

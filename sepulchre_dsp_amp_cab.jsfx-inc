@@ -228,7 +228,7 @@ function proc_cab_master() local(l, r, bp2, dc_l, dc_r_out, grit, steps) (
     l = bq_proc_l(bq_amp_bass, l); r = bq_proc_r(bq_amp_bass, r);
     l = bq_proc_l(bq_amp_mid, l);  r = bq_proc_r(bq_amp_mid, r);
     l = bq_proc_l(bq_amp_treb, l); r = bq_proc_r(bq_amp_treb, r);
-  );
+  ) : ( l *= 0.84; r *= 0.84; );                     // Round 35: Amp OFF -1.5 dB = Tube's loudness (mirror, 4 pedals)
 
   // Cabinet: External WAV IR Convolution when slider52 (IR Mode) == 1, else IIR Cabinet network (Fixes R2-4)
   slider49 > 0.5 ? (
