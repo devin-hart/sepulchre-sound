@@ -30,7 +30,18 @@ PEDAL_DEFAULTS = {
 }
 
 def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
-    s_line = " ".join(str(s_dict.get(i, "-")) for i in range(1, 65))
+    # Support up to slider 74 (Boss GE-7 EQ added in Round 32)
+    # In REAPER's RPP `<JS ... ""` format:
+    #   Tokens 1..64 correspond to sliders 1..64.
+    #   Token 65 is REAPER's reserved JSFX preset / serialized state token ('-').
+    #   Tokens 66+ correspond to sliders 65+.
+    max_slider = max(74, max(s_dict.keys()) if s_dict else 74)
+    tokens = [str(s_dict.get(i, "-")) for i in range(1, 65)]
+    if max_slider >= 65:
+        tokens.append("-")  # Token 65: REAPER internal preset/state placeholder
+        for i in range(65, max_slider + 1):
+            tokens.append(str(s_dict.get(i, "-")))
+    s_line = " ".join(tokens)
     clean_wav = wav_file.replace("\\", "/")
     return f"""  <TRACK
     NAME "{name}"
