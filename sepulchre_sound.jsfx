@@ -77,6 +77,7 @@ slider70:0<-15,15,0.5>-EQ 1.6 kHz (dB)
 slider71:0<-15,15,0.5>-EQ 3.2 kHz (dB)
 slider72:0<-15,15,0.5>-EQ 6.4 kHz (dB)
 slider73:0<-15,15,0.5>-EQ Level (dB)
+slider75:0<0,7,1{Custom,Bathory 84,Deathcrush 87,Transilvanian Hunger 94,Nightside Eclipse 94,Filosofem 96,In Sorte Diaboli 07,Evangelion 09}>-EQ Preset
 
 // Module 5: Amp Stage, IR Loader / Cabinet Shaper & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
@@ -115,11 +116,14 @@ ext_noinit = 1;
   dsp_initialized = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
   ir_loaded_slot = -1;
+  eq_last_preset = floor(slider75 + 0.5);   // saved fader values win over the preset table on project load
   slider52 > 0.5 ? load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
 );
 sync_all_DSP();
 
 @slider
+// EQ preset chosen from REAPER's slider list / automation (the UI calls recall_eq_preset directly)
+floor(slider75 + 0.5) != eq_last_preset ? recall_eq_preset(floor(slider75 + 0.5));
 slider52 > 0.5 ? (
   tmp_ir_idx = clamp(floor(slider53 + 0.001), 0, 9);
   tmp_ir_idx != ir_loaded_slot ? load_ir_slot(tmp_ir_idx);

@@ -123,7 +123,7 @@ function auto_slider(id, end_touch) (
   id == 68 ? slider_automate(slider68, end_touch) : id == 69 ? slider_automate(slider69, end_touch) :
   id == 70 ? slider_automate(slider70, end_touch) : id == 71 ? slider_automate(slider71, end_touch) :
   id == 72 ? slider_automate(slider72, end_touch) : id == 73 ? slider_automate(slider73, end_touch) :
-  id == 74 ? slider_automate(slider74, end_touch);
+  id == 74 ? slider_automate(slider74, end_touch) : id == 75 ? slider_automate(slider75, end_touch);
 );
 function set_param(id, v) (
   slider(id) = v; auto_slider(id, 1);
