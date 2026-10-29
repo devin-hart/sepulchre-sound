@@ -32,7 +32,7 @@ slider61:7.5<0,10,0.1>-Metal Zone Level
 slider62:10.0<0,10,0.1>-HM-2 Distortion
 slider63:10.0<0,10,0.1>-HM-2 Low
 slider64:10.0<0,10,0.1>-HM-2 High
-slider9:4.2<0,10,0.1>-HM-2 Level
+slider9:4.4<0,10,0.1>-HM-2 Level
 
 // Pre-EQ (Input column, before every pedal) and Lo-Fi Grit (Output column)
 slider13:50<0,100,1>-Pre-EQ Low (%)

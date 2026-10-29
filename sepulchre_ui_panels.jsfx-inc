@@ -90,7 +90,7 @@ function panel_slot(mod_id, slot_idx, x, w) local(ix, iw, en, bw, div, a, y, p, 
       slider62 = ui_hslider(62, ix, lay(30), iw, "DISTORTION", slider62, 0, 10, 10, 0.1, "%.1f", 0);
       slider63 = ui_hslider(63, ix, lay(30), iw, "LOW", slider63, 0, 10, 10, 0.1, "%.1f", 0);
       slider64 = ui_hslider(64, ix, lay(30), iw, "HIGH", slider64, 0, 10, 10, 0.1, "%.1f", 0);
-      slider9 = ui_hslider(9, ix, lay(30), iw, "LEVEL", slider9, 0, 10, 4.2, 0.1, "%.1f", 0);
+      slider9 = ui_hslider(9, ix, lay(30), iw, "LEVEL", slider9, 0, 10, 4.4, 0.1, "%.1f", 0);
     );
   ) : mod_id == 1 ? (
     lay_begin(144, 5); y = lay(24); bw = (iw - 3) / 2;

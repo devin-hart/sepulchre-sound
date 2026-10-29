@@ -15,7 +15,7 @@
 @init
 
 DIST_OS = 8;
-MT_MK = 0.54; HM_MK = 3.1;   // Level make-up, calibrated by tests/verify_jsfx.py (presets -10..-8 dBFS)
+MT_MK = 0.54; HM_MK = 1.6;   // Level make-up, calibrated by tests/verify_jsfx.py (presets -10..-8 dBFS)
 function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
 function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
@@ -67,7 +67,7 @@ function update_dist_coeffs() local(os_sr, os_fc, rd, t) (
     dist_mk_t = MT_MK * a_taper(slider61 * 0.1);
   ) : ( // HM-2
     t = a_taper(slider62 * 0.1);
-    hm_g1 = 1 + 5 * t; hm_G = 3 + 60 * t;                                           // pregain, IC1B shelf gain
+    hm_g1 = 1 + 2 * t; hm_G = 3 + 60 * t; hm_K = 1 + 9 * t;                         // pregain, IC1B shelf, IC1B drive
     hm_a40 = c1x(40); hm_a720 = c1x(720); hm_aT = c1x(9000); hm_a16 = c1x(8000);
     gyro_peak_sr(bq_dist_gyr1, 88, 1.2, (slider63 - 5) * 3.2, os_sr);              // LOW  +/-16 dB
     gyro_peak_sr(bq_dist_gyr2, 920, 2.0, (slider64 - 5) * 1.8, os_sr);             // HIGH: two overlapping gyrators,
@@ -118,7 +118,7 @@ function hm_os(x) instance(hx, hy, hx7, hy7, lt, l16, a1, a2, b1, b2, c1, c2) lo
   v = aclip(hy * hm_g1, 4.0, 2.0);                                 // Q6/Q7 pregain (+ swings 2x -)
   hy7 = (1 + hm_a720) * 0.5 * (v - hx7) + hm_a720 * hy7; hx7 = v;
   w = v + dclip(hm_G * hy7, 0.6, 2.5);                             // IC1B: mids pushed into feedback diodes
-  lt = w + hm_aT * (lt - w); w = sclip(lt, 4.0);
+  lt = w + hm_aT * (lt - w); w = sclip(lt * hm_K, 4.0);         // Round 27: Distortion up = less IC1B feedback -> rails
   w = w - 0.3 * soft_tanh(w / 0.3);                                // D6/D7 Ge coring: 0.3 V dead band (buzz/sputter)
   l16 = w + hm_a16 * (l16 - w);                                    // C16 treble shunt
   w = dclip(l16, 0.6, 2.5);                                        // D8/D9 shunt pair

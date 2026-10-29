@@ -312,7 +312,7 @@ def gyro_peak_coeffs(f, qg, db, sr):
     return bq_peak_coeffs(f, qg / 10.0 ** (abs(db) / 40.0), db, sr)
 
 
-MT_MK, HM_MK = 0.54, 3.1
+MT_MK, HM_MK = 0.54, 1.6
 
 
 def unity():
@@ -345,7 +345,7 @@ def pedal_setup(s, sr):
                      gyro_peak_coeffs(300 * (4000 / 300) ** (s[59] * 0.1), 1.2, (s[48] - 5) * 2.4, sr)]
     else:
         t = a_taper(s[62] * 0.1)
-        P.update(g1=1 + 5 * t, G=3 + 60 * t, a40=c1x(40), a720=c1x(720), aT=c1x(9000), a16=c1x(8000),
+        P.update(g1=1 + 2 * t, G=3 + 60 * t, K=1 + 9 * t, a40=c1x(40), a720=c1x(720), aT=c1x(9000), a16=c1x(8000),
                  mk=HM_MK * a_taper(s[9] * 0.1),
                  eq=[gyro_peak_coeffs(88, 1.2, (s[63] - 5) * 3.2, os_sr), gyro_peak_coeffs(920, 2.0, (s[64] - 5) * 1.8, os_sr),
                      gyro_peak_coeffs(1200, 2.0, (s[64] - 5) * 1.8, os_sr)])
@@ -386,7 +386,7 @@ def pedal_os(P, st, x):
     v = aclip(st[1] * P["g1"], 4.0, 2.0)
     st[3] = (1 + P["a720"]) * 0.5 * (v - st[2]) + P["a720"] * st[3]; st[2] = v
     w = v + dclip(P["G"] * st[3], 0.6, 2.5)
-    st[4] = w + P["aT"] * (st[4] - w); w = sclip(st[4], 4.0)
+    st[4] = w + P["aT"] * (st[4] - w); w = sclip(st[4] * P["K"], 4.0)
     w = w - 0.3 * soft_tanh(w / 0.3)
     st[5] = w + P["a16"] * (st[5] - w)
     w = dclip(st[5], 0.6, 2.5)
