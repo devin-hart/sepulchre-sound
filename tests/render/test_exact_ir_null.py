@@ -1,25 +1,15 @@
+import os
+import sys
 import math
-import wave
 import numpy as np
 
-# Load slot 0 raw IR
-with wave.open("C:/Users/wizardbeard/AppData/Roaming/REAPER/Data/sepulchre_irs/01_BlackWizard_Center.wav", "rb") as wf:
-    raw = wf.readframes(wf.getnframes())
-    raw_ir = np.array([int.from_bytes(raw[i*3:i*3+3], "little", signed=True) / 8388608.0 for i in range(wf.getnframes())])
+# Path resolution
+RENDER_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_DIR = os.path.abspath(os.path.join(RENDER_DIR, "..", ".."))
+sys.path.insert(0, os.path.join(REPO_DIR, "tests"))
+sys.path.insert(0, RENDER_DIR)
 
-srate = 48000.0
-ir_srate = 44100.0
-isc = ir_srate / srate
-ir_len = min(2048, int(len(raw_ir) / isc))
-
-# Linear interpolation resampler exactly matching prepare_ir_fft() in JSFX
-resampled_ir = np.zeros(ir_len)
-for i in range(ir_len):
-    ipos = int(i * isc)
-    frac = i * isc - ipos
-    p0 = raw_ir[ipos]
-    p1 = raw_ir[min(len(raw_ir) - 1, ipos + 1)]
-    resampled_ir[i] = p0 * (1.0 - frac) + p1 * frac
+import render_common as rc
 
 def bq_hp(freq, q, sr):
     w0 = 2 * math.pi * freq / sr
@@ -70,53 +60,141 @@ def apply_bq(b, x):
         y[i] = out
     return y
 
-# Exactly reproduce prepare_ir_fft energy calculation
-n = ir_len + 2048
-scratch = np.zeros(n)
-scratch[:ir_len] = resampled_ir
-cab_hp = bq_hp(85.0, 0.7071, srate)
-irw1 = bq_hp(90.0, 0.7071, srate)
-irw2 = bq_ls(500.0, 12.0, srate)
-irw3 = bq_lp(6000.0, 0.7071, srate)
+def test_exact_ir_null_and_continuity():
+    srate = 48000.0
+    ir_slot0_path = os.path.join(rc.IR_DIR, "01_BlackWizard_Center.wav")
+    if not os.path.exists(ir_slot0_path):
+        raise FileNotFoundError(f"Slot 0 IR WAV not found at {ir_slot0_path}")
 
-scratch = apply_bq(cab_hp, scratch)
-scratch = apply_bq(irw1, scratch)
-scratch = apply_bq(irw2, scratch)
-scratch = apply_bq(irw3, scratch)
+    # 1. Load slot 0 raw IR
+    raw_ir = rc.read_wav24(ir_slot0_path, channel=0)
+    ir_srate = 44100.0
+    isc = ir_srate / srate
+    ir_len = min(2048, int(len(raw_ir) / isc))
 
-e = np.sum(scratch ** 2)
-IR_E48 = 0.283543
-norm_g = math.sqrt(IR_E48 * (48000.0 / srate) / e) if e > 1e-10 else 1.0
+    # Linear interpolation resampler exactly matching prepare_ir_fft() in JSFX
+    resampled_ir = np.zeros(ir_len)
+    for i in range(ir_len):
+        ipos = int(i * isc)
+        frac = i * isc - ipos
+        p0 = raw_ir[ipos]
+        p1 = raw_ir[min(len(raw_ir) - 1, ipos + 1)]
+        resampled_ir[i] = p0 * (1.0 - frac) + p1 * frac
 
-# Input signal: impulse from impulse.wav through bq_in_hp (40 Hz HPF)
-x_in = np.zeros(4096)
-x_in[0] = 0.7069998979568481
-in_hp = bq_hp(40.0, 0.7071, srate)
-x_filtered = apply_bq(in_hp, x_in)
+    # Exactly reproduce prepare_ir_fft energy calculation
+    n = ir_len + 2048
+    scratch = np.zeros(n)
+    scratch[:ir_len] = resampled_ir
+    cab_hp = bq_hp(85.0, 0.7071, srate)
+    irw1 = bq_hp(90.0, 0.7071, srate)
+    irw2 = bq_ls(500.0, 12.0, srate)
+    irw3 = bq_lp(6000.0, 0.7071, srate)
 
-# Direct convolution with normalized IR
-conv_out = np.convolve(x_filtered, resampled_ir * norm_g)[:4096]
+    scratch = apply_bq(cab_hp, scratch)
+    scratch = apply_bq(irw1, scratch)
+    scratch = apply_bq(irw2, scratch)
+    scratch = apply_bq(irw3, scratch)
 
-# Post-convolution cab_hp (85 Hz)
-expected = apply_bq(cab_hp, conv_out)
+    e = np.sum(scratch ** 2)
+    IR_E48 = 0.283543
+    norm_g = math.sqrt(IR_E48 * (48000.0 / srate) / e) if e > 1e-10 else 1.0
 
-# Read rendered out_impulse.wav (where latency is 128 samples)
-with wave.open("D:/VSTs/sepulchre_sound/tests/render/out_impulse.wav", "rb") as wf:
-    raw = wf.readframes(3000)
-    rendered = np.array([int.from_bytes(raw[i*6:i*6+3], "little", signed=True) / 8388608.0 for i in range(wf.getnframes())])
+    # Account for slot 0 trim (-1.33 dB) and ear-match offset (+3.8 dB)
+    norm_g *= 10.0 ** ((-1.33 + 3.8) / 20.0)
 
-rend_seg = rendered[128 : 128 + 2048]
-exp_seg = expected[:2048]
+    # Base clean track settings for IR test
+    base_clean = {
+        1: 0.0, 2: 40.0, 4: 0, 10: 0, 16: 0, 20: 0, 30: 0, 40: 0,
+        49: 1, 51: 0.0, 52: 1, 53: 0, 54: 0, 58: 50.0
+    }
 
-diff = rend_seg - exp_seg
-max_err = np.max(np.abs(diff))
-sig_peak = np.max(np.abs(exp_seg))
-null_db = 20 * math.log10(max_err / sig_peak)
-rms_diff = math.sqrt(np.mean(diff ** 2))
-rms_sig = math.sqrt(np.mean(exp_seg ** 2))
-null_rms_db = 20 * math.log10(rms_diff / rms_sig)
+    # Render impulse test
+    impulse_wav = os.path.join(RENDER_DIR, "impulse.wav")
+    if not os.path.exists(impulse_wav):
+        imp_data = np.zeros(int(0.25 * srate))
+        imp_data[0] = 0.707
+        rc.write_wav24(impulse_wav, imp_data, sr=int(srate))
 
-print(f"Signal Peak: {sig_peak:.6f}")
-print(f"Max Absolute Error: {max_err:.3e}")
-print(f"Peak Null vs Expected Signal: {null_db:.2f} dB")
-print(f"RMS Null vs Expected Signal:  {null_rms_db:.2f} dB")
+    out_impulse = os.path.join(RENDER_DIR, "out_impulse.wav")
+    rpp_imp = rc.build_rpp(rc.make_track("Impulse_Slot0", base_clean, impulse_wav, pos=0.0, length=0.25), out_impulse, 0.25)
+    rpp_imp_path = os.path.join(RENDER_DIR, "test_impulse.rpp")
+    with open(rpp_imp_path, "w", encoding="utf-8") as f:
+        f.write(rpp_imp)
+
+    if os.path.exists(out_impulse):
+        os.remove(out_impulse)
+    rc.run_reaper(rpp_imp_path)
+
+    # Input signal: impulse from impulse.wav through bq_in_hp (40 Hz HPF)
+    x_in = np.zeros(4096)
+    x_in[0] = rc.read_wav24(impulse_wav, channel=0)[0]
+    in_hp = bq_hp(40.0, 0.7071, srate)
+    x_filtered = apply_bq(in_hp, x_in)
+
+    # Direct convolution with normalized IR and post-convolution cab_hp (85 Hz)
+    conv_out = np.convolve(x_filtered, resampled_ir * norm_g)[:4096]
+    expected = apply_bq(cab_hp, conv_out)
+
+    # In REAPER with PDC delay compensation active (pdc_delay = 128),
+    # rendered signal aligns perfectly starting at sample 0.
+    rendered = rc.read_wav24(out_impulse, channel=0)
+    rend_seg = rendered[:2048]
+    exp_seg = expected[:2048]
+
+    diff = rend_seg - exp_seg
+    max_err = float(np.max(np.abs(diff)))
+    sig_peak = float(np.max(np.abs(exp_seg)))
+    null_db = 20.0 * math.log10(max(1e-12, max_err) / max(1e-12, sig_peak))
+    rms_diff = math.sqrt(np.mean(diff ** 2))
+    rms_sig = math.sqrt(np.mean(exp_seg ** 2))
+    null_rms_db = 20.0 * math.log10(max(1e-12, rms_diff) / max(1e-12, rms_sig))
+
+    print("\n--- UPOLS EXACT IMPULSE NULL REPORT ---")
+    print(f"Signal Peak:                 {sig_peak:.6f}")
+    print(f"Max Absolute Error:          {max_err:.3e}")
+    print(f"Peak Null vs Expected:       {null_db:.2f} dB")
+    print(f"RMS Null vs Expected:        {null_rms_db:.2f} dB")
+    assert null_db < -100.0, f"Impulse null failed: peak null={null_db:.2f} dB"
+
+    # 2. Block-Boundary Continuity tests (100 Hz and 2578 Hz)
+    print("\n--- UPOLS 128-SAMPLE BLOCK BOUNDARY CONTINUITY REPORT ---")
+    for f_hz in [100, 2578]:
+        sine_wav = os.path.join(RENDER_DIR, f"sine_{f_hz}.wav")
+        if not os.path.exists(sine_wav):
+            t = np.arange(int(0.25 * srate)) / srate
+            s_data = 0.25 * np.sin(2.0 * math.pi * f_hz * t)
+            rc.write_wav24(sine_wav, s_data, sr=int(srate))
+
+        out_sine = os.path.join(RENDER_DIR, f"out_sine_{f_hz}.wav")
+        rpp_sine = rc.build_rpp(rc.make_track(f"Sine_{f_hz}", base_clean, sine_wav, pos=0.0, length=0.25), out_sine, 0.25)
+        rpp_sine_path = os.path.join(RENDER_DIR, f"test_sine_{f_hz}.rpp")
+        with open(rpp_sine_path, "w", encoding="utf-8") as f:
+            f.write(rpp_sine)
+
+        if os.path.exists(out_sine):
+            os.remove(out_sine)
+        rc.run_reaper(rpp_sine_path)
+
+        sine_s = rc.read_wav24(out_sine, channel=0)
+        boundary_jumps = []
+        normal_jumps = []
+        for i in range(512, len(sine_s) - 1):
+            jump = abs(sine_s[i+1] - sine_s[i])
+            if (i + 1) % 128 == 0:
+                boundary_jumps.append(jump)
+            else:
+                normal_jumps.append(jump)
+        max_b = max(boundary_jumps)
+        max_n = max(normal_jumps)
+        print(f"Continuity {f_hz:4d} Hz -> Max jump at 128-spl boundary: {max_b:.6f} vs Max normal jump: {max_n:.6f} (Clean)")
+        assert max_b <= max_n * 1.05, f"Discontinuity at 128-sample UPOLS block boundary for {f_hz} Hz!"
+
+    # Clean up test RPPs
+    for p in [rpp_imp_path, os.path.join(RENDER_DIR, "test_sine_100.rpp"), os.path.join(RENDER_DIR, "test_sine_2578.rpp")]:
+        if os.path.exists(p):
+            os.remove(p)
+
+    print("\nALL UPOLS IMPULSE NULL AND BLOCK CONTINUITY CHECKS PASSED.")
+
+if __name__ == "__main__":
+    test_exact_ir_null_and_continuity()
