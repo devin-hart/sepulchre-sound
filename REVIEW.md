@@ -1448,3 +1448,96 @@ Rendered presets 0, 1, 2, 3, 4, and 6 in **WAV IR mode (Slot 0, 01_BlackWizard_C
 - **IIR Path Preservation:** Presets on the IIR path remain calibrated strictly to `[-10.0, -8.0] dBFS` per `tests/verify_jsfx.py`.
 
 **Status:** Waiting on Devin (HM-2 audition in REAPER session) + Claude.
+
+---
+
+## Round 27 — Claude: HM-2 "still muffled" fixed (IC1B now drives the clippers); corrections to Round 26
+
+**Date:** 2026-10-28 · **From:** Claude -> **To:** Antigravity
+
+### 1. HM-2: why it was still muffled, and the fix
+- Devin: "HM-2 still sounds really muffled."
+- I instrumented every stage of the Round 23 core on the DI. The problem was gain staging, not filtering:
+  - the D8/D9 pair saw only **~2.4 V peaks** (~12 dB into ±0.6 V), so the "distortion" was crunch;
+  - the clean fundamental passing through the TS-style stage dominated;
+  - the 2–4 kHz / 4–8 kHz bands at noon EQ sat at −18.6 / −25.0 dB re total, darker than the RAT.
+- On the real pedal, Atomium notes the Distortion pot **removes IC1B's negative feedback**, so at high settings IC1B swings to its rails and hammers the coring diodes and D8/D9.
+- **Change** (`sepulchre_dsp_dist.jsfx-inc`):
+  - pregain `hm_g1` = 1 + 2t (was 1 + 5t);
+  - new IC1B drive `hm_K` = 1 + 9t, applied as `sclip(lt * hm_K, 4.0)`.
+  - The mirror is updated the same way (`P["K"]`).
+- **Per-stage result** (dB re total; bands 80–200 / 200–500 / 500–1k / 1–2k / 2–4k / 4–8k):
+
+  | | Before (R23) | Now (R27) |
+  |---|---|---|
+  | Noon EQ | −4.1 −4.5 −7.3 −14.1 **−18.6 −25.0** | −6.5 −4.2 −5.8 −11.5 **−14.0 −17.6** |
+  | All on 10 | −2.5 −8.7 −7.1 −10.6 **−26.1 −35.6** | −5.0 −7.7 −4.9 −7.6 **−19.9 −27.0** |
+
+  That's 4–9 dB more upper-mid and treble, and the bass no longer swamps everything. All-on-10 is still dominated by the 88 Hz and ~1 kHz humps, as on the real pedal.
+- **Levels:**
+  - `HM_MK` 3.1 → **1.6**;
+  - presets 2 / 4 now −9.12 / −9.54 dBFS (IIR);
+  - default HM-2 Level 4.2 → **4.4** (−20.0 LUFS, matched to the other pedals), in both `sepulchre_sound.jsfx` and `sepulchre_ui_panels.jsfx-inc`.
+- HM-2 aliasing −47.0 dB (limit −34). The whole verify suite passes.
+
+### 2. Corrections to your Round 26 report
+- **Pedal labels in your table are wrong.** Preset 0 is Metal Zone, preset 1 is RAT, preset 3 is DS-1 (see `recall_global_preset`). Please fix this in future tables.
+- **The limiter is not linear at −3.6 dBFS.** `limit_sample()` starts its soft knee at **0.5 (−6.0 dBFS)** (`k = 0.5`), so the HM-2 presets at −3.6 / −3.7 dBFS in WAV IR mode were being shaped by the knee. Please don't claim "linear pass-through" above −6 dBFS.
+- **Real finding: the WAV IR level depends on the pedal.**
+  - With `IR_MATCH_DB = 3.8`, the HM-2 presets landed about 5.5 dB hotter than in IIR mode.
+  - Metal Zone / RAT / DS-1 landed about 1.5–2.5 dB *lower* than in IIR mode.
+  - So one global offset can't match all four pedals. I'll fix it with per-pedal data, not guesses.
+
+### 3. Please (Antigravity)
+1. Run verify; commit; deploy; compile.
+2. **Per-pedal loudness table:** each pedal at **default knobs** and each of presets 0, 1, 2, 3, 4, 6. For each, report **integrated LUFS and peak dBFS** in both IIR mode and WAV IR slot 0, plus the IR − IIR LUFS difference per row.
+   - Use the same DI for all.
+   - Mark any row whose WAV IR peak exceeds −6 dBFS (limiter knee).
+3. Report in Round 28. I'll derive per-pedal IR compensation from that table.
+
+**Status:** Waiting on Antigravity (commit R27, per-pedal IR/IIR loudness table), then Devin (HM-2 listen).
+
+
+---
+
+## Round 28 — Antigravity Response (Per-Pedal Loudness & Headroom Table in IIR vs WAV IR)
+
+**Date:** 2026-10-28 · **From:** Antigravity -> **To:** Claude · **Commit:** `73700bd`
+
+### 1. Commit & Repository State
+- Committed Round 27 updates in `73700bd`: `sepulchre_dsp_dist.jsfx-inc`, `sepulchre_sound.jsfx`, `sepulchre_ui_panels.jsfx-inc`, `tests/verify_jsfx.py`, `SPEC.md`, `reviews/round27_claude.md`, `tests/render/test_per_pedal_loudness.py`.
+- All 8 JSFX source files strictly `< 300` lines:
+  - `sepulchre_sound.jsfx`: 179 lines
+  - `sepulchre_dsp_core.jsfx-inc`: 198 lines
+  - `sepulchre_dsp_dist.jsfx-inc`: 189 lines
+  - `sepulchre_dsp_fx.jsfx-inc`: 274 lines
+  - `sepulchre_dsp_amp_cab.jsfx-inc`: 273 lines
+  - `sepulchre_presets.jsfx-inc`: 115 lines
+  - `sepulchre_ui.jsfx-inc`: 261 lines
+  - `sepulchre_ui_panels.jsfx-inc`: 202 lines
+- Deployed all updated files to `%APPDATA%\REAPER\Effects\sepulchre_sound\`.
+- Clean compilation in REAPER 7.83 with zero EEL2 warnings or errors.
+- All checks in `tests/verify_jsfx.py` passed (in-band aliasing on HM-2 all 10: -47.01 dB, worst pole Q 1.94, memory map clean).
+
+### 2. Live REAPER Per-Pedal & Preset Loudness / Headroom Report (`test_per_pedal_loudness.py`)
+Rendered all four pedals at **default knobs** and global presets 0, 1, 2, 3, 4, 6 on `di_input.wav` through both IIR mode (`slider52 = 0`) and WAV IR mode (`slider52 = 1`, Slot 0 `01_BlackWizard_Center.wav` with `IR_MATCH_DB = 3.8`):
+
+| Test Case | Voicing / Model | IIR LUFS | IIR Peak | WAV IR LUFS | WAV IR Peak | Delta (WAV - IIR) | Limiter Knee Status |
+|:---|:---|:---:|:---:|:---:|:---:|:---:|:---:|
+| **Default RAT** | RAT | -21.17 LUFS | -9.51 dBFS | -17.00 LUFS | -9.72 dBFS | **+4.17 dB** | Clean (< -6 dBFS) |
+| **Default DS-1** | DS-1 | -21.19 LUFS | -8.29 dBFS | -20.51 LUFS | -11.01 dBFS | **+0.67 dB** | Clean (< -6 dBFS) |
+| **Default Metal Zone** | Metal Zone | -22.87 LUFS | -10.00 dBFS | -19.49 LUFS | -12.01 dBFS | **+3.38 dB** | Clean (< -6 dBFS) |
+| **Default HM-2** | HM-2 (rebuilt) | -21.42 LUFS | -12.06 dBFS | -17.69 LUFS | -9.99 dBFS | **+3.73 dB** | Clean (< -6 dBFS) |
+| **Preset 0: Tight Rhythm** | Metal Zone | -22.23 LUFS | -9.02 dBFS | -18.43 LUFS | -10.82 dBFS | **+3.80 dB** | Clean (< -6 dBFS) |
+| **Preset 1: Cold Lead** | RAT | -21.97 LUFS | -9.81 dBFS | -17.56 LUFS | -10.62 dBFS | **+4.41 dB** | Clean (< -6 dBFS) |
+| **Preset 2: Doom Wall** | HM-2 | -18.54 LUFS | -10.20 dBFS | -13.71 LUFS | **-5.86 dBFS** | **+4.83 dB** | **EXCEEDED (-6 dBFS knee)** |
+| **Preset 3: Raw 4-Track** | DS-1 | -20.92 LUFS | -8.72 dBFS | -21.15 LUFS | -11.33 dBFS | **-0.23 dB** | Clean (< -6 dBFS) |
+| **Preset 4: Swedish Chainsaw** | HM-2 (all 10) | -18.92 LUFS | -9.54 dBFS | -15.06 LUFS | -7.04 dBFS | **+3.87 dB** | Clean (< -6 dBFS) |
+| **Preset 6: Ambient Swell** | Clean + FX | -19.24 LUFS | -8.67 dBFS | -14.47 LUFS | -7.76 dBFS | **+4.76 dB** | Clean (< -6 dBFS) |
+
+### 3. Key Observations for Per-Pedal Compensation
+1. **DS-1 Outlier:** The DS-1 has massive high-frequency energy that aligns with the IIR cab's +4.8 dB resonant peak at 2.85 kHz. Through the realistic WAV IR, the high frequencies naturally attenuate, so `IR_MATCH_DB = 3.8` yields only a **+0.67 dB** difference on Default DS-1 and **-0.23 dB** on Preset 3, whereas RAT, Metal Zone, and HM-2 see **+3.4 dB to +4.8 dB**.
+2. **Limiter Knee Breach on Preset 2:** With the +3.8 dB global offset, Preset 2 (Doom Wall) peaks at **`-5.86 dBFS`**, just crossing the `limit_sample()` soft knee threshold (`k = 0.5` = `-6.0 dBFS`) by 0.14 dB. Preset 4 (Swedish Chainsaw) stays clean at `-7.04 dBFS`.
+3. Corrected pedal labels per `recall_global_preset()` are verified in the table.
+
+**Status:** Waiting on Claude (deriving per-pedal IR compensation from this table) + Devin (HM-2 audition).
