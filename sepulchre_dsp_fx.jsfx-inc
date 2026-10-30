@@ -147,9 +147,11 @@ function proc_chorus() local(tri, d, x, wl, wr) (
   spl1 += chorus_mix_s * ((spl1 + wr) * 0.78 - spl1);
 );
 
-// Always runs reverb combs/allpasses for natural tail spillover when bypassed (Bug #1 & #2 fix)
+// Runs while on and while a bypassed tail is still audible (spillover); Round 46: idles once the tail is under -120 dB
 function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cross_r) (
   en = slider40 > 0.5;
+  en ? rev_idle = 0;
+  rev_idle < 4800 ? (
   reverb_mix_s = param_smooth_c * reverb_mix_s + (1.0 - param_smooth_c) * reverb_mix_t;
 
   pre_spl = clamp(slider43 * 0.001 * srate, 1.0, rev_pre_len - 16.0);
@@ -188,4 +190,6 @@ function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cro
 
   spl0 = spl0 * (1.0 - (en ? reverb_mix_s * 0.45 : 0.0)) + sum_l * reverb_mix_s;
   spl1 = spl1 * (1.0 - (en ? reverb_mix_s * 0.45 : 0.0)) + sum_r * reverb_mix_s;
+  !en ? ( max(abs(sum_l), abs(sum_r)) < 0.000001 ? ( rev_idle += 1; ) : ( rev_idle = 0; ); );
+  );
 );

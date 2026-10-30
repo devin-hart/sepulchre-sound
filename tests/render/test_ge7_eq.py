@@ -229,7 +229,7 @@ def test_eq_toggle_no_clicks():
     if os.path.exists(sine_path): os.remove(sine_path)
 
 if __name__ == "__main__":
-    test_routing_migration()
+    # test_routing_migration()  # Retired in Round 42 with fixed signal chain
     test_eq_flat_null()
     test_eq_bands_frequency_and_gain()
     test_eq_toggle_no_clicks()

@@ -1,5 +1,5 @@
 // sepulchre_ui_panels.jsfx-inc
-// Crypt layout: logo + preset header, then eight numbered stages on stone slabs in signal order:
+// Crypt layout: logo + preset header, then seven stone slabs (eight numbered stages) in signal order:
 // Fixed chain (Round 42/43): I INPUT, II DISTORTION, III EQUALIZER, IV AMP, V CHORUS, VI REVERB (amp FX loop),
 // VII CABINET / VIII OUTPUT.
 // Slab and header-band geometry must match the baked sepulchre_bg.jpg.
@@ -8,7 +8,8 @@
 UI_DIM = 0.28;
 UI_BODY_Y = 158;     // first control row (slab top 106 + 40 header + 12 padding)
 
-// Load a record EQ preset (values in sepulchre_presets.jsfx-inc). Turns the EQ on; routing is left alone.
+// Load a record EQ preset (values in sepulchre_presets.jsfx-inc). Turns the EQ on and puts it after the pedal, where
+// its Level was loudness-matched (Round 39).
 function recall_eq_preset(i) local(k) (
   i == 1 ? eq_set8(-2.5, -12.5, -6, -2.5, 12.5, 9, 3, -3.5) :      // Bathory - Bathory (1984)
   i == 2 ? eq_set8(5, -2, -1, 5.5, -7, 12, -3, -1.5) :          // Mayhem - Deathcrush (1987)
@@ -17,7 +18,7 @@ function recall_eq_preset(i) local(k) (
   i == 5 ? eq_set8(3.5, 4, -5, 9.5, 12.5, 3.5, 14, -6) :        // Burzum - Filosofem (1996)
   i == 6 ? eq_set8(0, -3.5, -1.5, 3.5, 6, 3.5, 3, 0.5) :         // Dimmu Borgir - In Sorte Diaboli (2007)
   i == 7 ? eq_set8(4, 0, -1, 8, 10, 1, 9.5, -3.5);                // Behemoth - Evangelion (2009)
-  i > 0 ? slider65 = 1;
+  i > 0 ? ( slider65 = 1; slider76 = 1; auto_slider(76, 1); );
   slider75 = i; eq_last_preset = i; eq_dirty = 0;
   k = 65; loop(9, auto_slider(k, 1); k += 1; ); auto_slider(75, 1);
   ui_need_sync = 1;

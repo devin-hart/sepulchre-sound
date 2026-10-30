@@ -2,7 +2,7 @@ desc:Sepulchre Sound (Raw Black Metal Pedalboard)
 // tags: guitar amplifier distortion eq chorus reverb black-metal
 // author: Sepulchre Audio
 
-// Module 0: Input & Gate
+// Input & Gate
 slider1:0.0<-12.0,18.0,0.1>-Input Trim (dB)
 slider2:105.0<40.0,180.0,1.0>-Pre-Cut HPF (Hz)
 slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
@@ -12,7 +12,7 @@ slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 // Input/Gate -> [EQ if Before] -> Pedal -> [EQ if After] -> Amp -> Chorus -> Reverb -> Cab (WAV IR) -> Air/Master
 slider76:1<0,1,1{Before Pedal,After Pedal}>-EQ Position
 
-// Module 1: Distortion — four pedal models, each with only its real knobs (0..10 like the hardware)
+// Distortion: four pedal models, each with only its real knobs (0..10 like the hardware)
 slider10:1<0,1,1{Bypass,On}>-Distortion Enable
 slider11:2<0,3,1{RAT,DS-1,Metal Zone,HM-2}>-Distortion Pedal
 slider26:8.0<0,10,0.1>-RAT Distortion
@@ -32,13 +32,12 @@ slider63:10.0<0,10,0.1>-HM-2 Low
 slider64:10.0<0,10,0.1>-HM-2 High
 slider9:4.4<0,10,0.1>-HM-2 Level
 
-// Module 2: Chorus (Round 42: Boss CE-2 model, Rate + Depth only, 50/50 mix like the pedal)
+// Chorus (Round 42: Boss CE-2 model, Rate + Depth only, 50/50 mix like the pedal)
 slider20:0<0,1,1{Bypass,On}>-Chorus Enable
 slider77:4.0<0,10,0.1>-CE-2 Rate
 slider78:6.0<0,10,0.1>-CE-2 Depth
 
-
-// Module 4: Reverb
+// Reverb
 slider40:1<0,1,1{Bypass,On}>-Reverb Enable
 slider41:0<0,2,1{Hall,Plate,Ambient}>-Reverb Mode
 slider42:2.0<0.5,10.0,0.1>-Reverb Decay (s)
@@ -46,7 +45,7 @@ slider43:18<0,60,1>-Reverb Pre-Delay (ms)
 slider44:64<0,100,1>-Reverb Dampening (%)
 slider45:15<0,100,1>-Reverb Mix (%)
 
-// Module 4 (Round 31): Boss GE-7 style 7-band graphic EQ (+/-15 dB bands, +/-15 dB level)
+// EQ (Round 31): Boss GE-7 style 7-band graphic EQ (+/-15 dB bands, +/-15 dB level)
 slider65:0<0,1,1{Bypass,On}>-EQ Enable
 slider66:0<-15,15,0.5>-EQ 100 Hz (dB)
 slider67:0<-15,15,0.5>-EQ 200 Hz (dB)
@@ -58,7 +57,7 @@ slider72:0<-15,15,0.5>-EQ 6.4 kHz (dB)
 slider73:0<-15,15,0.5>-EQ Level (dB)
 slider75:0<0,7,1{Custom,Bathory 84,Deathcrush 87,Transilvanian Hunger 94,Nightside Eclipse 94,Filosofem 96,In Sorte Diaboli 07,Evangelion 09}>-EQ Preset
 
-// Module 5: Amp Stage, IR Loader / Cabinet Shaper & Master
+// Amp, Cabinet (WAV IR) & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
 slider51:-0.5<-24.0,6.0,0.1>-Master Output (dB)
 slider53:0<0,9,1{01 BlackWizard Center,02 BlackWizard Edge,03 Destroyer Center,04 Destroyer Edge,05 LordOfGoats Center,06 LordOfGoats Edge,07 MysteriousSatan Center,08 Swordman Center,09 HeadKrush Center,10 PlagueBearer Center}>-Cabinet WAV Impulse Slot
@@ -128,7 +127,7 @@ ir_reload_req ? (
   reset_dist_state();
   reset_fx_state();
   reset_amp_cab_state();
-  dist_mix_s = slider10 > 0.5; eq_mix_s = slider65 > 0.5;   // start renders at full mix (no 20 ms fade-in)
+  dist_mix_s = slider10 > 0.5; eq_mix_s = slider65 > 0.5; chorus_mix_s = slider20 > 0.5;   // full mix from sample 0
 );
 last_play_state = play_state;
 

@@ -1,5 +1,5 @@
 // sepulchre_dsp_core.jsfx-inc
-// Core biquad filters, parameter smoothing, Input/Gate (Mod 0) and the GE-7 graphic EQ (Mod 4, swappable slot).
+// Core biquad filters, parameter smoothing, Input/Gate and the GE-7 graphic EQ (before or after the pedal).
 // Distortion (Mod 1) is in sepulchre_dsp_dist.jsfx-inc
 @init
 
@@ -125,6 +125,7 @@ function update_eq_coeffs() (
   bq_peak(bq_eq5, 1600.0, 1.0, slider70); bq_peak(bq_eq6, 3200.0, 1.0, slider71);
   bq_peak(bq_eq7, 6400.0, 1.0, slider72);
   eq_lvl_t = db2lin(slider73);
+  eq_pos_last != slider76 ? ( eq_pos_last = slider76; eq_clear(); );   // Round 46: moved pre<->post: drop old state
 );
 // Bypass crossfades over ~20 ms (no click); filters idle and clear once fully bypassed
 function proc_eq() local(l, r) (
