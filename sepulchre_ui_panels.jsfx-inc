@@ -36,10 +36,10 @@ function ui_slab_head(x, w, num_i, name_i, alpha, has_power, on) local(hit) (
   hit;
 );
 // ---------- I: Input & gate ----------
-function panel_input(x, w) local(ix, iw, g, y) (
+function panel_input(x, w) local(ix, iw, g, y, ts) (
   ui_slab_head(x, w, 0, 0, 1, 0, 0);
-  ix = x + 10; iw = w - 20; g = slider4 > 0.5;
-  lay_begin(154, 5);
+  ix = x + 10; iw = w - 20; g = slider4 > 0.5; ts = slider79 > 0.5;
+  lay_begin(190, 7);
   slider1 = ui_hslider(1, ix, lay(30), iw, "TRIM", slider1, -12, 18, 0, 0.1, "%+.1f dB", 0);
   slider2 = ui_hslider(2, ix, lay(30), iw, "LOW CUT", slider2, 40, 180, 105, 1, "%d Hz", 0);
   ui_toggle(ix, lay(24), iw, 24, g ? "NOISE GATE  ON" : "NOISE GATE  OFF", g) ? set_param(4, !g);
@@ -50,6 +50,11 @@ function panel_input(x, w) local(ix, iw, g, y) (
   u_rect(ix + u_tw_sp("THRESHOLD", 1.6) + 6, y + 4, 6, 6);
   ui_alpha = 1;
   ui_meter(ix, lay(40), iw, "INPUT", meter_in_peak, g ? slider3 : -999, 0);
+  ui_toggle(ix, lay(24), iw, 24, ts ? "TS-808  ON" : "TS-808  OFF", ts) ? set_param(79, !ts);   // Round 50
+  ui_alpha = ts ? 1 : UI_DIM; f_tiny(); c_lab();
+  sprintf(#ts_k, "DRV %.1f  TONE %.1f  LVL %.1f", slider80, slider81, slider82);
+  u_text_sp(ix, lay(12), #ts_k, 0);
+  ui_alpha = 1;
 );
 
 // GE-7 style vertical fader (bipolar, centre detent). Returns the new value; reports hover/drag in ui_vs_hot.

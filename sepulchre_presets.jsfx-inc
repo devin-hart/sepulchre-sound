@@ -5,6 +5,7 @@
 function sync_all_DSP() (
   update_core_coeffs();
   update_dist_coeffs();
+  update_ts_coeffs();
   update_fx_coeffs();
   update_amp_cab_coeffs();
   update_eq_coeffs();
@@ -50,6 +51,7 @@ function get_global_preset_name(idx) (
 function recall_global_preset(idx) (
   slider60 = idx; gp_last = idx;
   preset_dirty = 0;
+  slider79 = 0; slider80 = 0; slider81 = 5; slider82 = 10;   // Round 50: TS-808 off, knobs at the trick setting
   slider65 = 0; slider76 = 1; slider75 = 0; slider66 = 0; slider67 = 0; slider68 = 0; slider69 = 0; slider70 = 0; slider71 = 0; slider72 = 0; slider73 = 0;
 
   idx == 0 ? ( // 01: Tight Rhythm (Metal Zone + Tube Amp + WAV IR)

@@ -10,7 +10,8 @@ Static checks and offline DSP mirror for Sepulchre Sound (run before every commi
    - in-band aliasing per pedal (2578 Hz tone);
    - no pedal filter with pole Q > 3.5 at any knob extreme (no ringing);
    - IR_E48 matches the IIR cab's weighted energy;
-   - high-gain saturation curve (Metal Zone preset).
+   - high-gain saturation curve (Metal Zone preset);
+   - Round 50: TS-808 boost (mirror of proc_ts, 4x): trick voicing and aliasing, and every pedal's aliasing with it.
 Round 30: the reverb RT60 and delay-bypass simulations were removed. They re-implemented formulas in Python without
 reading the EEL2 source, so they could never catch a regression in the plugin.
 """
@@ -65,7 +66,7 @@ def strip_comments_and_strings(code):
 
 
 def check_syntax_and_r2_fixes():
-    print("[1/6] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
+    print("[1/7] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
     raw_by_file = {}
     cleaned_by_file = {}
     for fname in EXPECTED_FILES:
@@ -348,6 +349,38 @@ def pedal_os(P, st, x):
     return sclip(w, 3.5)
 
 
+TS_OS = 4
+
+
+class TubeScreamer:
+    """Round 50: TS-808 boost (Drive/Tone/Level), 4x oversampled. Mirror of ts_os/ts_tone in sepulchre_dsp_dist.jsfx-inc."""
+
+    def __init__(self, s, sr):
+        os_sr = sr * TS_OS
+        c1 = lambda fc, r: math.exp(-2 * math.pi * min(fc, 0.45 * r) / r)
+        rf = 51000 + 500000 * a_taper(s.get(80, 0.0) * 0.1)
+        self.G, self.a720, self.aC = rf / 4700, c1(720, os_sr), c1(1 / (2 * math.pi * rf * 51e-12), os_sr)
+        self.a723, self.hg = c1(723, sr), 10.0 ** ((2.4 * s.get(81, 5.0) - 14.0) / 20.0)
+        self.mk = a_taper(s.get(82, 10.0) * 0.1)
+        fc = min(16500.0, sr * 0.36)
+        self.up = [bq_lp_coeffs(fc, q, os_sr) for q in (0.5098, 0.6013, 0.9000, 2.5629)]
+        self.dn = [bq_lp_coeffs(fc, q, os_sr) for q in (0.5098, 0.6013, 0.9000, 2.5629)]
+        self.hx = self.hy = self.lc = self.lt = 0.0
+
+    def step(self, x):
+        for k in range(TS_OS):
+            v = x * TS_OS if k == 0 else 0.0
+            for f in self.up:
+                v = bq_step(f, v)
+            self.hy = (1 + self.a720) * 0.5 * (v - self.hx) + self.a720 * self.hy; self.hx = v
+            f_ = self.G * self.hy; self.lc = f_ + self.aC * (self.lc - f_)
+            w = sclip(v + dclip(self.lc, 0.6, 2.5), 4.0)
+            for f in self.dn:
+                w = bq_step(f, w)
+        self.lt = w + self.a723 * (self.lt - w)
+        return (self.lt + self.hg * (w - self.lt)) * self.mk
+
+
 def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
@@ -362,6 +395,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
     eq_f = [bq_peak_coeffs(f, 1.0, sliders.get(66 + i, 0.0), sr) for i, f in enumerate((100, 200, 400, 800, 1600, 3200, 6400))]
     eq_lvl = 10.0 ** (sliders.get(73, 0.0) * 0.05)
     P = pedal_setup(sliders, sr)
+    ts = TubeScreamer(sliders, sr) if sliders.get(79, 0) > 0.5 else None
     pst = [0.0] * 16
     tone_st = [0.0, 0.0, 0.0]
     qs = [0.5098, 0.6013, 0.9000, 2.5629]
@@ -392,6 +426,8 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True):
             for b in eq_f:
                 l = bq_step(b, l)
             l *= eq_lvl
+        if ts:
+            l = ts.step(l)
         if sliders[10] > 0.5:
             for k in range(DIST_OS):
                 xl = (l * DIST_OS) if k == 0 else 0.0
@@ -466,7 +502,7 @@ def parse_global_presets(presets_src):
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[2/6] Running offline DSP simulation across the 6 distorted presets (Target: [-10.0, -8.0] dBFS)...")
+    print("[2/7] Running offline DSP simulation across the 6 distorted presets (Target: [-10.0, -8.0] dBFS)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n_samples = int(0.45 * sr)
@@ -493,7 +529,7 @@ def check_presets_dc_and_levels(presets_src):
 def check_pre_cab_aliasing_all_bins(presets_src):
     # Round 9: every pedal model, at its preset settings, 8x oversampled. In-band (20 Hz - 8 kHz)
     # limit -40 dB for every pedal (Round 30: HM-2 tightened from -34 dB after its Round 23/27 rebuild measured -47 dB).
-    print("[3/6] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
+    print("[3/7] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
@@ -502,9 +538,12 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 4096)]
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
     bin_8k = int(8000.0 * n / sr)
-    for idx, name, limit in ((1, "RAT", -40.0), (3, "DS-1", -40.0), (0, "Metal Zone", -40.0), (4, "HM-2 (all 10)", -40.0)):
+    runs = [(idx, name, ts) for ts in (0, 1) for idx, name in ((1, "RAT"), (3, "DS-1"), (0, "Metal Zone"), (4, "HM-2 (all 10)"))]
+    for idx, name, ts in runs:   # Round 50: and again with the TS-808 (Drive 0 / Tone 5 / Level 10) in front
+        limit = -40.0
         p = dict(presets[idx])
-        p[16] = 0.0
+        p[79] = ts
+        name = ("TS > " if ts else "") + name
         out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
         harm_8k = alias_8k = 0.0
         for k in range(1, bin_8k + 1):
@@ -516,7 +555,7 @@ def check_pre_cab_aliasing_all_bins(presets_src):
             else:
                 alias_8k += pwr
         ratio = 10.0 * math.log10(max(1e-18, alias_8k) / max(1e-18, harm_8k))
-        print(f"  - {name:<14} in-band alias ratio: {ratio:+.2f} dB (limit {limit:+.0f})")
+        print(f"  - {name:<19} in-band alias ratio: {ratio:+.2f} dB (limit {limit:+.0f})")
         if ratio > limit:
             raise AssertionError(f"{name} in-band aliasing {ratio:+.1f} dB exceeds {limit:+.0f} dB")
 
@@ -533,7 +572,7 @@ def pole_q(b):
 def check_no_resonant_filters():
     # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
     # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
-    print("[4/6] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
+    print("[4/7] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     worst = 0.0
@@ -557,7 +596,7 @@ def check_no_resonant_filters():
 def check_ir_loudness_constant():
     # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
     # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
-    print("[5/6] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    print("[5/7] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
     src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
@@ -583,7 +622,7 @@ def check_ir_loudness_constant():
 def check_distortion_gain_curve(presets_src):
     # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
     # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
-    print("[6/6] Verifying high-gain saturation curve (distortion output vs input level)...")
+    print("[6/7] Verifying high-gain saturation curve (distortion output vs input level)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = int(0.25 * sr)
@@ -599,6 +638,38 @@ def check_distortion_gain_curve(presets_src):
     if drop > 6.0:
         raise AssertionError(f"Distortion loses {drop:.1f} dB between -12 and -36 dBFS input (> 6 dB): not high-gain")
 
+def check_ts808_trick():
+    # Round 50: the TS-808 at Drive 0 / Tone 5 / Level 10 must act as a mid push that leaves the lows alone
+    # (>= 10 dB more gain at 1 kHz than at 82 Hz, small signal), and stay clean of aliasing at Drive 10 (4x).
+    print("[7/7] Checking the TS-808 boost (trick voicing at Drive 0, aliasing at Drive 10)...")
+    sr = 48000.0
+
+    def gain(f, s, amp=0.01):
+        ts = TubeScreamer(s, sr); n = int(0.15 * sr)
+        o = [ts.step(amp * math.sin(2 * math.pi * f * i / sr)) for i in range(n)][n // 2:]
+        return 20.0 * math.log10(max(abs(v) for v in o) / amp)
+    trick = {80: 0.0, 81: 5.0, 82: 10.0}
+    g82, g1k = gain(82.41, trick), gain(1000.0, trick)
+    print(f"  - Trick setting, small signal: 82 Hz {g82:+.1f} dB, 1 kHz {g1k:+.1f} dB (mid push {g1k - g82:.1f} dB)")
+    if g1k - g82 < 10.0:
+        raise AssertionError(f"TS-808 mid push only {g1k - g82:.1f} dB (< 10 dB)")
+    n, b0 = 1024, 55
+    ts = TubeScreamer({80: 10.0, 81: 5.0, 82: 10.0}, sr)
+    out = [ts.step(0.25 * math.sin(2.0 * math.pi * b0 * i / n)) for i in range(n + 4096)][4096:]
+    harm = alias = 0.0
+    for k in range(1, int(8000.0 * n / sr) + 1):
+        re_s = sum(out[i] * math.cos(2.0 * math.pi * k * i / n) for i in range(n))
+        im_s = sum(out[i] * math.sin(2.0 * math.pi * k * i / n) for i in range(n))
+        if k % b0 == 0:
+            harm += re_s * re_s + im_s * im_s
+        else:
+            alias += re_s * re_s + im_s * im_s
+    ratio = 10.0 * math.log10(max(1e-18, alias) / max(1e-18, harm))
+    print(f"  - Drive 10 in-band alias ratio: {ratio:+.2f} dB (limit -40)")
+    if ratio > -40.0:
+        raise AssertionError(f"TS-808 aliasing {ratio:+.1f} dB exceeds -40 dB")
+
+
 if __name__ == "__main__":
     try:
         raw_files = check_syntax_and_r2_fixes()
@@ -607,6 +678,7 @@ if __name__ == "__main__":
         check_no_resonant_filters()
         check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
+        check_ts808_trick()
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)

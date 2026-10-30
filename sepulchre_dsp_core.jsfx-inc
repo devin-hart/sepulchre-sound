@@ -148,13 +148,15 @@ function init_core_dsp() (
   // 8th-order (4-stage) steep oversampling filters for up and down conversion
   bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
   bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
+  bq_ts_up1 = alloc_buf(9); bq_ts_up2 = alloc_buf(9); bq_ts_up3 = alloc_buf(9); bq_ts_up4 = alloc_buf(9);   // TS-808 4x
+  bq_ts_dn1 = alloc_buf(9); bq_ts_dn2 = alloc_buf(9); bq_ts_dn3 = alloc_buf(9); bq_ts_dn4 = alloc_buf(9);
   bq_eq1 = alloc_buf(9); bq_eq2 = alloc_buf(9); bq_eq3 = alloc_buf(9); bq_eq4 = alloc_buf(9);   // GE-7 bands
   bq_eq5 = alloc_buf(9); bq_eq6 = alloc_buf(9); bq_eq7 = alloc_buf(9);
   eq_mix_s = 0.0; eq_lvl_s = 1.0;
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
   in_trim_s = 1.0; dist_mk_s = 0.0; master_out_s = 1.0;
-  chorus_mix_s = 0.0; reverb_mix_s = 0.0;
+  chorus_mix_s = 0.0; reverb_mix_s = 0.0; ts_mix_s = 0.0; ts_mk_s = 1.0;
   meter_in_peak = 0.0; meter_out_peak = 0.0;
 );
 

@@ -26,6 +26,10 @@ def test_pedal_mirror_null():
         ("DS-1", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["DS-1"]}),
         ("Metal Zone", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["Metal Zone"]}),
         ("HM-2", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["HM-2"]}),
+        ("TS > RAT", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["RAT"], 79: 1}),
+        ("TS > DS-1", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["DS-1"], 79: 1}),
+        ("TS > Metal Zone", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["Metal Zone"], 79: 1}),
+        ("TS > HM-2", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["HM-2"], 79: 1}),
     ]
     
     print("=" * 88)
@@ -40,9 +44,10 @@ def test_pedal_mirror_null():
         sim = np.array(v.simulate_chain(cfg, di, sr=sr, include_amp_cab=False))
         
         # 2. Render isolated pedal track in REAPER (position 0.0, no tail bleed from prior tracks)
-        track_xml = rc.make_track(f"Null_{name}", cfg, di_path, pos=0.0, length=0.45)
-        out_wav = os.path.join(RENDER_DIR, f"out_null_{name}.wav")
-        rpp_path = os.path.join(RENDER_DIR, f"test_null_{name}.rpp")
+        safe_name = name.replace(" > ", "_into_").replace(" ", "_")
+        track_xml = rc.make_track(f"Null_{safe_name}", cfg, di_path, pos=0.0, length=0.45)
+        out_wav = os.path.join(RENDER_DIR, f"out_null_{safe_name}.wav")
+        rpp_path = os.path.join(RENDER_DIR, f"test_null_{safe_name}.rpp")
         
         rpp_content = rc.build_rpp(track_xml, out_wav, total_len=0.45, sr=int(sr))
         with open(rpp_path, "w", encoding="utf-8") as f:

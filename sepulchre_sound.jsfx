@@ -9,8 +9,14 @@ slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
 slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 
 // Round 42: fixed signal chain (no routing slots), amp FX loop:
-// Input/Gate -> [EQ if Before] -> Pedal -> [EQ if After] -> Amp -> Chorus -> Reverb -> Cab (WAV IR) -> Air/Master
+// Input/Gate -> [EQ if Before] -> TS-808 -> Pedal -> [EQ if After] -> Amp -> Chorus -> Reverb -> Cab (WAV IR) -> Air/Master
 slider76:1<0,1,1{Before Pedal,After Pedal}>-EQ Position
+
+// Round 50: TS-808 boost in front of the pedal (the "Drive 0, Tone 5, Level 10" tightening trick)
+slider79:0<0,1,1{Bypass,On}>-TS-808 Enable
+slider80:0.0<0,10,0.1>-TS-808 Drive
+slider81:5.0<0,10,0.1>-TS-808 Tone
+slider82:10.0<0,10,0.1>-TS-808 Level
 
 // Distortion: four pedal models, each with only its real knobs (0..10 like the hardware)
 slider10:1<0,1,1{Bypass,On}>-Distortion Enable
@@ -125,9 +131,10 @@ ir_reload_req ? (
 (play_state & 1) && !(last_play_state & 1) ? (
   reset_core_state();
   reset_dist_state();
+  reset_ts_state();
   reset_fx_state();
   reset_amp_cab_state();
-  dist_mix_s = slider10 > 0.5; eq_mix_s = slider65 > 0.5; chorus_mix_s = slider20 > 0.5;   // full mix from sample 0
+  dist_mix_s = slider10 > 0.5; eq_mix_s = slider65 > 0.5; chorus_mix_s = slider20 > 0.5; ts_mix_s = slider79 > 0.5;   // full mix from sample 0
 );
 last_play_state = play_state;
 
@@ -143,6 +150,7 @@ ir_need_refft ? prepare_ir_fft();
 @sample
 proc_input_gate();
 slider76 < 0.5 ? proc_eq();
+proc_ts();
 proc_distortion();
 slider76 >= 0.5 ? proc_eq();
 proc_amp();

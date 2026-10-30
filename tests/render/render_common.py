@@ -22,13 +22,14 @@ def get_declared_sliders(jsfx_path=None):
 
 VALID_SLIDERS = get_declared_sliders()
 
-# Base slider defaults for clean/bypass conditions (Round 44 simplified architecture: no delay 30..36)
+# Base slider defaults for clean/bypass conditions (Round 44 simplified architecture: no delay 30..36, Round 50 TS-808)
 BASE_DEFAULTS = {
     1: 0.0, 2: 40.0, 3: -52.0, 4: 0,
     10: 1,
     20: 0, 40: 0,
     49: 0, 51: 0.0, 54: 0, 58: 50.0,
-    65: 0, 76: 1
+    65: 0, 76: 1,
+    79: 0, 80: 0.0, 81: 5.0, 82: 10.0
 }
 
 # Pedal slider definitions at factory defaults
@@ -43,8 +44,8 @@ def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
     invalid = [k for k in s_dict.keys() if k not in VALID_SLIDERS]
     if invalid:
         raise ValueError(f"Stale/undeclared slider ID(s) passed to make_track: {invalid}")
-    # Support up to slider 78 (Round 42 additions: 76 EQ Pos, 77 CE-2 Rate, 78 CE-2 Depth)
-    max_slider = max(78, max(s_dict.keys()) if s_dict else 78)
+    # Support up to slider 82 (Round 50: 79 TS Enable, 80 TS Drive, 81 TS Tone, 82 TS Level)
+    max_slider = max(82, max(s_dict.keys()) if s_dict else 82)
     tokens = [str(s_dict.get(i, "-")) for i in range(1, 65)]
     if max_slider >= 65:
         tokens.append("-")  # Token 65: REAPER internal preset/state placeholder
