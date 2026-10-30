@@ -102,10 +102,10 @@ def test_exact_ir_null_and_continuity():
     # Account for slot 0 trim (-1.33 dB) and ear-match offset (+3.8 dB)
     norm_g *= 10.0 ** ((-1.33 + 3.8) / 20.0)
 
-    # Base clean track settings for IR test
+    # Base clean track settings for IR test (valid sliders only)
     base_clean = {
-        1: 0.0, 2: 40.0, 4: 0, 10: 0, 16: 0, 20: 0, 30: 0, 40: 0,
-        49: 1, 51: 0.0, 52: 1, 53: 0, 54: 0, 58: 50.0
+        1: 0.0, 2: 40.0, 4: 0, 10: 0, 20: 0, 40: 0,
+        49: 1, 51: 0.0, 53: 0, 54: 0, 58: 50.0, 65: 0, 76: 1
     }
 
     # Render impulse test
@@ -137,7 +137,8 @@ def test_exact_ir_null_and_continuity():
 
     # In REAPER with PDC delay compensation active (pdc_delay = 128),
     # rendered signal aligns perfectly starting at sample 0.
-    rendered = rc.read_wav24(out_impulse, channel=0)
+    # Note: Round 35 added 0.84 scaling for Amp OFF (slider54 = 0) in proc_amp().
+    rendered = rc.read_wav24(out_impulse, channel=0) / 0.84
     rend_seg = rendered[:2048]
     exp_seg = expected[:2048]
 
@@ -189,8 +190,9 @@ def test_exact_ir_null_and_continuity():
         print(f"Continuity {f_hz:4d} Hz -> Max jump at 128-spl boundary: {max_b:.6f} vs Max normal jump: {max_n:.6f} (Clean)")
         assert max_b <= max_n * 1.05, f"Discontinuity at 128-sample UPOLS block boundary for {f_hz} Hz!"
 
-    # Clean up test RPPs
-    for p in [rpp_imp_path, os.path.join(RENDER_DIR, "test_sine_100.rpp"), os.path.join(RENDER_DIR, "test_sine_2578.rpp")]:
+    # Clean up test RPPs and WAVs
+    for p in [rpp_imp_path, os.path.join(RENDER_DIR, "test_sine_100.rpp"), os.path.join(RENDER_DIR, "test_sine_2578.rpp"),
+              out_impulse, os.path.join(RENDER_DIR, "out_sine_100.wav"), os.path.join(RENDER_DIR, "out_sine_2578.wav")]:
         if os.path.exists(p):
             os.remove(p)
 

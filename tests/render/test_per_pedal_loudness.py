@@ -11,114 +11,122 @@ sys.path.insert(0, RENDER_DIR)
 import verify_jsfx as v
 import render_common as rc
 
+KNEE_DBFS = 20.0 * math.log10(0.70) # -3.10 dBFS
+
 def run_per_pedal_loudness_comparison():
     sr = 48000
     di_path = os.path.join(RENDER_DIR, "di_input.wav")
+    if not os.path.exists(di_path):
+        raise FileNotFoundError(f"DI input missing at {di_path}")
 
     presets_path = os.path.join(REPO_DIR, "sepulchre_presets.jsfx-inc")
     with open(presets_path, "r", encoding="utf-8") as f:
         presets = v.parse_global_presets(f.read())
 
-    # Default base configuration
+    # Default base configuration (WAV IR slot 0, Tube Amp, valid sliders only)
     base = {
         1: 0.0, 2: 105.0, 3: -52.0, 4: 1,
-        5: 0, 6: 1, 7: 2, 8: 3,
-        10: 1, 13: 50.0, 14: 50.0, 15: 50.0, 16: 0.0,
-        20: 0, 30: 0, 40: 0, # Disable delay/reverb for clean dry loudness
-        49: 1, 50: 0, 51: -0.5, 54: 1, 55: 54.0, 56: 44.0, 57: 62.0, 58: 64.0
+        10: 1,
+        20: 0, 40: 0, # Disable chorus/reverb for clean dry loudness
+        49: 1, 51: -0.5, 53: 0, 54: 1, 55: 54.0, 56: 44.0, 57: 62.0, 58: 64.0,
+        65: 0, 76: 1
     }
 
-    # 1. RAT default
+    # 4 pedals at factory defaults
     rat_def = {**base, **rc.PEDAL_DEFAULTS["RAT"]}
-
-    # 2. DS-1 default
     ds1_def = {**base, **rc.PEDAL_DEFAULTS["DS-1"]}
-
-    # 3. Metal Zone default
     mt2_def = {**base, **rc.PEDAL_DEFAULTS["Metal Zone"]}
-
-    # 4. HM-2 default
     hm2_def = {**base, **rc.PEDAL_DEFAULTS["HM-2"]}
 
-    test_cases = [
-        ("Default RAT", rat_def),
-        ("Default DS-1", ds1_def),
-        ("Default Metal Zone", mt2_def),
-        ("Default HM-2", hm2_def),
-        ("Preset 0 (Tight Rhythm, MT-2)", dict(presets[0])),
-        ("Preset 1 (Cold Lead, RAT)", dict(presets[1])),
-        ("Preset 2 (Doom Wall, HM-2)", dict(presets[2])),
-        ("Preset 3 (Raw 4-Track, DS-1)", dict(presets[3])),
-        ("Preset 4 (Swedish Chainsaw, HM-2)", dict(presets[4])),
-        ("Preset 6 (Ambient Swell, Clean)", dict(presets[6])),
+    pedal_cases = [
+        ("Default RAT", "RAT", rat_def),
+        ("Default DS-1", "DS-1", ds1_def),
+        ("Default Metal Zone", "Metal Zone", mt2_def),
+        ("Default HM-2", "HM-2", hm2_def),
     ]
 
-    # Ensure no time-based FX bleed
-    for name, d in test_cases:
-        d[20] = 0; d[30] = 0; d[40] = 0; d[49] = 1; d[50] = 0
+    preset_cases = [
+        ("Preset 0 (Tight Rhythm)", "MT-2", dict(presets[0])),
+        ("Preset 1 (Cold Lead)", "RAT", dict(presets[1])),
+        ("Preset 2 (Doom Wall)", "HM-2", dict(presets[2])),
+        ("Preset 3 (Raw 4-Track)", "DS-1", dict(presets[3])),
+        ("Preset 4 (Swedish Chainsaw)", "HM-2", dict(presets[4])),
+        ("Preset 6 (Ambient Swell)", "Clean", dict(presets[6])),
+    ]
 
-    # Render 1: IIR mode (slider52 = 0)
-    tracks_iir = []
-    for i, (name, d) in enumerate(test_cases):
-        cfg = dict(d); cfg[52] = 0
-        tracks_iir.append(rc.make_track(f"{name}_IIR", cfg, di_path, round(i * 0.5, 2)))
+    # Ensure dry loudness check for presets (no chorus/reverb bleed) and default WAV IR
+    for name, model, d in preset_cases:
+        d[20] = 0; d[40] = 0; d[49] = 1; d[53] = 0
 
-    out_iir_p = os.path.join(RENDER_DIR, "out_cmp_iir.wav")
-    total_len = round(len(test_cases) * 0.5 + 0.2, 2)
-    rpp_iir_p = os.path.join(RENDER_DIR, "test_cmp_iir.rpp")
-    with open(rpp_iir_p, "w", encoding="utf-8") as f:
-        f.write(rc.build_rpp(tracks_iir, out_iir_p, total_len, sr=sr))
+    all_cases = pedal_cases + preset_cases
 
-    # Render 2: WAV IR mode (slider52 = 1, slider53 = 0)
-    tracks_wav = []
-    for i, (name, d) in enumerate(test_cases):
-        cfg = dict(d); cfg[52] = 1; cfg[53] = 0
-        tracks_wav.append(rc.make_track(f"{name}_WAV", cfg, di_path, round(i * 0.5, 2)))
+    item_len = 0.45
+    item_gap = 0.50
+    total_len = round(len(all_cases) * item_gap + 0.2, 2)
 
-    out_wav_p = os.path.join(RENDER_DIR, "out_cmp_wav.wav")
-    rpp_wav_p = os.path.join(RENDER_DIR, "test_cmp_wav.rpp")
-    with open(rpp_wav_p, "w", encoding="utf-8") as f:
-        f.write(rc.build_rpp(tracks_wav, out_wav_p, total_len, sr=sr))
+    tracks = []
+    for i, (name, model, cfg) in enumerate(all_cases):
+        t_pos = round(i * item_gap, 2)
+        tracks.append(rc.make_track(f"{name}_{model}", cfg, di_path, t_pos, item_len))
 
-    if os.path.exists(out_iir_p):
-        os.remove(out_iir_p)
-    if os.path.exists(out_wav_p):
-        os.remove(out_wav_p)
+    out_wav = os.path.join(RENDER_DIR, "out_per_pedal_loudness.wav")
+    rpp_path = os.path.join(RENDER_DIR, "test_per_pedal_loudness.rpp")
 
-    print("Rendering IIR Cab test cases in REAPER...")
-    rc.run_reaper(rpp_iir_p)
+    with open(rpp_path, "w", encoding="utf-8") as f:
+        f.write(rc.build_rpp(tracks, out_wav, total_len, sr=sr))
 
-    print("Rendering WAV IR (Slot 0) test cases in REAPER...")
-    rc.run_reaper(rpp_wav_p)
+    if os.path.exists(out_wav):
+        os.remove(out_wav)
 
-    s_iir = rc.read_wav24(out_iir_p, channel=0)
-    s_wav = rc.read_wav24(out_wav_p, channel=0)
+    print("Rendering WAV IR (Slot 0 BlackWizard) per-pedal and preset test cases in REAPER...")
+    rc.run_reaper(rpp_path)
 
-    seg_len = int(0.40 * sr)
+    samples = rc.read_wav24(out_wav, channel=0)
+    seg_spl = int(0.40 * sr)
 
-    print("\n" + "="*95)
-    print(f"{'Test Case':<32} | {'IIR LUFS':<9} | {'IIR Peak':<9} | {'WAV LUFS':<9} | {'WAV Peak':<9} | {'Delta LUFS':<10} | {'Limiter?':<8}")
-    print("="*95)
+    results = []
+    for i, (name, model, _) in enumerate(all_cases):
+        st = int((i * item_gap + 0.03) * sr)
+        seg = samples[st : st + seg_spl]
+        lufs = rc.calc_lufs(seg)
+        pk = rc.calc_peak_db(seg)
+        results.append((name, model, lufs, pk))
 
-    rows = []
-    for i, (name, _) in enumerate(test_cases):
-        st = int((i * 0.5 + 0.03) * sr)
-        seg_i = s_iir[st : st + seg_len]
-        seg_w = s_wav[st : st + seg_len]
-        
-        lufs_i = rc.calc_lufs(seg_i)
-        pk_i = rc.calc_peak_db(seg_i)
-        
-        lufs_w = rc.calc_lufs(seg_w)
-        pk_w = rc.calc_peak_db(seg_w)
-        
-        delta_lufs = lufs_w - lufs_i
-        knee_flag = "EXCEEDED" if pk_w > -3.1 else "clean"
-        
-        print(f"{name:<32} | {lufs_i:6.2f} LUFS | {pk_i:6.2f} dBFS | {lufs_w:6.2f} LUFS | {pk_w:6.2f} dBFS | {delta_lufs:+6.2f} dB    | {knee_flag}")
-        rows.append((name, lufs_i, pk_i, lufs_w, pk_w, delta_lufs, knee_flag))
-    print("="*95)
-    return rows
+    # Baseline: Metal Zone default loudness
+    mt2_lufs = results[2][2] # Index 2 is Default Metal Zone
+
+    print("\n" + "=" * 92)
+    print("--- 1. FOUR PEDALS DEFAULT LOUDNESS BALANCE (WAV IR Slot 0, Tube Amp) ---")
+    print(f"{'Pedal':<22} | {'Voicing':<12} | {'WAV LUFS':<10} | {'Delta vs MT-2':<14} | {'WAV Peak':<10} | Limiter Status")
+    print("=" * 92)
+
+    for name, model, lufs, pk in results[:4]:
+        delta = lufs - mt2_lufs
+        headroom = KNEE_DBFS - pk
+        status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
+        print(f"{name:<22} | {model:<12} | {lufs:6.2f} LUFS| {delta:+6.2f} dB      | {pk:6.2f} dBFS | {status}")
+        assert pk < KNEE_DBFS, f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
+
+    print("=" * 92)
+
+    print("\n" + "=" * 92)
+    print("--- 2. GLOBAL PRESETS LOUDNESS & HEADROOM (WAV IR Slot 0, Dry FX) ---")
+    print(f"{'Preset':<28} | {'Voicing':<10} | {'WAV LUFS':<10} | {'WAV Peak':<10} | Limiter Status")
+    print("=" * 92)
+
+    for name, model, lufs, pk in results[4:]:
+        headroom = KNEE_DBFS - pk
+        status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
+        print(f"{name:<28} | {model:<10} | {lufs:6.2f} LUFS| {pk:6.2f} dBFS | {status}")
+        assert pk < KNEE_DBFS, f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
+
+    print("=" * 92)
+
+    # Clean up test files
+    if os.path.exists(out_wav): os.remove(out_wav)
+    if os.path.exists(rpp_path): os.remove(rpp_path)
+
+    return results
 
 if __name__ == "__main__":
     run_per_pedal_loudness_comparison()

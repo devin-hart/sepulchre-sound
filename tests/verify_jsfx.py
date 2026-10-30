@@ -453,12 +453,12 @@ def parse_global_presets(presets_src):
             parts = re.split(r"\)\s*:\s*\(\s*//\s*07:", body)
             body5, body6 = parts[0], parts[1].split("ui_need_sync")[0]
             for sub_idx, sub_body in [(5, body5), (6, body6)]:
-                s_dict = {5: 0, 6: 1, 7: 2, 8: 3, 52: 0}
+                s_dict = {}
                 for sm in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", sub_body):
                     s_dict[int(sm.group(1))] = float(sm.group(2))
                 presets[sub_idx] = s_dict
         else:
-            s_dict = {5: 0, 6: 1, 7: 2, 8: 3, 52: 0}
+            s_dict = {}
             for sm in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", body):
                 s_dict[int(sm.group(1))] = float(sm.group(2))
             presets[idx] = s_dict

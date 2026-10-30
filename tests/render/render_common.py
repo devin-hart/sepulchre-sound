@@ -2,6 +2,7 @@ import os
 import sys
 import wave
 import math
+import re
 import subprocess
 import numpy as np
 
@@ -11,6 +12,15 @@ RENDER_DIR = os.path.join(REPO_DIR, "tests", "render")
 REAPER_EXE = os.environ.get("REAPER_EXE", "D:/Reaper/reaper.exe")
 APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))
 IR_DIR = os.path.join(APPDATA_DIR, "REAPER", "Data", "sepulchre_irs")
+
+def get_declared_sliders(jsfx_path=None):
+    if jsfx_path is None:
+        jsfx_path = os.path.join(REPO_DIR, "sepulchre_sound.jsfx")
+    with open(jsfx_path, "r", encoding="utf-8") as f:
+        src = f.read()
+    return set(int(m) for m in re.findall(r"^slider([0-9]+):", src, re.MULTILINE))
+
+VALID_SLIDERS = get_declared_sliders()
 
 # Base slider defaults for clean/bypass conditions (Round 44 simplified architecture: no delay 30..36)
 BASE_DEFAULTS = {
@@ -30,6 +40,9 @@ PEDAL_DEFAULTS = {
 }
 
 def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
+    invalid = [k for k in s_dict.keys() if k not in VALID_SLIDERS]
+    if invalid:
+        raise ValueError(f"Stale/undeclared slider ID(s) passed to make_track: {invalid}")
     # Support up to slider 78 (Round 42 additions: 76 EQ Pos, 77 CE-2 Rate, 78 CE-2 Depth)
     max_slider = max(78, max(s_dict.keys()) if s_dict else 78)
     tokens = [str(s_dict.get(i, "-")) for i in range(1, 65)]
