@@ -12,11 +12,11 @@ REAPER_EXE = os.environ.get("REAPER_EXE", "D:/Reaper/reaper.exe")
 APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))
 IR_DIR = os.path.join(APPDATA_DIR, "REAPER", "Data", "sepulchre_irs")
 
-# Base slider defaults for clean/bypass conditions (Round 42 simplified architecture)
+# Base slider defaults for clean/bypass conditions (Round 44 simplified architecture: no delay 30..36)
 BASE_DEFAULTS = {
     1: 0.0, 2: 40.0, 3: -52.0, 4: 0,
     10: 1,
-    20: 0, 30: 0, 40: 0,
+    20: 0, 40: 0,
     49: 0, 51: 0.0, 54: 0, 58: 50.0,
     65: 0, 76: 1
 }

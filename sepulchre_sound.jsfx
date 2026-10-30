@@ -1,5 +1,5 @@
 desc:Sepulchre Sound (Raw Black Metal Pedalboard)
-// tags: guitar amplifier distortion eq chorus delay reverb black-metal
+// tags: guitar amplifier distortion eq chorus reverb black-metal
 // author: Sepulchre Audio
 
 // Module 0: Input & Gate
@@ -9,7 +9,7 @@ slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
 slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 
 // Round 42: fixed signal chain (no routing slots), amp FX loop:
-// Input/Gate -> [EQ if Before] -> Pedal -> [EQ if After] -> Amp -> Chorus -> Delay -> Reverb -> Cab (WAV IR) -> Air/Master
+// Input/Gate -> [EQ if Before] -> Pedal -> [EQ if After] -> Amp -> Chorus -> Reverb -> Cab (WAV IR) -> Air/Master
 slider76:1<0,1,1{Before Pedal,After Pedal}>-EQ Position
 
 // Module 1: Distortion — four pedal models, each with only its real knobs (0..10 like the hardware)
@@ -37,14 +37,6 @@ slider20:0<0,1,1{Bypass,On}>-Chorus Enable
 slider77:4.0<0,10,0.1>-CE-2 Rate
 slider78:6.0<0,10,0.1>-CE-2 Depth
 
-// Module 3: Delay
-slider30:0<0,1,1{Bypass,On}>-Delay Enable
-slider31:1<0,1,1{Tape,Digital}>-Delay Mode
-slider32:340<20,800,1>-Delay Time (ms)
-slider33:30<0,105,1>-Delay Feedback (%)
-slider34:60<0,100,1>-Delay Tone (%)
-slider35:18<0,100,1>-Delay Mix (%)
-slider36:0<0,1,1{Off,On}>-Delay Tempo Sync
 
 // Module 4: Reverb
 slider40:1<0,1,1{Bypass,On}>-Reverb Enable
@@ -156,11 +148,10 @@ proc_distortion();
 slider76 >= 0.5 ? proc_eq();
 proc_amp();
 proc_chorus();
-proc_delay();
 proc_reverb();
 proc_cab_out();
 
-@gfx 1376 500
+@gfx 1204 500
 // "Crypt" UI: baked background + title sprites, live widgets (sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)
 ui_begin();
 ui_load_images();

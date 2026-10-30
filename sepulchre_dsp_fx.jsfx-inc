@@ -1,5 +1,5 @@
 // sepulchre_dsp_fx.jsfx-inc
-// Buffer-based modulation & spatial effects in the amp's FX loop: CE-2 Chorus (Mod 2), Delay (Mod 3), Reverb (Mod 4)
+// Buffer-based modulation & spatial effects in the amp's FX loop: CE-2 Chorus (Mod 2) and Reverb (Mod 4). Delay removed in Round 43
 @init
 
 function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac) (
@@ -50,17 +50,6 @@ function init_fx_dsp() (
   bq_chorus_lp = alloc_buf(9);                      // CE-2 reconstruction filter (2nd-order part)
   bq_chorus_aa = alloc_buf(9);                      // CE-2 anti-alias filter (2nd-order part)
 
-  // Delay buffers (4.0 s at 48 kHz / 2.0 s at 96 kHz)
-  delay_len = 192000;
-  delay_buf_l = alloc_buf(delay_len);
-  delay_buf_r = alloc_buf(delay_len);
-  delay_wpos = 0;
-  delay_phase = 0.0;
-  delay_smooth = 0.0;
-  delay_smooth_init = 0;
-  bq_delay_lp = alloc_buf(9);
-  bq_delay_hp = alloc_buf(9);
-
   // Reverb buffers: Pre-delay + 4 stereo-spread combs + 2 series allpasses
   rev_pre_len = 16384;
   rev_pre_l = alloc_buf(rev_pre_len);
@@ -83,7 +72,6 @@ function init_fx_dsp() (
 
 function reset_fx_state() (
   memset(chorus_buf_l, 0, chorus_len); memset(chorus_buf_r, 0, chorus_len);
-  memset(delay_buf_l, 0, delay_len);   memset(delay_buf_r, 0, delay_len);
   memset(rev_pre_l, 0, rev_pre_len);   memset(rev_pre_r, 0, rev_pre_len);
   memset(comb_l1, 0, comb_max); memset(comb_l2, 0, comb_max);
   memset(comb_l3, 0, comb_max); memset(comb_l4, 0, comb_max);
@@ -92,20 +80,13 @@ function reset_fx_state() (
   memset(ap_l1, 0, ap_max);     memset(ap_l2, 0, ap_max);
   memset(ap_r1, 0, ap_max);     memset(ap_r2, 0, ap_max);
   memset(rev_state, 0, 32);
-  bq_clear(bq_chorus_lp); bq_clear(bq_chorus_aa); bq_clear(bq_delay_lp); bq_clear(bq_delay_hp); bq_clear(bq_rev_shelf);
+  bq_clear(bq_chorus_lp); bq_clear(bq_chorus_aa); bq_clear(bq_rev_shelf);
   chorus_wpos = 0; chorus_phase = 0.0;
   ch_hp_xl = 0; ch_hp_yl = 0; ch_hp_xr = 0; ch_hp_yr = 0; ch_a1l = 0; ch_a1r = 0; ch_r1l = 0; ch_r1r = 0;
-  delay_wpos = 0; delay_phase = 0.0; delay_smooth = 0.0; delay_smooth_init = 0;
   rev_pre_wpos = 0;
 );
 
-function get_delay_sync_div(time_ms) (
-  time_ms < 200 ? 0.50 :
-  time_ms < 350 ? 0.6666667 :
-  time_ms < 550 ? 0.75 : 1.0;
-);
-
-function update_fx_coeffs() local(chorus_fc, delay_fc, rev_fc, s_scale, mode_scale, eff_decay) (
+function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay) (
   // Round 42: Boss CE-2 (ElectroSmash analysis). Wet path: 48 Hz HPF -> 3rd-order anti-alias LPF (6.6 kHz pole +
   // 6.9 kHz pair) -> MN3007 BBD delay swept by a triangle LFO -> same 3rd-order reconstruction LPF. Dry + wet summed
   // with equal resistors (50/50); x0.78 keeps the engaged RMS level within 0.1 dB of bypass on a guitar DI. Pre/de-emphasis cancel (no BBD noise modelled).
@@ -114,12 +95,6 @@ function update_fx_coeffs() local(chorus_fc, delay_fc, rev_fc, s_scale, mode_sca
   ch_rate = 0.1 * 35 ^ (slider77 * 0.1);                       // Rate knob: 0.1 .. 3.5 Hz (pedal max 3.5 Hz)
   ch_dmin = 0.003 * srate;                                      // BBD delay: 3 ms ..
   ch_dsw = (0.0003 + 0.0047 * slider78 * 0.1) * srate;          //   + 0.3 .. 5 ms sweep (Depth knob)
-
-  delay_fc = slider31 == 0 ? (950.0 + (slider34 * 0.01) * 3200.0) : (2200.0 + (slider34 * 0.01) * 9500.0);
-  bq_lp(bq_delay_lp, delay_fc, 0.707);
-  bq_hp(bq_delay_hp, slider31 == 0 ? 135.0 : 80.0, 0.707);
-  delay_time_smooth_c = exp(-1.0 / (0.030 * srate));
-  delay_mix_t = slider35 * 0.01;
 
   // Mutual-prime comb lengths (1559, 1619, 1493, 1423) scaled for sample rate
   s_scale = srate / 44100.0;
@@ -170,44 +145,6 @@ function proc_chorus() local(tri, d, x, wl, wr) (
   ch_r1r = wr + ch_a66 * (ch_r1r - wr); wr = bq_proc_r(bq_chorus_lp, ch_r1r);
   spl0 += chorus_mix_s * ((spl0 + wl) * 0.78 - spl0);
   spl1 += chorus_mix_s * ((spl1 + wr) * 0.78 - spl1);
-);
-
-// Always runs delay buffer for natural tail spillover when bypassed (Bug #2 fix)
-function proc_delay() local(en, time_ms, target_del, fb, mod_spl, r_l, r_r, in_l, in_r) (
-  en = slider30 > 0.5;
-  delay_mix_s = param_smooth_c * delay_mix_s + (1.0 - param_smooth_c) * delay_mix_t;
-
-  slider36 > 0.5 && tempo > 20.0 ? (
-    time_ms = clamp((60000.0 / tempo) * get_delay_sync_div(slider32), 20.0, 1500.0);
-  ) : (
-    time_ms = slider32;
-  );
-  delay_eff_ms = time_ms;
-  target_del = clamp(time_ms * 0.001 * srate, 32.0, delay_len - 64.0);
-  !delay_smooth_init ? ( delay_smooth = target_del; delay_smooth_init = 1; );
-  delay_smooth = delay_time_smooth_c * delay_smooth + (1.0 - delay_time_smooth_c) * target_del;
-
-  delay_phase += 0.65 / srate;
-  delay_phase >= 1.0 ? delay_phase -= 1.0;
-  mod_spl = slider31 == 0 ? (sin(delay_phase * 2.0 * $pi) * 0.00055 * srate) : 0.0;
-
-  r_l = buf_read_interp(delay_buf_l, delay_len, delay_wpos, delay_smooth + mod_spl);
-  r_r = buf_read_interp(delay_buf_r, delay_len, delay_wpos, delay_smooth - mod_spl + 11.0);
-
-  r_l = bq_proc_l(bq_delay_lp, bq_proc_l(bq_delay_hp, r_l));
-  r_r = bq_proc_r(bq_delay_lp, bq_proc_r(bq_delay_hp, r_r));
-
-  fb = slider33 * 0.01;
-  !en ? fb = min(fb, 0.75); // Clamp feedback on bypass so >=100% self-oscillation decays cleanly (R2-2 fix)
-  in_l = en ? spl0 : 0.0;
-  in_r = en ? spl1 : 0.0;
-  delay_buf_l[delay_wpos] = soft_tanh(in_l + r_l * fb);
-  delay_buf_r[delay_wpos] = soft_tanh(in_r + r_r * fb);
-  delay_wpos += 1;
-  delay_wpos >= delay_len ? delay_wpos = 0;
-
-  spl0 = spl0 * (1.0 - (en ? delay_mix_s * 0.4 : 0.0)) + r_l * delay_mix_s;
-  spl1 = spl1 * (1.0 - (en ? delay_mix_s * 0.4 : 0.0)) + r_r * delay_mix_s;
 );
 
 // Always runs reverb combs/allpasses for natural tail spillover when bypassed (Bug #1 & #2 fix)

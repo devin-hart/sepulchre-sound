@@ -1,10 +1,10 @@
 // sepulchre_ui.jsfx-inc
 // "Crypt" theme: baked stone/slab/logo background (sepulchre_bg.jpg) + Cinzel title sprites (sepulchre_titles.png),
-// with all interactive widgets drawn live on top. Coordinates are in a 1376x500 design space scaled to the window
-// (Round 31: widened from 1204 for the fifth routing slot).
+// with all interactive widgets drawn live on top. Coordinates are in a 1204x500 design space scaled to the window
+// (Round 43: back to 1204 / 7 slabs after the delay was removed).
 @init
 
-UI_DW = 1376; UI_DH = 500;
+UI_DW = 1204; UI_DH = 500;
 gfx_ext_retina = 1;
 
 // ---------- Palette ----------
@@ -76,13 +76,13 @@ function ui_hit(x, y, w, h) ( ui_mouse_clicked && !ui_dropdown_open && mouse_in(
 function ui_load_images() (
   !ui_img_tried ? (
     ui_img_tried = 1;
-    ui_img_bg = gfx_loadimg(10, 0);       // filename:0 sepulchre_bg.jpg (2752x1000)
+    ui_img_bg = gfx_loadimg(10, 0);       // filename:0 sepulchre_bg.jpg (2408x1000)
     ui_img_ti = gfx_loadimg(11, 1);       // filename:1 sepulchre_titles.png
   );
 );
 function ui_draw_background() (
   ui_alpha = 1; c_void(); gfx_rect(0, 0, gfx_w, gfx_h);
-  ui_img_bg >= 0 ? ( gfx_a = 1; gfx_blit(10, 1, 0, 0, 0, 2752, 1000, ui_ox, ui_oy, UI_DW * ui_S, UI_DH * ui_S); );
+  ui_img_bg >= 0 ? ( gfx_a = 1; gfx_blit(10, 1, 0, 0, 0, 2408, 1000, ui_ox, ui_oy, UI_DW * ui_S, UI_DH * ui_S); );
 );
 // Title sprite rows (2x px, 48 px tall): 0..7 names, 8..15 numerals I..VIII, 16 EQUALIZER, 17 IX
 function t_name_w(i) ( i == 0 ? 107 : i == 1 ? 214 : i == 2 ? 144 : i == 3 ? 109 : i == 4 ? 130 : i == 5 ? 73 : i == 6 ? 148 : i == 7 ? 140 : 191; );
@@ -101,9 +101,6 @@ function ui_title(x, y, num_i, name_i) (
 // Bitmask for sliders 1..30; direct sliderN reference for sliders >30 to avoid 32-bit mask overflow (Fixes R2-5)
 function auto_slider(id, end_touch) (
   id <= 30 ? slider_automate(2 ^ (id - 1), end_touch) :
-  id == 31 ? slider_automate(slider31, end_touch) : id == 32 ? slider_automate(slider32, end_touch) :
-  id == 33 ? slider_automate(slider33, end_touch) : id == 34 ? slider_automate(slider34, end_touch) :
-  id == 35 ? slider_automate(slider35, end_touch) : id == 36 ? slider_automate(slider36, end_touch) :
   id == 40 ? slider_automate(slider40, end_touch) : id == 41 ? slider_automate(slider41, end_touch) :
   id == 42 ? slider_automate(slider42, end_touch) : id == 43 ? slider_automate(slider43, end_touch) :
   id == 44 ? slider_automate(slider44, end_touch) : id == 45 ? slider_automate(slider45, end_touch) :

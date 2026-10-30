@@ -2,8 +2,8 @@
 """
 Static checks and offline DSP mirror for Sepulchre Sound (run before every commit).
 1. Source checks: every JSFX file < 300 lines, @init headers, balanced parentheses, no unary '~', declared UI assets
-   exist, non-overlapping alloc_buf() memory map, and the Round 2 invariants (no preset recall in @init, delay
-   bypass feedback clamp, pdc_delay in @block, IR reload handler, no file I/O in coefficient updates, slider
+   exist, non-overlapping alloc_buf() memory map, and the Round 2 invariants (no preset recall in @init,
+   pdc_delay in @block, IR reload handler, no file I/O in coefficient updates, slider
    automation masks).
 2. Python mirror of the pedals (8x oversampled), amp, IIR cab and limiter:
    - presets peak in [-10, -8] dBFS with DC < 0.004 (IIR cab path);
@@ -104,8 +104,6 @@ def check_syntax_and_r2_fixes():
     assert "ir_reload_req ?" in block_sec, "R3-1 regression: ir_reload_req handler missing in @block!"
     assert "load_ir_slot" not in cleaned_by_file["sepulchre_dsp_amp_cab.jsfx-inc"].split("update_amp_cab_coeffs")[1], \
         "R2-6 regression: load_ir_slot called inside update_amp_cab_coeffs!"
-    assert "!en ? fb = min(fb, 0.75)" in cleaned_by_file["sepulchre_dsp_fx.jsfx-inc"], \
-        "R2-2 regression: bypass feedback clamp missing in proc_delay!"
     assert "slider_automate(2 ^ (id - 1), end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
         "R2-5 regression: bitmask slider_automate missing in sepulchre_ui.jsfx-inc!"
     assert "slider_automate(slider51, end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \

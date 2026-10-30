@@ -1,7 +1,7 @@
 // sepulchre_ui_panels.jsfx-inc
 // Crypt layout: logo + preset header, then eight numbered stages on stone slabs in signal order:
-// Round 42 fixed chain: I INPUT, II DISTORTION, III EQUALIZER, IV AMP, V CHORUS, VI DELAY, VII REVERB (amp FX loop),
-// VIII CABINET / IX OUTPUT.
+// Fixed chain (Round 42/43): I INPUT, II DISTORTION, III EQUALIZER, IV AMP, V CHORUS, VI REVERB (amp FX loop),
+// VII CABINET / VIII OUTPUT.
 // Slab and header-band geometry must match the baked sepulchre_bg.jpg.
 @init
 
@@ -83,13 +83,13 @@ function ui_vslider(id, x, y, h, label, val, min_v, max_v, dflt_v, step_v) local
   new_val;
 );
 
-// ---------- Pedal / EQ / chorus / delay / reverb panels ----------
+// ---------- Pedal / EQ / chorus / reverb panels ----------
 function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, div, a, y, p, n) (
   ix = x + 10; iw = w - 20;
-  en = mod_id == 0 ? slider10 > 0.5 : mod_id == 1 ? slider20 > 0.5 : mod_id == 2 ? slider30 > 0.5 : mod_id == 3 ? slider40 > 0.5 : slider65 > 0.5;
+  en = mod_id == 0 ? slider10 > 0.5 : mod_id == 1 ? slider20 > 0.5 : mod_id == 3 ? slider40 > 0.5 : slider65 > 0.5;
   a = en ? 1 : UI_DIM;
   ui_slab_head(x, w, num_i, mod_id == 4 ? 8 : mod_id + 1, a, 1, en)
-    ? set_param(mod_id == 0 ? 10 : mod_id == 1 ? 20 : mod_id == 2 ? 30 : mod_id == 3 ? 40 : 65, !en);
+    ? set_param(mod_id == 0 ? 10 : mod_id == 1 ? 20 : mod_id == 3 ? 40 : 65, !en);
   ui_alpha = a;
 
   mod_id == 0 ? (
@@ -128,25 +128,6 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, div, a, y, p, n) (
     lay_begin(72, 3); f_tiny(); c_lab(); u_text_sp(ix, lay(12), "BOSS CE-2  /  MN3007 BBD", 0.6);   // Round 42
     slider77 = ui_hslider(77, ix, lay(30), iw, "RATE", slider77, 0, 10, 4, 0.1, "%.1f", 0);
     slider78 = ui_hslider(78, ix, lay(30), iw, "DEPTH", slider78, 0, 10, 6, 0.1, "%.1f", 0);
-  ) : mod_id == 2 ? (
-    lay_begin(198, 6); y = lay(24); bw = (iw - 3) / 2;
-    ui_seg(ix, y, bw, 24, "TAPE", slider31 == 0) ? set_param(31, 0);
-    ui_seg(ix + bw + 3, y, bw, 24, "DIGITAL", slider31 == 1) ? set_param(31, 1);
-    ui_toggle(ix, lay(24), iw, 24, slider36 > 0.5 ? "TEMPO SYNC  ON" : "TEMPO SYNC  OFF", slider36 > 0.5) ? set_param(36, !(slider36 > 0.5));
-    y = lay(30);
-    slider36 > 0.5 ? (
-      div = get_delay_sync_div(slider32); bw = (iw - 9) / 4;
-      ui_seg(ix, y, bw, 18, "1/8", div < 0.55) ? set_param(32, 120);
-      ui_seg(ix + (bw + 3), y, bw, 18, "1/4T", div >= 0.55 && div < 0.70) ? set_param(32, 260);
-      ui_seg(ix + 2 * (bw + 3), y, bw, 18, "1/8.", div >= 0.70 && div < 0.85) ? set_param(32, 420);
-      ui_seg(ix + 3 * (bw + 3), y, bw, 18, "1/4", div >= 0.85) ? set_param(32, 650);
-      f_small(); c_lab(); sprintf(#sync_lbl, "= %d MS", floor(delay_eff_ms + 0.5)); u_text_r(ix + iw, y + 21, #sync_lbl);
-    ) : (
-      slider32 = ui_hslider(32, ix, y, iw, "TIME", slider32, 20, 800, 340, 1, "%d ms", 0);
-    );
-    slider33 = ui_hslider(33, ix, lay(30), iw, "FEEDBACK", slider33, 0, 105, 30, 1, "%d%%", 0);
-    slider34 = ui_hslider(34, ix, lay(30), iw, "TONE", slider34, 0, 100, 60, 1, "%d%%", 0);
-    slider35 = ui_hslider(35, ix, lay(30), iw, "MIX", slider35, 0, 100, 18, 1, "%d%%", 0);
   ) : mod_id == 4 ? (                                   // GE-7: seven band faders + level
     ui_vs_hot = 0; n = floor(slider75 + 0.5);                // Round 34: record EQ presets, < > to step
     c_border(); u_frame(ix, UI_BODY_Y - 4, iw, 24);
@@ -197,10 +178,10 @@ function panel_amp(x, w) local(ix, iw, on, bw, y) (
   ui_alpha = 1;
 );
 
-// ---------- VIII: Cabinet + IX: Output (fixed rows; OUTPUT band is baked at y 246..280) ----------
+// ---------- VII: Cabinet + VIII: Output (fixed rows; OUTPUT band is baked at y 246..280) ----------
 function panel_cab_out(x, w) local(ix, iw, on, bw, k) (
   ix = x + 10; iw = w - 20; on = slider49 > 0.5;
-  ui_slab_head(x, w, 7, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
+  ui_slab_head(x, w, 6, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
   ui_alpha = on ? 1 : UI_DIM;                              // Round 42: WAV IR only (IIR 4x12 = silent fallback)
   k = floor(slider53 + 0.5);
   c_border(); u_frame(ix, 162, iw, 34);
@@ -212,7 +193,7 @@ function panel_cab_out(x, w) local(ix, iw, on, bw, k) (
   f_tiny(); ir_filter_len > 0 ? c_lab() : c_ember(); u_text_sp_c(ix + iw * 0.5, 187, #ir_n, ir_filter_len > 0 ? 1.5 : 0.4);
 
   ui_alpha = 1;
-  ui_title(x + 10, 251, 8, 7);
+  ui_title(x + 10, 251, 7, 7);
   slider58 = ui_hslider(58, ix, 290, iw, "AIR", slider58, 0, 100, 64, 1, "%+.1f dB", 0.24);
   slider51 = ui_hslider(51, ix, 340, iw, "MASTER", slider51, -24, 6, -0.5, 0.1, "%+.1f dB", 0);
   ui_meter(ix, 396, iw, "OUTPUT", meter_out_peak, -999, 0);
@@ -221,11 +202,11 @@ function panel_cab_out(x, w) local(ix, iw, on, bw, k) (
 // ---------- Header + whole frame ----------
 function ui_header() (
   ui_alpha = 1;
-  draw_preset_dropdown_bar(1108, 36, 250, 28);
+  draw_preset_dropdown_bar(936, 36, 250, 28);
   f_small(); u_rgb(125, 120, 111);
   pdc_delay > 0 ? sprintf(#hdr, "8x OVERSAMPLED  /  IR LATENCY %d SPL (%.1f MS)", pdc_delay, pdc_delay * 1000 / srate)
                 : strcpy(#hdr, "8x OVERSAMPLED  /  ZERO LATENCY");
-  u_text_sp(1358 - u_tw_sp(#hdr, 1.5), 76, #hdr, 1.5);
+  u_text_sp(1186 - u_tw_sp(#hdr, 1.5), 76, #hdr, 1.5);
 );
 function ui_draw_all() (
   ui_header();
@@ -234,8 +215,7 @@ function ui_draw_all() (
   panel_mod(4, 2, 346, 162);                               // III  EQUALIZER
   panel_amp(518, 162);                                     // IV   AMP
   panel_mod(1, 4, 690, 162);                               // V    CHORUS   } amp FX loop
-  panel_mod(2, 5, 862, 162);                               // VI   DELAY    }
-  panel_mod(3, 6, 1034, 150);                              // VII  REVERB   }
-  panel_cab_out(1194, 168);                                // VIII CABINET / IX OUTPUT
-  draw_preset_dropdown_menu(1108, 66, 250, 24);
+  panel_mod(3, 5, 862, 150);                               // VI   REVERB   }
+  panel_cab_out(1022, 168);                                // VII  CABINET / VIII OUTPUT
+  draw_preset_dropdown_menu(936, 66, 250, 24);
 );

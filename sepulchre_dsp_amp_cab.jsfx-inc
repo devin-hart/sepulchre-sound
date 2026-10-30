@@ -199,7 +199,7 @@ function proc_amp_stage(x, mode) (
 );
 
 // Amp stage (0=Off, 1=Tube Head, 2=Solid-State) + post-amp DC blocker + tone stack. Round 42: split from the cab so
-// chorus / delay / reverb run in the amp's FX loop (after the amp, before the cab).
+// chorus / reverb run in the amp's FX loop (after the amp, before the cab).
 function proc_amp() local(l, r, dc_l, dc_r_out) (
   l = spl0; r = spl1;
 
