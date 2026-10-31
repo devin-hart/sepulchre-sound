@@ -9,8 +9,7 @@ slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
 slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 
 // Round 42: fixed signal chain (no routing slots), amp FX loop:
-// Input/Gate -> [EQ if Before] -> Pedal -> [EQ if After] -> Amp -> Chorus -> Reverb -> Air/Master
-// Round 52: no cab sim. Put an IR loader (TRVE Cab) after this plugin.
+// Input/Gate -> [EQ if Before] -> Pedal -> [EQ if After] -> Amp -> Chorus -> Reverb -> Cab (WAV IR) -> Air/Master
 slider76:1<0,1,1{Before Pedal,After Pedal}>-EQ Position
 
 // Distortion: four pedal models, each with only its real knobs (0..10 like the hardware)
@@ -58,8 +57,10 @@ slider72:0<-15,15,0.5>-EQ 6.4 kHz (dB)
 slider73:0<-15,15,0.5>-EQ Level (dB)
 slider75:0<0,7,1{Custom,Bathory 84,Deathcrush 87,Transilvanian Hunger 94,Nightside Eclipse 94,Filosofem 96,In Sorte Diaboli 07,Evangelion 09}>-EQ Preset
 
-// Amp & Master
+// Amp, Cabinet (WAV IR) & Master
+slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
 slider51:-0.5<-24.0,6.0,0.1>-Master Output (dB)
+slider53:0<0,9,1{01 BlackWizard Center,02 BlackWizard Edge,03 Destroyer Center,04 Destroyer Edge,05 LordOfGoats Center,06 LordOfGoats Edge,07 MysteriousSatan Center,08 Swordman Center,09 HeadKrush Center,10 PlagueBearer Center}>-Cabinet WAV Impulse Slot
 slider54:1<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
 slider55:54<0,100,1>-Amp Bass (%)
 slider56:44<0,100,1>-Amp Mid (%)
@@ -76,7 +77,7 @@ filename:1,sepulchre_titles.png
 import sepulchre_dsp_core.jsfx-inc
 import sepulchre_dsp_dist.jsfx-inc
 import sepulchre_dsp_fx.jsfx-inc
-import sepulchre_dsp_amp.jsfx-inc
+import sepulchre_dsp_amp_cab.jsfx-inc
 import sepulchre_presets.jsfx-inc
 import sepulchre_ui.jsfx-inc
 import sepulchre_ui_panels.jsfx-inc
@@ -87,12 +88,13 @@ ext_noinit = 1;
   mem_top = 1024;
   init_core_dsp();
   init_fx_dsp();
-  init_amp_dsp();
+  init_amp_cab_dsp();
   dsp_initialized = 1;
   // Do NOT call recall_global_preset() here so saved REAPER project settings are preserved (Fixes R2-1)
+  ir_loaded_slot = -1;
   eq_last_preset = floor(slider75 + 0.5);   // saved fader values win over the preset table on project load
   gp_last = floor(slider60 + 0.5);          // same for the global preset (R2-1: never recall on load)
-  pdc_delay = 0;                            // Round 52: no convolution, zero latency
+  load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
 );
 sync_all_DSP();
 
@@ -101,10 +103,19 @@ sync_all_DSP();
 floor(slider75 + 0.5) != eq_last_preset ? recall_eq_preset(floor(slider75 + 0.5));
 // Global preset changed by host automation / control surface (Round 39)
 floor(slider60 + 0.5) != gp_last ? recall_global_preset(floor(slider60 + 0.5));
+tmp_ir_idx = clamp(floor(slider53 + 0.001), 0, 9);
+tmp_ir_idx != ir_loaded_slot ? load_ir_slot(tmp_ir_idx);
 ui_need_sync = 1;
 
 @block
+// One-shot IR WAV load when @gfx changes slider53 (Fixes R3-1)
+ir_reload_req ? (
+  ir_reload_req = 0;
+  load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+);
+
 (last_srate != srate || ui_need_sync) ? (
+  last_srate != srate && ir_raw_len > 0 ? ir_need_refft = 1;   // re-resample the IR at the new rate
   last_srate = srate;
   ui_need_sync = 0;
   sync_all_DSP();
@@ -115,10 +126,19 @@ ui_need_sync = 1;
   reset_core_state();
   reset_dist_state();
   reset_fx_state();
-  reset_amp_state();
+  reset_amp_cab_state();
   dist_mix_s = slider10 > 0.5; eq_mix_s = slider65 > 0.5; chorus_mix_s = slider20 > 0.5;   // full mix from sample 0
 );
 last_play_state = play_state;
+
+ir_need_refft ? prepare_ir_fft();
+
+// Report overlap-add convolution latency to REAPER PDC when WAV IR is active (Fixes R2-3)
+(slider49 > 0.5 && ir_filter_len > 0) ? (
+  pdc_bot_ch = 0; pdc_top_ch = 2; pdc_delay = ir_chunk_size;
+) : (
+  pdc_delay = 0;
+);
 
 @sample
 proc_input_gate();
@@ -128,7 +148,7 @@ slider76 >= 0.5 ? proc_eq();
 proc_amp();
 proc_chorus();
 proc_reverb();
-proc_output();
+proc_cab_out();
 
 @gfx 1204 500
 // "Crypt" UI: baked background + title sprites, live widgets (sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)

@@ -3,13 +3,13 @@
 Static checks and offline DSP mirror for Sepulchre Sound (run before every commit).
 1. Source checks: every JSFX file < 300 lines, @init headers, balanced parentheses, no unary '~', declared UI assets
    exist, non-overlapping alloc_buf() memory map, and the Round 2 invariants (no preset recall in @init,
-   slider automation masks; Round 52: no cab sim, zero PDC).
-2. Python mirror of the pedals (8x oversampled), amp and limiter. The old IIR 4x12 cab survives here only as a
-   reference cab (stand-in for the IR loader after the plugin), so the presets stay level-matched to each other:
-   - presets peak in [-10, -8] dBFS with DC < 0.004 through the reference cab;
+   pdc_delay in @block, IR reload handler, no file I/O in coefficient updates, slider
+   automation masks).
+2. Python mirror of the pedals (8x oversampled), amp, IIR cab and limiter:
+   - presets peak in [-10, -8] dBFS with DC < 0.004 (IIR cab path);
    - in-band aliasing per pedal (2578 Hz tone);
    - no pedal filter with pole Q > 3.5 at any knob extreme (no ringing);
-   - Round 52: with no cab sim, every preset's raw output stays below the limiter knee (-3.1 dBFS);
+   - IR_E48 matches the IIR cab's weighted energy;
    - high-gain saturation curve (Metal Zone preset).
 Round 30: the reverb RT60 and delay-bypass simulations were removed. They re-implemented formulas in Python without
 reading the EEL2 source, so they could never catch a regression in the plugin.
@@ -27,7 +27,7 @@ EXPECTED_FILES = [
     "sepulchre_dsp_core.jsfx-inc",
     "sepulchre_dsp_dist.jsfx-inc",
     "sepulchre_dsp_fx.jsfx-inc",
-    "sepulchre_dsp_amp.jsfx-inc",
+    "sepulchre_dsp_amp_cab.jsfx-inc",
     "sepulchre_presets.jsfx-inc",
     "sepulchre_ui.jsfx-inc",
     "sepulchre_ui_panels.jsfx-inc",
@@ -100,10 +100,10 @@ def check_syntax_and_r2_fixes():
     init_sec = main_c.split("@init")[1].split("@slider")[0]
     block_sec = main_c.split("@block")[1].split("@sample")[0]
     assert "recall_global_preset" not in init_sec, "R2-1 regression: recall_global_preset called in @init!"
-    assert "pdc_delay = 0" in init_sec and "pdc_delay =" not in block_sec, "Round 52: plugin must report zero PDC"
-    for fname, cl in cleaned_by_file.items():   # Round 52: cab sim removed (IR loader goes after the plugin)
-        for gone in ("load_ir_slot", "prepare_ir_fft", "conv_block", "slider49", "slider53", "proc_cab_out"):
-            assert gone not in cl, f"Round 52 regression: '{gone}' is back in {fname}"
+    assert "pdc_delay = ir_chunk_size" in block_sec, "R2-3 regression: pdc_delay not set in @block!"
+    assert "ir_reload_req ?" in block_sec, "R3-1 regression: ir_reload_req handler missing in @block!"
+    assert "load_ir_slot" not in cleaned_by_file["sepulchre_dsp_amp_cab.jsfx-inc"].split("update_amp_cab_coeffs")[1], \
+        "R2-6 regression: load_ir_slot called inside update_amp_cab_coeffs!"
     assert "slider_automate(2 ^ (id - 1), end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
         "R2-5 regression: bitmask slider_automate missing in sepulchre_ui.jsfx-inc!"
     assert "slider_automate(slider51, end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
@@ -119,7 +119,7 @@ def check_syntax_and_r2_fixes():
 
     # Dynamically parse alloc_buf() and constant assignments from the actual JSFX source
     combined_src = "\n".join(raw_by_file[f] for f in [
-        "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc", "sepulchre_dsp_amp.jsfx-inc"
+        "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc", "sepulchre_dsp_amp_cab.jsfx-inc"
     ])
     consts = {"mem_top": 1024}
     allocations = []
@@ -348,7 +348,7 @@ def pedal_os(P, st, x):
     return sclip(w, 3.5)
 
 
-def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab=True):
+def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab=False):
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     sliders = dict(SLIDER_DEFAULTS)
@@ -375,7 +375,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
     bq_amp_t = bq_shelf_coeffs(2400.0, (sliders[57] - 50.0) * 0.20 + 1.5, sr, True)
     bq_amp_p = bq_peak_coeffs(3800.0, 1.25, (sliders[58] - 50.0) * 0.24, sr)
 
-    # Reference 4x12 (the plugin's old IIR cab, Round 52: mirror-only stand-in for the IR loader after the plugin)
+    # IIR 4x12 cab (the plugin's fallback / loudness reference; WAV IRs are not in the repo)
     bq_cab_hp = bq_hp_coeffs(85.0, 0.7071, sr)
     bq_cab_lp1 = bq_lp_coeffs(7800.0, 0.7071, sr)
     cf1, cf2, cf3 = bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr)
@@ -435,7 +435,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
         else:
             l *= 0.84  # Round 35: Amp OFF level match
 
-        if ref_cab:   # reference cab only (the plugin has none since Round 52)
+        if ref_cab or sliders.get(49, 0) > 0.5:
             l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp
 
         l = limit_sample(bq_step(bq_amp_p, l) * master_lin, 0.89125)
@@ -478,7 +478,7 @@ def check_presets_dc_and_levels(presets_src):
         signal.append(val)
 
     for idx in (0, 1, 2, 3, 4, 6):
-        out = simulate_chain(presets[idx], signal, sr, include_amp_cab=True)
+        out = simulate_chain(presets[idx], signal, sr, include_amp_cab=True, ref_cab=True)
         steady = out[int(0.03 * sr):]
         peak = max(abs(x) for x in steady)
         peak_db = 20.0 * math.log10(peak)
@@ -554,20 +554,30 @@ def check_no_resonant_filters():
 
 
 
-def check_raw_output_headroom(presets_src):
-    # Round 52: the plugin now feeds an IR loader directly. Raw (no cab) preset peaks must stay below the limiter knee
-    # (0.70 = -3.1 dBFS) so the limiter never shapes the signal going into the cab.
-    print("[5/6] Checking raw (no cab) output headroom below the -3.1 dBFS limiter knee...")
-    presets = parse_global_presets(presets_src)
+def check_ir_loudness_constant():
+    # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
+    # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
+    print("[5/6] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
+    m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
+    if not m:
+        raise AssertionError("IR_E48 constant not found")
     sr = 48000.0
-    sig = [0.25 * math.exp(-i / sr * 4.5) * (1 - math.exp(-i / sr * 250)) * (0.6 * math.sin(2 * math.pi * 82.41 * i / sr)
-           + 0.4 * math.sin(2 * math.pi * 164.82 * i / sr) + 0.3 * math.sin(2 * math.pi * 247.23 * i / sr)) for i in range(int(0.45 * sr))]
-    for idx in range(7):
-        out = simulate_chain(presets[idx], sig, sr, ref_cab=False)[int(0.03 * sr):]
-        pk = 20.0 * math.log10(max(abs(v) for v in out))
-        print(f"  - Preset {idx} raw peak: {pk:+.2f} dBFS")
-        if pk > -3.1:
-            raise AssertionError(f"Preset {idx} raw peak {pk:+.2f} dBFS reaches the limiter knee")
+    hp = bq_hp_coeffs(85.0, 0.7071, sr)
+    chain = [hp, bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr),
+             bq_lp_coeffs(6200.0, 0.95, sr), bq_lp_coeffs(7800.0, 0.7071, sr)]
+    weight = [bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False), bq_lp_coeffs(6000.0, 0.7071, sr)]
+    x = [1.0] + [0.0] * 4094
+    for b in chain:
+        b = list(b); x = [bq_step(b, v) for v in x]
+    x = [v * 0.72 for v in x[:2047]] + [0.0] * 2048
+    for b in weight:
+        b = list(b); x = [bq_step(b, v) for v in x]
+    e = sum(v * v for v in x)
+    print(f"  - IR_E48 file {float(m.group(1)):.6f} vs computed {e:.6f}")
+    if abs(float(m.group(1)) / e - 1.0) > 0.01:
+        raise AssertionError("IR_E48 does not match the IIR profile 0 weighted energy")
+
 
 
 def check_distortion_gain_curve(presets_src):
@@ -595,7 +605,7 @@ if __name__ == "__main__":
         check_presets_dc_and_levels(raw_files["sepulchre_presets.jsfx-inc"])
         check_pre_cab_aliasing_all_bins(raw_files["sepulchre_presets.jsfx-inc"])
         check_no_resonant_filters()
-        check_raw_output_headroom(raw_files["sepulchre_presets.jsfx-inc"])
+        check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:

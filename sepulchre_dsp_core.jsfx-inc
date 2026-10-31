@@ -16,7 +16,7 @@ function soft_tanh(x) local(x2) (
 );
 
 // Linear below -3.1 dBFS (0.70), C1 cubic knee to exact ceiling L (-1.0 dBFS = 0.89125). Round 30: knee raised from
-// -6 dBFS. Round 52: a safety stage only; presets peak about -9..-5 dBFS without a cab.
+// -6 dBFS so WAV IR mode (peaks about -7..-4 dBFS since the +3.8 dB ear-match) passes untouched.
 function limit_sample(x, L) local(k, ax, t, d, s) (
   k = 0.7; ax = abs(x);
   ax <= k ? x : (

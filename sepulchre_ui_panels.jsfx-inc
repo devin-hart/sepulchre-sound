@@ -1,7 +1,7 @@
 // sepulchre_ui_panels.jsfx-inc
-// Crypt layout: logo + preset header, then seven stone slabs (seven numbered stages) in signal order:
+// Crypt layout: logo + preset header, then seven stone slabs (eight numbered stages) in signal order:
 // Fixed chain (Round 42/43): I INPUT, II DISTORTION, III EQUALIZER, IV AMP, V CHORUS, VI REVERB (amp FX loop),
-// VII OUTPUT (Round 52: no cab sim).
+// VII CABINET / VIII OUTPUT.
 // Slab and header-band geometry must match the baked sepulchre_bg.jpg.
 @init
 
@@ -179,15 +179,25 @@ function panel_amp(x, w) local(ix, iw, on, bw, y) (
   ui_alpha = 1;
 );
 
-// ---------- VII: Output (Round 52: cab sim removed; follow the plugin with an IR loader) ----------
-function panel_output(x, w) local(ix, iw) (
-  ix = x + 10; iw = w - 20;
-  ui_slab_head(x, w, 6, 7, 1, 0, 0);
-  ui_alpha = 1; lay_begin(100, 3);
-  slider58 = ui_hslider(58, ix, lay(30), iw, "AIR", slider58, 0, 100, 64, 1, "%+.1f dB", 0.24);
-  slider51 = ui_hslider(51, ix, lay(30), iw, "MASTER", slider51, -24, 6, -0.5, 0.1, "%+.1f dB", 0);
-  ui_meter(ix, lay(40), iw, "OUTPUT", meter_out_peak, -999, 0);
-  f_tiny(); c_lab(); u_text_sp(ix, UI_BODY_Y + 300, "NO CAB: USE AN IR LOADER", 0.3);
+// ---------- VII: Cabinet + VIII: Output (fixed rows; OUTPUT band is baked at y 246..280) ----------
+function panel_cab_out(x, w) local(ix, iw, on, bw, k) (
+  ix = x + 10; iw = w - 20; on = slider49 > 0.5;
+  ui_slab_head(x, w, 6, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
+  ui_alpha = on ? 1 : UI_DIM;                              // Round 42: WAV IR only (IIR 4x12 = silent fallback)
+  k = floor(slider53 + 0.5);
+  c_border(); u_frame(ix, 162, iw, 34);
+  ui_hit(ix, 162, 22, 34) ? set_param(53, max(0, k - 1));
+  ui_hit(ix + iw - 22, 162, 22, 34) ? set_param(53, min(9, k + 1));
+  f_value(); c_fill(); u_text(ix + 6, 170, "<"); u_text_r(ix + iw - 6, 170, ">");
+  ir_filter_len > 0 ? sprintf(#ir_n, "SLOT %d / 10", k + 1) : strcpy(#ir_n, "IR MISSING: BUILT-IN 4x12");
+  f_label(); c_bone(); u_text_sp_c(ix + iw * 0.5, 173, get_ir_slot_name(k), 0.5);
+  f_tiny(); ir_filter_len > 0 ? c_lab() : c_ember(); u_text_sp_c(ix + iw * 0.5, 187, #ir_n, ir_filter_len > 0 ? 1.5 : 0.4);
+
+  ui_alpha = 1;
+  ui_title(x + 10, 251, 7, 7);
+  slider58 = ui_hslider(58, ix, 290, iw, "AIR", slider58, 0, 100, 64, 1, "%+.1f dB", 0.24);
+  slider51 = ui_hslider(51, ix, 340, iw, "MASTER", slider51, -24, 6, -0.5, 0.1, "%+.1f dB", 0);
+  ui_meter(ix, 396, iw, "OUTPUT", meter_out_peak, -999, 0);
 );
 
 // ---------- Header + whole frame ----------
@@ -195,7 +205,8 @@ function ui_header() (
   ui_alpha = 1;
   draw_preset_dropdown_bar(936, 36, 250, 28);
   f_small(); u_rgb(125, 120, 111);
-  strcpy(#hdr, "8x OVERSAMPLED  /  ZERO LATENCY");
+  pdc_delay > 0 ? sprintf(#hdr, "8x OVERSAMPLED  /  IR LATENCY %d SPL (%.1f MS)", pdc_delay, pdc_delay * 1000 / srate)
+                : strcpy(#hdr, "8x OVERSAMPLED  /  ZERO LATENCY");
   u_text_sp(1186 - u_tw_sp(#hdr, 1.5), 76, #hdr, 1.5);
 );
 function ui_draw_all() (
@@ -206,6 +217,6 @@ function ui_draw_all() (
   panel_amp(518, 162);                                     // IV   AMP
   panel_mod(1, 4, 690, 162);                               // V    CHORUS   } amp FX loop
   panel_mod(3, 5, 862, 150);                               // VI   REVERB   }
-  panel_output(1022, 168);                                 // VII  OUTPUT
+  panel_cab_out(1022, 168);                                // VII  CABINET / VIII OUTPUT
   draw_preset_dropdown_menu(936, 66, 250, 24);
 );

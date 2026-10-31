@@ -1,0 +1,256 @@
+// sepulchre_dsp_amp_cab.jsfx-inc
+// Module 5: Amp Stage (Tube / Solid-State), WAV IR convolution (UPOLS), IIR cab fallback, Air, Master and limiter
+@init
+// Round 20: uniformly partitioned overlap-save convolution (UPOLS). Block CV_B = 128 samples (2.7 ms @ 48 kHz latency,
+// was 2048 = 43 ms), FFT CV_N = 256 complex points, up to 16 partitions (2048-tap IRs). L/R ride as real/imag of one
+// complex FFT (the kernel is real). ir_fft_kern = 16 kernel spectra; ir_blk_cur = frequency-domain delay line (FDL).
+CV_B = 128; CV_N = 256; CV_F = 512;                  // block, complex FFT size, floats per spectrum
+
+function init_amp_cab_dsp() (
+  bq_amp_hp = alloc_buf(9);
+  bq_amp_bass = alloc_buf(9);
+  bq_amp_mid = alloc_buf(9);
+  bq_amp_treb = alloc_buf(9);
+  bq_amp_pres = alloc_buf(9);
+
+  bq_cab_hp = alloc_buf(9);
+  bq_cab_lp1 = alloc_buf(9);
+  bq_cab_lp2 = alloc_buf(9);
+  bq_cab_f1 = alloc_buf(9);
+  bq_cab_f2 = alloc_buf(9);
+  bq_cab_f3 = alloc_buf(9);
+  bq_irw1 = alloc_buf(9); bq_irw2 = alloc_buf(9); bq_irw3 = alloc_buf(9);   // IR loudness-match weighting
+
+  // Align FFT & IR convolution buffers to 65536 boundary (EEL2 has no unary ~; ~ is binary XOR)
+  mem_top = floor((mem_top + 65535) / 65536) * 65536;
+  ir_raw_buf = alloc_buf(32768);
+  ir_fft_kern = alloc_buf(32768);
+  ir_blk_cur = alloc_buf(32768);
+  ir_blk_last = alloc_buf(32768);
+
+  ir_loaded_slot = -1;
+  ir_need_refft = 0;
+  ir_filter_len = 0;
+  ir_chunk_size = CV_B;                              // reported as pdc_delay while WAV IR runs
+  ir_bpos = 0; cv_fdl_pos = 0; ir_parts = 0;
+  // Round 20 low-latency convolution scratch (inside ir_blk_last; ir_blk_last[0..4095] = IR loudness scratch)
+  cv_frame = ir_blk_last + 8192; cv_acc = ir_blk_last + 8704; cv_tmp = ir_blk_last + 9216; cv_out = ir_blk_last + 9728;
+  amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
+  amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
+);
+
+function reset_amp_cab_state() (
+  bq_clear(bq_amp_hp); bq_clear(bq_amp_bass); bq_clear(bq_amp_mid);
+  bq_clear(bq_amp_treb); bq_clear(bq_amp_pres);
+  bq_clear(bq_cab_hp); bq_clear(bq_cab_lp1); bq_clear(bq_cab_lp2);
+  bq_clear(bq_cab_f1); bq_clear(bq_cab_f2); bq_clear(bq_cab_f3);
+  memset(ir_blk_cur, 0, 32768);
+  memset(ir_blk_last, 0, 32768);
+  ir_bpos = 0; cv_fdl_pos = 0;
+  amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
+  amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
+);
+
+function get_ir_filename(idx) (
+  idx == 0 ? "sepulchre_irs/01_BlackWizard_Center.wav" :
+  idx == 1 ? "sepulchre_irs/02_BlackWizard_Edge.wav" :
+  idx == 2 ? "sepulchre_irs/03_Destroyer_Center.wav" :
+  idx == 3 ? "sepulchre_irs/04_Destroyer_Edge.wav" :
+  idx == 4 ? "sepulchre_irs/05_LordOfGoats_Center.wav" :
+  idx == 5 ? "sepulchre_irs/06_LordOfGoats_Edge.wav" :
+  idx == 6 ? "sepulchre_irs/07_MysteriousSatan_Center.wav" :
+  idx == 7 ? "sepulchre_irs/08_Swordman_Center.wav" :
+  idx == 8 ? "sepulchre_irs/09_HeadKrush_Center.wav" :
+             "sepulchre_irs/10_PlagueBearer_Center.wav";
+);
+// Round 22: per-slot loudness trim (dB) = -(slot LUFS - IIR cab LUFS) from Antigravity's Round 21 render
+// (preset 01 chain). Corrects the weighted-energy match's +/-2.1 dB residual for the bundled IRs.
+function get_ir_slot_trim_db(idx) (
+  idx == 0 ? -1.33 : idx == 1 ? -2.13 : idx == 2 ? 1.42 : idx == 3 ? 0.0 : idx == 4 ? -0.11 :
+  idx == 5 ? -0.16 : idx == 6 ? 1.85 : idx == 7 ? -1.20 : idx == 8 ? -1.39 : idx == 9 ? -1.06 : 0.0;
+);
+
+// Called on one-shot ir_reload_req from @init / @slider / @gfx (Fixes R2-6 & R3-1)
+function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
+  ir_loaded_slot = slot_idx;
+  ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
+  slot_idx >= 0 ? (
+    strcpy(#ir_path, get_ir_filename(slot_idx));
+    fh = file_open(#ir_path);
+    fh > 0 ? (
+      file_riff(fh, nch, ir_sr);
+      nch > 0 ? (
+        avail = floor(file_avail(fh) / nch);
+        ir_raw_len = min(4096, avail);
+        ir_raw_nch = nch;
+        ir_raw_srate = ir_sr;
+        file_mem(fh, ir_raw_buf, ir_raw_len * nch);
+        ir_need_refft = 1;
+      );
+      file_close(fh);
+    );
+  ) : (
+    ir_filter_len = 0;
+  );
+);
+
+// Filter a mono buffer in place through biquad coeffs b[0..4] (own zeroed state; never touches live filter state)
+function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
+  s1 = 0; s2 = 0; i = 0;
+  loop(n, x = buf[i]; y = b[0] * x + s1; s1 = b[1] * x - b[3] * y + s2; s2 = b[2] * x - b[4] * y; buf[i] = y; i += 1; );
+);
+// Round 19: loudness-match every WAV IR to the IIR 4x12 cab. Weighted energy of the resampled IR (cab HPF, then
+// 90 Hz HP + 500 Hz +12 dB low shelf + 6 kHz LP ~ average distorted-guitar spectrum x K-weighting) vs IR_E48 = the
+// same measure of IIR profile 0 at 48 kHz (tests/verify_jsfx.py). Fitted over 4 pedals x 11 test IRs: rms error 1.6 dB.
+IR_E48 = 0.283543;
+IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 dB over the LUFS match)
+function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
+  ir_raw_len > 0 && ir_raw_srate > 0 ? (
+    isc = ir_raw_srate / srate;
+    ir_filter_len = min(floor(2048 * srate / 48000), floor(ir_raw_len / isc));   // Round 39: 42.7 ms at any rate (<= 8192 taps / 64 parts)
+    ir_parts = ceil(ir_filter_len / CV_B);
+    i = 0;                                           // resample channel 0 into ir_blk_cur (FDL is cleared below)
+    loop(ir_filter_len,
+      ipos = floor(i * isc); frac = i * isc - ipos;
+      ir_blk_cur[i] = ir_raw_buf[ipos * ir_raw_nch] * (1.0 - frac) + ir_raw_buf[min(ir_raw_len - 1, ipos + 1) * ir_raw_nch] * frac;
+      i += 1;
+    );
+    n = ir_filter_len + 2048;                        // IR + filter ring-out, scratch in ir_blk_last
+    i = 0; loop(n, ir_blk_last[i] = i < ir_filter_len ? ir_blk_cur[i] : 0.0; i += 1; );
+    bq_hp(bq_irw1, 90.0, 0.7071); bq_lshelf(bq_irw2, 500.0, 12.0); bq_lp(bq_irw3, 6000.0, 0.7071);
+    bq_buf(bq_cab_hp, ir_blk_last, n); bq_buf(bq_irw1, ir_blk_last, n);
+    bq_buf(bq_irw2, ir_blk_last, n); bq_buf(bq_irw3, ir_blk_last, n);
+    e = 0.0; i = 0; loop(n, e += ir_blk_last[i] * ir_blk_last[i]; i += 1; );
+    norm_g = (1.0 / CV_N) * (e > 0.0000000001 ? sqrt(IR_E48 * (48000.0 / srate) / e) : 1.0);
+    norm_g *= 10 ^ ((get_ir_slot_trim_db(ir_loaded_slot) + IR_MATCH_DB) / 20);
+    memset(ir_fft_kern, 0, 32768);
+    p = 0;
+    loop(ir_parts,                                   // kernel spectra: [h(pB..pB+B-1), B zeros] -> FFT
+      kp = ir_fft_kern + p * CV_F; k = 0;
+      loop(CV_B, i = p * CV_B + k; kp[k * 2] = i < ir_filter_len ? ir_blk_cur[i] * norm_g : 0.0; k += 1; );
+      fft(kp, CV_N);
+      p += 1;
+    );
+    memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);
+    ir_bpos = 0; cv_fdl_pos = 0; ir_chunk_size = CV_B;
+  ) : (
+    ir_filter_len = 0;
+  );
+  ir_need_refft = 0;
+);
+// One UPOLS block: FFT the 2B input frame into the FDL, sum FDL x kernel products, IFFT, keep the last B samples
+function conv_block() local(p, src, i) (
+  src = ir_blk_cur + cv_fdl_pos * CV_F;
+  memcpy(src, cv_frame, CV_F); fft(src, CV_N);
+  memcpy(cv_acc, src, CV_F); convolve_c(cv_acc, ir_fft_kern, CV_N);
+  p = 1;
+  loop(ir_parts - 1,
+    memcpy(cv_tmp, ir_blk_cur + ((cv_fdl_pos - p + ir_parts) % ir_parts) * CV_F, CV_F);
+    convolve_c(cv_tmp, ir_fft_kern + p * CV_F, CV_N);
+    i = 0;
+    loop(CV_F / 8,
+      cv_acc[i] += cv_tmp[i]; cv_acc[i + 1] += cv_tmp[i + 1]; cv_acc[i + 2] += cv_tmp[i + 2]; cv_acc[i + 3] += cv_tmp[i + 3];
+      cv_acc[i + 4] += cv_tmp[i + 4]; cv_acc[i + 5] += cv_tmp[i + 5]; cv_acc[i + 6] += cv_tmp[i + 6]; cv_acc[i + 7] += cv_tmp[i + 7];
+      i += 8;
+    );
+    p += 1;
+  );
+  ifft(cv_acc, CV_N);
+  memcpy(cv_out, cv_acc + CV_B * 2, CV_B * 2);      // overlap-save: keep the last B samples
+  memcpy(cv_frame, cv_frame + CV_B * 2, CV_B * 2);  // this block becomes the next frame's first half
+  cv_fdl_pos = (cv_fdl_pos + 1) % ir_parts;
+  ir_bpos = 0;
+);
+function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
+  // Amp Stage (Tube JCM/5150 vs Solid-State Death/Black Metal voicing)
+  bq_hp(bq_amp_hp, 75.0, 0.707);
+  bass_db = (slider55 - 50.0) * 0.20;
+  mid_db  = (slider56 - 50.0) * 0.22 - (slider54 > 1.5 ? 2.5 : 1.0);
+  treb_db = (slider57 - 50.0) * 0.20 + 1.5;
+  pres_db = (slider58 - 50.0) * 0.24;
+
+  bq_lshelf(bq_amp_bass, 125.0, bass_db);
+  bq_peak(bq_amp_mid, slider54 > 1.5 ? 620.0 : 520.0, 1.15, mid_db);
+  bq_hshelf(bq_amp_treb, 2400.0, treb_db);
+  bq_peak(bq_amp_pres, 3800.0, 1.25, pres_db);
+
+  // IIR 4x12 cab: Round 42 = silent fallback only (no IR file found). Also the loudness reference for IR_E48.
+  bq_hp(bq_cab_hp, 85.0, 0.7071);
+  bq_lp(bq_cab_lp1, 7800.0, 0.7071);
+  bq_peak(bq_cab_f1, 125.0, 1.6, 3.2);
+  bq_peak(bq_cab_f2, 650.0, 1.2, -3.8);
+  bq_peak(bq_cab_f3, 2850.0, 1.4, 4.8);
+  bq_lp(bq_cab_lp2, 6200.0, 0.95);
+  cab_comp_lin = 0.72;
+
+  master_out_t = db2lin(slider51);
+  // Round 29: per-pedal WAV IR trim (dB). With IR_MATCH_DB = 3.8 (Devin's ear-match on the Metal Zone), Antigravity's
+  // Round 28 table gave WAV-IIR LUFS deltas RAT +4.17, DS-1 +0.67/-0.23, MT-2 +3.38, HM-2 +3.73/+4.83/+3.87. These trims
+  // bring every pedal to the Metal Zone's ear-matched +3.4 dB. The DS-1's brightness gets the most help from the IIR cab's 2.85 kHz peak.
+  ir_ped_g = slider10 < 0.5 ? 1 : db2lin(dist_ped == 0 ? -0.8 : dist_ped == 1 ? 3.1 : dist_ped == 3 ? -0.6 : 0.0);
+);
+
+function proc_amp_stage(x, mode) (
+  mode == 1 ? ( // Tube Head: asymmetric cathode/plate saturation
+    (x >= 0.0 ? soft_tanh(x * 1.45) : (0.85 * soft_tanh(x * 1.70))) * 0.56;
+  ) : ( // Solid-State Combo: MOSFET crisp rail clip
+    (clamp(x * 1.35, -0.82, 0.82) * 0.65 + 0.35 * soft_tanh(x * 1.85)) * 0.56;
+  );
+);
+
+// Amp stage (0=Off, 1=Tube Head, 2=Solid-State) + post-amp DC blocker + tone stack. Round 42: split from the cab so
+// chorus / reverb run in the amp's FX loop (after the amp, before the cab).
+function proc_amp() local(l, r, dc_l, dc_r_out) (
+  l = spl0; r = spl1;
+
+  slider54 > 0.5 ? (
+    l = bq_proc_l(bq_amp_hp, l); r = bq_proc_r(bq_amp_hp, r);
+    l = proc_amp_stage(l, slider54);
+    r = proc_amp_stage(r, slider54);
+    dc_l = l - amp_dc_x1_l + dc_r * amp_dc_y1_l; amp_dc_x1_l = l; amp_dc_y1_l = dc_l; l = dc_l;
+    dc_r_out = r - amp_dc_x1_r + dc_r * amp_dc_y1_r; amp_dc_x1_r = r; amp_dc_y1_r = dc_r_out; r = dc_r_out;
+    l = bq_proc_l(bq_amp_bass, l); r = bq_proc_r(bq_amp_bass, r);
+    l = bq_proc_l(bq_amp_mid, l);  r = bq_proc_r(bq_amp_mid, r);
+    l = bq_proc_l(bq_amp_treb, l); r = bq_proc_r(bq_amp_treb, r);
+    amp_was_on = 1;
+  ) : ( l *= 0.84; r *= 0.84;                         // Round 35: Amp OFF -1.5 dB = Tube's loudness (mirror, 4 pedals)
+    amp_was_on ? ( amp_was_on = 0; amp_dc_x1_l = 0; amp_dc_y1_l = 0; amp_dc_x1_r = 0; amp_dc_y1_r = 0;   // Round 39:
+      bq_clear(bq_amp_hp); bq_clear(bq_amp_bass); bq_clear(bq_amp_mid); bq_clear(bq_amp_treb); );   // no stale thump
+  );
+  spl0 = l; spl1 = r;
+);
+
+// Cabinet (WAV IR; IIR 4x12 only if no IR file loaded) -> Air -> Master -> -1 dBFS limiter
+function proc_cab_out() local(l, r, bp2) (
+  l = spl0; r = spl1;
+  slider49 > 0.5 ? (
+    ir_filter_len > 0 ? (
+      bp2 = ir_bpos * 2;
+      cv_frame[CV_B * 2 + bp2] = l; cv_frame[CV_B * 2 + bp2 + 1] = r;   // L/R in, as real/imag
+      l = cv_out[bp2] * ir_ped_g; r = cv_out[bp2 + 1] * ir_ped_g;        // previous block's output (latency CV_B)
+      ir_bpos += 1;
+      ir_bpos >= CV_B ? conv_block();
+      l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);
+    ) : (
+      l = bq_proc_l(bq_cab_hp, l);  r = bq_proc_r(bq_cab_hp, r);
+      l = bq_proc_l(bq_cab_f1, l);  r = bq_proc_r(bq_cab_f1, r);
+      l = bq_proc_l(bq_cab_f2, l);  r = bq_proc_r(bq_cab_f2, r);
+      l = bq_proc_l(bq_cab_f3, l);  r = bq_proc_r(bq_cab_f3, r);
+      l = bq_proc_l(bq_cab_lp2, l); r = bq_proc_r(bq_cab_lp2, r);
+      l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
+      l *= cab_comp_lin; r *= cab_comp_lin;
+    );
+  );
+
+  l = bq_proc_l(bq_amp_pres, l);
+  r = bq_proc_r(bq_amp_pres, r);
+
+  master_out_s = param_smooth_c * master_out_s + (1.0 - param_smooth_c) * master_out_t;
+  l *= master_out_s;
+  r *= master_out_s;
+
+  spl0 = limit_sample(l, 0.89125);
+  spl1 = limit_sample(r, 0.89125);
+
+  meter_out_peak = max(meter_out_peak * meter_decay_c, max(abs(spl0), abs(spl1)));
+);
