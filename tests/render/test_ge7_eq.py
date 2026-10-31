@@ -99,7 +99,7 @@ def test_eq_bands_frequency_and_gain():
 
     for pos, pos_name in positions:
         for label, slider_idx, target_f in bands:
-            cfg = {**rc.BASE_DEFAULTS, 10: 0, 49: 0, 54: 0, 65: 1, 73: 0.0, 76: pos}
+            cfg = {**rc.BASE_DEFAULTS, 10: 0, 54: 0, 65: 1, 73: 0.0, 76: pos}
             for b in range(66, 73):
                 cfg[b] = 0.0
             cfg[slider_idx] = 15.0
@@ -153,7 +153,7 @@ def test_eq_toggle_no_clicks():
     positions = [(0, "Pre-Pedal (slider76=0)"), (1, "Post-Pedal (slider76=1)")]
 
     for pos, pos_name in positions:
-        cfg = {**rc.BASE_DEFAULTS, 10: 0, 49: 0, 54: 0, 65: 1,
+        cfg = {**rc.BASE_DEFAULTS, 10: 0, 54: 0, 65: 1,
                66: 0, 67: 0, 68: 0, 69: 15.0, 70: 15.0, 71: 0, 72: 0, 73: 0, 76: pos}
 
         out_toggle = os.path.join(RENDER_DIR, f"out_toggle_{pos}.wav")

@@ -26,10 +26,6 @@ def test_pedal_mirror_null():
         ("DS-1", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["DS-1"]}),
         ("Metal Zone", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["Metal Zone"]}),
         ("HM-2", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["HM-2"]}),
-        ("TS > RAT", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["RAT"], 79: 1}),
-        ("TS > DS-1", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["DS-1"], 79: 1}),
-        ("TS > Metal Zone", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["Metal Zone"], 79: 1}),
-        ("TS > HM-2", {**rc.BASE_DEFAULTS, **rc.PEDAL_DEFAULTS["HM-2"], 79: 1}),
     ]
     
     print("=" * 88)
@@ -40,8 +36,8 @@ def test_pedal_mirror_null():
     results = {}
     
     for name, cfg in pedals:
-        # 1. Run Python mirror simulation (amp + cab + FX bypassed)
-        sim = np.array(v.simulate_chain(cfg, di, sr=sr, include_amp_cab=False))
+        # 1. Run Python mirror simulation (Round 52: ref_cab=False mirrors full plugin without cab)
+        sim = np.array(v.simulate_chain(cfg, di, sr=sr, ref_cab=False))
         
         # 2. Render isolated pedal track in REAPER (position 0.0, no tail bleed from prior tracks)
         safe_name = name.replace(" > ", "_into_").replace(" ", "_")
@@ -59,9 +55,6 @@ def test_pedal_mirror_null():
         rc.run_reaper(rpp_path)
         
         reaper_seg = rc.read_wav24(out_wav, channel=0)[:seg_len]
-        # Round 35 added Amp OFF 0.84 scaling (slider54=0) in JSFX proc_amp();
-        # divide by 0.84 to isolate the pedal's exact transfer function.
-        reaper_seg = reaper_seg / 0.84
         
         # 3. Sample-by-sample difference metrics
         diff = reaper_seg - sim

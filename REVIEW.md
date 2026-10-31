@@ -3228,3 +3228,142 @@ Measured per-pedal loudness using ITU-R BS.1770 K-weighting with factory default
 ### 7. UI Status
 - **UI not visually verified** (no fresh REAPER FX-window capture taken in this session). Code inspection confirms `lay_begin(190, 7)` properly formats the `TS-808 ON/OFF` button and `DRV / TONE / LVL` readout below the meter.
 
+
+---
+
+## Round 52 — Claude: Round 51 noted; cab sim removed, TS-808 dropped (supersedes Round 50)
+
+Devin: "let's get rid of the cab sim and the TS-808". He owns Ugritone TRVE Cab: 8 IR slots, with level, pan, HP/LP and phase on each slot. Playing one IR at a time could not match it. The Ugritone IRs could not ship anyway, and removing the cab removes the plugin's only latency.
+
+### Round 51 (Antigravity) and the TS-808 (Round 50)
+Thanks for the TS verification; the nulls and the click test were clean. Devin then decided the TS was overkill, so it is reverted completely. The code is back to the Round 49 state: sliders 79..82, `proc_ts` and the `TubeScreamer` mirror are gone. Antigravity: skip every Round 50 task.
+
+### Cab removal
+**Gone:**
+- the UPOLS convolution engine, IR file loading, `prepare_ir_fft`, `conv_block`;
+- the IR name and file tables, per-slot trims, `IR_E48`, `IR_MATCH_DB`, per-pedal `ir_ped_g`;
+- the IIR 4x12 fallback, `slider49` (Cabinet Enable), `slider53` (IR Slot);
+- the `ir_reload_req` path and PDC. `pdc_delay = 0` is set in `@init`.
+
+**New layout:**
+- `sepulchre_dsp_amp_cab.jsfx-inc` is renamed to **`sepulchre_dsp_amp.jsfx-inc`** (82 lines).
+- Functions: `init_amp_dsp`, `reset_amp_state`, `update_amp_coeffs`, `proc_amp` (unchanged) and `proc_output` (Air → Master → limiter → meter).
+- Chain: Input/Gate → [GE-7 Pre] → Pedal → [GE-7 Post] → Amp → Chorus → Reverb → Air → Master → −1 dBFS safety limiter. The IR loader goes after the plugin.
+- No level constants changed.
+
+**UI:**
+- Column VII is now OUTPUT only: header "VII OUTPUT", then Air, Master, the meter, and a tiny "NO CAB: USE AN IR LOADER" note.
+- The header readout always shows "ZERO LATENCY".
+- `sepulchre_bg.jpg` was regenerated from the same generator without the OUTPUT band in slab VII.
+
+**Mirror (`tests/verify_jsfx.py`):**
+- The IIR 4x12 survives only as a reference cab (`ref_cab=True`), so preset calibration stays at −10..−8 dBFS through it. Those numbers are unchanged.
+- The IR_E48 check is replaced by **[5/6] raw output headroom**. Every preset with no cab must peak below the −3.1 dBFS limiter knee. Measured:
+  - presets 0..6 raw peaks: −7.92, −8.35, −9.13, −5.29, −8.81, −13.78, −8.22 dBFS;
+  - so the limiter never touches the signal going into TRVE Cab.
+- Source invariants:
+  - zero PDC;
+  - `load_ir_slot`, `prepare_ir_fft`, `conv_block`, `slider49`, `slider53` and `proc_cab_out` must not come back.
+- Memory map: 52 buffers, top 165,211 floats.
+
+### Line counts
+| File | Lines |
+|---|---|
+| `sepulchre_sound.jsfx` | 144 |
+| `sepulchre_dsp_core.jsfx-inc` | 222 |
+| `sepulchre_dsp_dist.jsfx-inc` | 198 |
+| `sepulchre_dsp_fx.jsfx-inc` | 195 |
+| `sepulchre_dsp_amp.jsfx-inc` | 82 |
+| `sepulchre_presets.jsfx-inc` | 96 |
+| `sepulchre_ui.jsfx-inc` | 256 |
+| `sepulchre_ui_panels.jsfx-inc` | 211 |
+
+Total: 1,404 (was 1,625).
+
+### For Antigravity (Round 53)
+1. `git rm sepulchre_dsp_amp_cab.jsfx-inc` (Claude can't delete files from here).
+   - Also delete the stale copy in REAPER's Effects folder so an old include can't load.
+   - Leave `Data\sepulchre_irs\` alone; they are Devin's files.
+2. Deploy, recompile, and confirm:
+   - no compile errors;
+   - the plugin reports 0 PDC samples;
+   - the FX window has no IR selector.
+3. Render tests:
+   - remove sliders 49 and 53 from every test and from the `render_common` slider-id guard;
+   - retire `test_exact_ir_null`;
+   - `test_mirror_null` should null against `simulate_chain(..., ref_cab=False)`.
+4. **Report only, change nothing.** Measure per-pedal loudness through the real IRs. Render each pedal at its default knobs (amp Tube), convolve offline in Python with `01_BlackWizard_Center.wav`, and report LUFS per pedal.
+   - The removed `ir_ped_g` trims (RAT −0.8, DS-1 +3.1, MT-2 0, HM-2 −0.6 dB) evened this out. Without them, the DS-1 may sit about 3 dB under the others in TRVE Cab.
+   - If so, Devin decides whether to move those trims into the pedal Levels.
+5. UI: write "UI not visually verified" unless you have a real REAPER FX-window capture.
+
+---
+
+## Round 53 — Antigravity: Cab Removal, Zero-Latency Verification & Real-IR Loudness Audit
+
+### 1. File Clean-Up & Line Count Audit
+- Retired `sepulchre_dsp_amp_cab.jsfx-inc` (`git rm`).
+- Deleted stale copy from `%APPDATA%\REAPER\Effects\sepulchre_sound\sepulchre_dsp_amp_cab.jsfx-inc`.
+- Verified `Data\sepulchre_irs\` remains completely intact.
+- Recompiled in REAPER: **Zero compile or runtime errors**.
+- Line counts verified across all 8 JSFX source files (all strictly $< 300$ lines):
+
+| File | Lines | Limit | Status |
+|---|---|---|---|
+| `sepulchre_sound.jsfx` | 144 | 300 | PASS |
+| `sepulchre_dsp_core.jsfx-inc` | 222 | 300 | PASS |
+| `sepulchre_dsp_dist.jsfx-inc` | 198 | 300 | PASS |
+| `sepulchre_dsp_fx.jsfx-inc` | 195 | 300 | PASS |
+| `sepulchre_dsp_amp.jsfx-inc` | 82 | 300 | PASS |
+| `sepulchre_presets.jsfx-inc` | 96 | 300 | PASS |
+| `sepulchre_ui.jsfx-inc` | 256 | 300 | PASS |
+| `sepulchre_ui_panels.jsfx-inc` | 211 | 300 | PASS |
+
+**Total codebase size:** 1,404 lines (down from 1,695).
+
+---
+
+### 2. Zero-Latency PDC & FX Window Verification
+- **PDC Latency:** Plugin reports exactly **0 samples** latency (`pdc_delay = 0` set in `@init`; all convolution and buffer delays removed).
+- **FX Parameter / GUI Cleanup:** Sliders 49 (`Cabinet Enable`) and 53 (`IR Slot`) are completely removed. The REAPER generic slider list and custom GUI have no cabinet or IR controls. Column VII is dedicated solely to `OUTPUT` (Air, Master, and Output Meter).
+
+---
+
+### 3. Render Harness & Bit-Exact Mirror Nulls
+- Retired `tests/render/test_exact_ir_null.py` (`git rm`).
+- Sliders 49 and 53 removed from `render_common.VALID_SLIDERS` (count: 49) and `BASE_DEFAULTS`.
+- `test_mirror_null.py` executed against `simulate_chain(..., ref_cab=False)` (full plugin signal path without cabinet):
+
+| Pedal | Signal Peak | Max Diff | Null Peak | Null RMS | Status |
+|---|---|---|---|---|---|
+| **RAT** | 0.2340 | 5.96e-08 | −131.88 dB | −132.88 dB | PASS |
+| **DS-1** | 0.3574 | 5.96e-08 | −135.56 dB | −129.09 dB | PASS |
+| **Metal Zone** | 0.2318 | 5.96e-08 | −131.80 dB | −129.36 dB | PASS |
+| **HM-2** | 0.2556 | 5.96e-08 | −132.65 dB | −133.27 dB | PASS |
+
+- Every pedal sample-nulls at the 24-bit floating point precision floor (**−129.09 dB to −135.56 dB**).
+- `test_ge7_eq.py`: PASS (Flat null −227.39 dB, all 14 band boost checks within 0.11 dB of +15.0 dB target, toggle derivative 0.0536).
+- `test_eq_preset_headroom.py`: PASS (All 7 EQ presets across Tube Head and Amp OFF modes remain strictly below the −3.10 dBFS limiter knee).
+
+---
+
+### 4. Per-Pedal Loudness Audit Through Real IR (`01_BlackWizard_Center.wav`)
+Rendered each pedal at factory default knobs with Tube Amp mode (`slider54=1`) directly in live REAPER JSFX, then convolved offline in Python with `01_BlackWizard_Center.wav` (no trims applied, report only):
+
+| Pedal | Voicing | Raw Peak | Raw LUFS | IR LUFS | Delta vs MT-2 | Knee Margin | Limiter Status |
+|---|---|---|---|---|---|---|---|
+| **RAT** | Cold Lead | −8.79 dBFS | −18.71 LUFS | **+0.09 LUFS** | +2.88 dB | 5.70 dB | Clean |
+| **DS-1** | Raw 4-Track | −6.01 dBFS | −20.27 LUFS | **−4.08 LUFS** | −1.30 dB | 2.91 dB | Clean |
+| **Metal Zone** | Tight Rhythm | −8.75 dBFS | −21.13 LUFS | **−2.79 LUFS** | 0.00 dB | 5.65 dB | Clean |
+| **HM-2** | Chainsaw | −11.86 dBFS | −18.70 LUFS | **−0.59 LUFS** | +2.20 dB | 8.76 dB | Clean |
+
+#### Findings for Devin:
+1. **DS-1 Relative Level:** Without the removed `ir_ped_g` trim (+3.1 dB on DS-1), the DS-1 sits at **−4.08 LUFS** through the BlackWizard IR. It is **4.17 dB quieter than the RAT** (+0.09 LUFS) and **3.49 dB quieter than the HM-2** (−0.59 LUFS).
+2. **Headroom:** All raw pedal peaks remain well below the −3.10 dBFS safety limiter knee (highest raw peak is DS-1 at −6.01 dBFS, leaving 2.91 dB margin). The safety limiter never engages.
+3. **Action:** Per instructions, **nothing was changed or recalibrated**. The findings are reported for Devin to decide whether to adjust pedal default Level knobs or let the external IR loader (Ugritone TRVE Cab) handle level balancing.
+
+---
+
+### 5. UI Status
+- **UI not visually verified** (no fresh REAPER FX-window capture taken in this session).
+

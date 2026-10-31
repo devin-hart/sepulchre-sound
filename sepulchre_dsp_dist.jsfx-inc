@@ -11,16 +11,14 @@
 //                Low 88 Hz / High 920 + 1200 Hz gyrators (run at 8x) -> EQ op-amp rails (clips at High 10) -> Level
 // Round 11: every gyrator EQ uses gyro_peak() = constant pole/zero Q. RBJ bq_peak's Q is NOT the pole Q: at +30 dB
 // its pole Q is Q*5.6, which made the old MT-2 pre-hump ring at ~1 kHz (the reported 'whistle').
-// Round 50: TS-808 boost in front of the pedal (own 4x resampler bq_ts_up1..4 / bq_ts_dn1..4, see proc_ts below).
 // Uses biquads allocated in init_core_dsp(): bq_os_up1..4 / bq_os_dn1..4 (8x resampling), bq_dist_tb (MT-2 hump @ 8x),
 // bq_dist_gyr1 / bq_dist_gyr2 / bq_dist_post (HM-2 Color Mix coefficients @ 8x), bq_dist_p1..p6 (base-rate post EQ).
 @init
 
 DIST_OS = 8;
 MT_MK = 0.54; HM_MK = 1.6;   // Level make-up, calibrated by tests/verify_jsfx.py (presets -10..-8 dBFS)
-function c1r(fc, r) ( exp(-2 * $pi * min(fc, 0.45 * r) / r); );                             // 1-pole coeff @ rate r
-function c1x(fc) ( c1r(fc, srate * DIST_OS); );                                               // 1-pole coeff @ 8x
-function c1b(fc) ( c1r(fc, srate); );                                                         // 1-pole coeff @ 1x
+function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
+function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
 function sclip(x, v) local(y) ( y = x / v; v * y / sqrt(sqrt(1 + y * y * y * y)); );        // smooth rail (sqrt^2, not pow)
 function dclip(x, v, p) local(y) (                                                          // diode pair
@@ -154,55 +152,6 @@ function reset_dist_state() (
   bq_clear(bq_dist_p1); bq_clear(bq_dist_p2); bq_clear(bq_dist_p3);
   bq_clear(bq_dist_p4); bq_clear(bq_dist_p5); bq_clear(bq_dist_p6);
   dist_mk_s = dist_mk_t;
-);
-
-// ---------- Round 50: TS-808 boost ("Drive 0, Tone 5, Level 10" trick), 4x oversampled ----------
-// IC1 non-inverting stage: gain 1 + (51k + Drive 500k A) / (4.7k + 0.047 uF) -> x11.9 above 720 Hz even at Drive 0,
-// lows near unity; 1N914 pair across the feedback (symmetric soft clip); 51 pF sets the top (61 kHz .. 5.6 kHz).
-// Tone: 1k / 0.22 uF passive LPF (723 Hz) + active treble blend, -14 dB (0) .. -2 dB (5) .. +10 dB (10) above it.
-// Level: 100k A taper, unity at 10. Net at Drive 0 / Level 10: about +8 dB of mids and +4 dB of lows at 0.3 V, which
-// pushes mids into the pedal and keeps lows out of its clipper: tighter, faster attack.
-TS_OS = 4;
-function update_ts_coeffs() local(os_sr, os_fc, rf) (
-  os_sr = srate * TS_OS; os_fc = min(16500.0, srate * 0.36);
-  bq_lp_sr(bq_ts_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_ts_up2, os_fc, 0.6013, os_sr);
-  bq_lp_sr(bq_ts_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_ts_up4, os_fc, 2.5629, os_sr);
-  bq_lp_sr(bq_ts_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_ts_dn2, os_fc, 0.6013, os_sr);
-  bq_lp_sr(bq_ts_dn3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_ts_dn4, os_fc, 2.5629, os_sr);
-  rf = 51000 + 500000 * a_taper(slider80 * 0.1);
-  ts_G = rf / 4700; ts_a720 = c1r(720, os_sr); ts_aC = c1r(1 / (2 * $pi * rf * 0.000000000051), os_sr);
-  ts_a723 = c1b(723); ts_hg = 10 ^ ((2.4 * slider81 - 14) / 20); ts_mk_t = a_taper(slider82 * 0.1);
-);
-function ts_reset() instance(hx, hy, lc, lt) ( hx = 0; hy = 0; lc = 0; lt = 0; );
-function ts_os(x) instance(hx, hy, lc) (
-  hy = (1 + ts_a720) * 0.5 * (x - hx) + ts_a720 * hy; hx = x;          // 4.7k + 0.047 uF leg
-  lc = ts_G * hy + ts_aC * (lc - ts_G * hy);                           // 51 pF across the feedback
-  sclip(x + dclip(lc, 0.6, 2.5), 4.0);                                 // 1N914 pair in feedback, 4.5 V bias rails
-);
-function ts_tone(x) instance(lt) ( lt = x + ts_a723 * (lt - x); lt + ts_hg * (x - lt); );
-function reset_ts_state() (
-  tsL.ts_reset(); tsR.ts_reset(); ts_mk_s = ts_mk_t;
-  bq_clear(bq_ts_up1); bq_clear(bq_ts_up2); bq_clear(bq_ts_up3); bq_clear(bq_ts_up4);
-  bq_clear(bq_ts_dn1); bq_clear(bq_ts_dn2); bq_clear(bq_ts_dn3); bq_clear(bq_ts_dn4);
-);
-function proc_ts() local(k, xl, xr) (
-  ts_mk_s = param_smooth_c * ts_mk_s + (1.0 - param_smooth_c) * ts_mk_t;
-  ts_mix_s = param_smooth_c * ts_mix_s + (1.0 - param_smooth_c) * (slider79 > 0.5 ? 1.0 : 0.0);
-  ts_mix_s > 0.0001 ? (
-    k = 0;
-    loop(TS_OS,
-      xl = (k == 0) ? (spl0 * TS_OS) : 0.0;
-      xr = (k == 0) ? (spl1 * TS_OS) : 0.0;
-      xl = bq_proc_l(bq_ts_up4, bq_proc_l(bq_ts_up3, bq_proc_l(bq_ts_up2, bq_proc_l(bq_ts_up1, xl))));
-      xr = bq_proc_r(bq_ts_up4, bq_proc_r(bq_ts_up3, bq_proc_r(bq_ts_up2, bq_proc_r(bq_ts_up1, xr))));
-      xl = tsL.ts_os(xl); xr = tsR.ts_os(xr);
-      xl = bq_proc_l(bq_ts_dn4, bq_proc_l(bq_ts_dn3, bq_proc_l(bq_ts_dn2, bq_proc_l(bq_ts_dn1, xl))));
-      xr = bq_proc_r(bq_ts_dn4, bq_proc_r(bq_ts_dn3, bq_proc_r(bq_ts_dn2, bq_proc_r(bq_ts_dn1, xr))));
-      k += 1;
-    );
-    spl0 += ts_mix_s * (tsL.ts_tone(xl) * ts_mk_s - spl0);
-    spl1 += ts_mix_s * (tsR.ts_tone(xr) * ts_mk_s - spl1);
-  ) : ( ts_mix_s > 0 ? ( ts_mix_s = 0; reset_ts_state(); ); );
 );
 
 // Round 39: on/off crossfades over ~20 ms (was a hard switch: click). Fully bypassed = idle + state cleared.

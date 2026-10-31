@@ -23,12 +23,12 @@ def run_per_pedal_loudness_comparison():
     with open(presets_path, "r", encoding="utf-8") as f:
         presets = v.parse_global_presets(f.read())
 
-    # Default base configuration (WAV IR slot 0, Tube Amp, valid sliders only)
+    # Default base configuration (Tube Amp, valid sliders only)
     base = {
         1: 0.0, 2: 105.0, 3: -52.0, 4: 1,
         10: 1,
         20: 0, 40: 0, # Disable chorus/reverb for clean dry loudness
-        49: 1, 51: -0.5, 53: 0, 54: 1, 55: 54.0, 56: 44.0, 57: 62.0, 58: 64.0,
+        51: -0.5, 54: 1, 55: 54.0, 56: 44.0, 57: 62.0, 58: 64.0,
         65: 0, 76: 1
     }
 
@@ -54,9 +54,9 @@ def run_per_pedal_loudness_comparison():
         ("Preset 6 (Ambient Swell)", "Clean", dict(presets[6])),
     ]
 
-    # Ensure dry loudness check for presets (no chorus/reverb bleed) and default WAV IR
+    # Ensure dry loudness check for presets (no chorus/reverb bleed)
     for name, model, d in preset_cases:
-        d[20] = 0; d[40] = 0; d[49] = 1; d[53] = 0
+        d[20] = 0; d[40] = 0
 
     all_cases = pedal_cases + preset_cases
 
@@ -78,49 +78,59 @@ def run_per_pedal_loudness_comparison():
     if os.path.exists(out_wav):
         os.remove(out_wav)
 
-    print("Rendering WAV IR (Slot 0 BlackWizard) per-pedal and preset test cases in REAPER...")
+    print("Rendering raw (no cab) per-pedal and preset test cases in REAPER...")
     rc.run_reaper(rpp_path)
 
     samples = rc.read_wav24(out_wav, channel=0)
     seg_spl = int(0.40 * sr)
 
+    ir_path = os.path.join(rc.IR_DIR, "01_BlackWizard_Center.wav")
+    ir = rc.read_wav24(ir_path)
+
     results = []
     for i, (name, model, _) in enumerate(all_cases):
         st = int((i * item_gap + 0.03) * sr)
         seg = samples[st : st + seg_spl]
-        lufs = rc.calc_lufs(seg)
-        pk = rc.calc_peak_db(seg)
-        results.append((name, model, lufs, pk))
+        raw_lufs = rc.calc_lufs(seg)
+        raw_pk = rc.calc_peak_db(seg)
+
+        # Offline convolution with 01_BlackWizard_Center.wav (Round 53 verification)
+        N = len(seg) + len(ir) - 1
+        conv = np.fft.irfft(np.fft.rfft(seg, n=N) * np.fft.rfft(ir, n=N))[:len(seg)]
+        ir_lufs = rc.calc_lufs(conv)
+        ir_pk = rc.calc_peak_db(conv)
+
+        results.append((name, model, raw_lufs, raw_pk, ir_lufs, ir_pk))
 
     # Baseline: Metal Zone default loudness
-    mt2_lufs = results[2][2] # Index 2 is Default Metal Zone
+    mt2_ir_lufs = results[2][4] # Index 2 is Default Metal Zone (IR convolved)
 
-    print("\n" + "=" * 92)
-    print("--- 1. FOUR PEDALS DEFAULT LOUDNESS BALANCE (WAV IR Slot 0, Tube Amp) ---")
-    print(f"{'Pedal':<22} | {'Voicing':<12} | {'WAV LUFS':<10} | {'Delta vs MT-2':<14} | {'WAV Peak':<10} | Limiter Status")
-    print("=" * 92)
+    print("\n" + "=" * 105)
+    print("--- 1. FOUR PEDALS DEFAULT LOUDNESS BALANCE (Amp Tube Head, Offline Convolved with 01_BlackWizard_Center) ---")
+    print(f"{'Pedal':<22} | {'Voicing':<12} | {'Raw Peak':<10} | {'Raw LUFS':<10} | {'IR LUFS':<10} | {'Delta vs MT-2':<14} | Headroom")
+    print("=" * 105)
 
-    for name, model, lufs, pk in results[:4]:
-        delta = lufs - mt2_lufs
-        headroom = KNEE_DBFS - pk
-        status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
-        print(f"{name:<22} | {model:<12} | {lufs:6.2f} LUFS| {delta:+6.2f} dB      | {pk:6.2f} dBFS | {status}")
-        assert pk < KNEE_DBFS, f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
+    for name, model, raw_lufs, raw_pk, ir_lufs, ir_pk in results[:4]:
+        delta = ir_lufs - mt2_ir_lufs
+        headroom = KNEE_DBFS - raw_pk
+        status = f"Clean ({headroom:.2f} dB below knee)" if raw_pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
+        print(f"{name:<22} | {model:<12} | {raw_pk:6.2f} dBFS | {raw_lufs:6.2f} LUFS| {ir_lufs:6.2f} LUFS| {delta:+6.2f} dB      | {status}")
+        assert raw_pk < KNEE_DBFS, f"{name} exceeded limiter knee: {raw_pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
 
-    print("=" * 92)
+    print("=" * 105)
 
-    print("\n" + "=" * 92)
-    print("--- 2. GLOBAL PRESETS LOUDNESS & HEADROOM (WAV IR Slot 0, Dry FX) ---")
-    print(f"{'Preset':<28} | {'Voicing':<10} | {'WAV LUFS':<10} | {'WAV Peak':<10} | Limiter Status")
-    print("=" * 92)
+    print("\n" + "=" * 105)
+    print("--- 2. GLOBAL PRESETS RAW HEADROOM & OFFLINE IR LOUDNESS (Dry FX) ---")
+    print(f"{'Preset':<28} | {'Voicing':<10} | {'Raw Peak':<10} | {'Raw LUFS':<10} | {'IR LUFS':<10} | Limiter Status")
+    print("=" * 105)
 
-    for name, model, lufs, pk in results[4:]:
-        headroom = KNEE_DBFS - pk
-        status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
-        print(f"{name:<28} | {model:<10} | {lufs:6.2f} LUFS| {pk:6.2f} dBFS | {status}")
-        assert pk < KNEE_DBFS, f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
+    for name, model, raw_lufs, raw_pk, ir_lufs, ir_pk in results[4:]:
+        headroom = KNEE_DBFS - raw_pk
+        status = f"Clean ({headroom:.2f} dB below knee)" if raw_pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
+        print(f"{name:<28} | {model:<10} | {raw_pk:6.2f} dBFS | {raw_lufs:6.2f} LUFS| {ir_lufs:6.2f} LUFS| {status}")
+        assert raw_pk < KNEE_DBFS, f"{name} exceeded limiter knee: {raw_pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
 
-    print("=" * 92)
+    print("=" * 105)
 
     # Clean up test files
     if os.path.exists(out_wav): os.remove(out_wav)

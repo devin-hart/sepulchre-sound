@@ -104,8 +104,7 @@ function auto_slider(id, end_touch) (
   id == 40 ? slider_automate(slider40, end_touch) : id == 41 ? slider_automate(slider41, end_touch) :
   id == 42 ? slider_automate(slider42, end_touch) : id == 43 ? slider_automate(slider43, end_touch) :
   id == 44 ? slider_automate(slider44, end_touch) : id == 45 ? slider_automate(slider45, end_touch) :
-  id == 49 ? slider_automate(slider49, end_touch) :
-  id == 51 ? slider_automate(slider51, end_touch) : id == 53 ? slider_automate(slider53, end_touch) :
+  id == 51 ? slider_automate(slider51, end_touch) :
   id == 54 ? slider_automate(slider54, end_touch) : id == 55 ? slider_automate(slider55, end_touch) :
   id == 56 ? slider_automate(slider56, end_touch) : id == 57 ? slider_automate(slider57, end_touch) :
   id == 58 ? slider_automate(slider58, end_touch) : id == 60 ? slider_automate(slider60, end_touch) :
@@ -121,14 +120,11 @@ function auto_slider(id, end_touch) (
   id == 72 ? slider_automate(slider72, end_touch) : id == 73 ? slider_automate(slider73, end_touch) :
   id == 74 ? slider_automate(slider74, end_touch) : id == 75 ? slider_automate(slider75, end_touch) :
   id == 76 ? slider_automate(slider76, end_touch) : id == 77 ? slider_automate(slider77, end_touch) :
-  id == 78 ? slider_automate(slider78, end_touch) : id == 79 ? slider_automate(slider79, end_touch) :
-  id == 80 ? slider_automate(slider80, end_touch) : id == 81 ? slider_automate(slider81, end_touch) :
-  id == 82 ? slider_automate(slider82, end_touch);
+  id == 78 ? slider_automate(slider78, end_touch);
 );
 function set_param(id, v) (
   slider(id) = v; auto_slider(id, 1);
   ui_need_sync = 1; preset_dirty = 1;
-  id == 53 ? ir_reload_req = 1;
 );
 // ---------- Widgets ----------
 // Choice button: selected = bone block with ink text
