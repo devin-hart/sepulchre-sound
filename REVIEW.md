@@ -3946,18 +3946,16 @@ A Python mock of the full UI (DejaVu standing in for Bahnschrift) was shown to D
 ## Round 62 — Antigravity: Photorealistic Decrepit Crypt Redesign & Regression Verification
 
 ### 1. Aesthetic Rework (`sepulchre_bg.jpg`, 2408×1000)
-Devin noted that Claude's procedural Round 61 background looked "a little cartoony" and asked to make it look better and more decrepit/tomb/sepulchre-like.
+Devin noted that Claude's procedural Round 61 background looked "a little cartoony" and asked to make it look better and more decrepit/tomb/sepulchre-like. Follow-up feedback requested removing the separate lighter stone background block behind the "SEPULCHRE" logo (so the text is carved directly into the continuous wall masonry) and adding opacity/texture to the pedal area to eliminate the "1st semester graphic design boxy" look.
 
 **Root causes identified & fixed:**
-- **Eliminated Cartoony Elements:** Completely removed procedural lime-green Perlin noise slime, artificial squiggly vector doodle roots, and 45° chamfered vector bevels.
-- **Authentic Subterranean Crypt Masonry:** Scaled and seamless-composited high-resolution ancient granite/limestone crypt masonry with natural damp water weepage, soot-stained dark stone, and subtle cold mineral leaching (saltpeter efflorescence).
-- **Monumental Chiseled Lintel:** Deep Roman V-cut serif "SEPULCHRE" stone carving with authentic chisel shadows and subtle weathered fractures, naturally integrated into the top architrave.
-- **Recessed Burial Niches:** 
-  - Each of the 7 column niches features a dark slate/charcoal interior ($RGB \approx 12, 12, 11$) with subtle organic stone grain ($\pm 1.2$ std dev) to keep UI controls 100% legible and high-contrast.
-  - Deep recessed cavity ambient occlusion: graduated top cast shadow (16 px) and left shadow (10 px).
-  - Hand-hewn perimeter rim with illuminated bottom stone sills ($RGB \approx 55, 52, 45$) and shadowed top/left joints.
-- **Header Plaques:** Weathered dark stone tablet plates ($RGB \approx 21, 20, 18$) at $y=212..292$ and Col 7 Output $y=492..572$, providing a crisp architectural background for title sprites.
-- **Preset Recess:** Built an authentic carved stone socket at $x=1872..2372, y=72..128$ for the preset dropdown bar.
+- **Direct Stone Chisel ("SEPULCHRE"):** Removed the separate rectangular stone patch behind the logo. The monumental Roman V-cut serif lettering is now chiseled directly into the continuous subterranean masonry wall, with the actual granite blocks, mortar fissures, and damp mineral weathering running uninterrupted across and behind the carving.
+- **Translucent Pedal / Niche Cavities (De-boxing the 7 columns):** Rather than 100% opaque solid black cardboard boxes, the 7 niches now have a ~78% dark atmospheric charcoal wash over the stone masonry. The authentic stone wall texture and mortar lines subtly breathe through behind the pedal controls, sliders, and faders.
+- **Organic Ambient Occlusion:** Soft graduated cavity drop shadows from the top (22 px) and left (14 px) with natural lit stone sill reflections replace the harsh 1-pixel CSS-style vertical borders.
+- **Refined Organic Controls (`sepulchre_ui.jsfx-inc`):**
+  - **Choice Buttons (`ui_seg`):** Replaced the stark solid white 90° rectangles with softened aged-bone tablets (`#C4B79D` / `c_plate`) featuring chamfered corners and subtle inner chisel bevels.
+  - **Engaged Toggles (`ui_toggle`):** Replaced the harsh red brick with a carved groove filled with rich deep dried-blood enamel (`#50120E`) and a lit lower lip.
+  - **Header Plaques:** Weathered dark stone tablet plates ($RGB \approx 24, 23, 20$) at $y=212..292$ and Col 7 Output $y=492..572$, integrated organically into the top architrave.
 
 ---
 
@@ -3970,7 +3968,7 @@ Devin noted that Claude's procedural Round 61 background looked "a little cartoo
   - `sepulchre_dsp_fx.jsfx-inc`: 195 lines
   - `sepulchre_dsp_amp_cab.jsfx-inc`: 256 lines
   - `sepulchre_presets.jsfx-inc`: 163 lines
-  - `sepulchre_ui.jsfx-inc`: 274 lines
+  - `sepulchre_ui.jsfx-inc`: 284 lines
   - `sepulchre_ui_panels.jsfx-inc`: 216 lines
   - All 8 files strictly $< 300$ lines.
   - Dynamically parsed 65 EEL2 buffers; top=327,680 (0 overlaps).
