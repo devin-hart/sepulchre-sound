@@ -41,7 +41,7 @@ function panel_input(x, w) local(ix, iw, g, y) (
   y = lay(30);
   slider3 = ui_hslider(3, ix, y, iw, "THRESHOLD", slider3, -80, -30, -52, 0.5, "%.1f dB", 0);
   f_label(); gate_gain > 0.5 ? c_thumb() : c_ember();                 // gate state LED after the label
-  u_rect(ix + u_tw_sp("THRESHOLD", 1.6) + 6, y + 4, 6, 6);
+  gfx_circle(ui_ox + (ix + u_tw_sp("THRESHOLD", 1.6) + 9) * ui_S, ui_oy + (y + 7) * ui_S, 2.5 * ui_S, 1, 1);   // Round 63: round gate lamp
   ui_alpha = 1;
   ui_meter(ix, lay(40), iw, "INPUT", meter_in_peak, g ? slider3 : -999, -18);   // Round 55: aim peaks at -18..-6
 );
