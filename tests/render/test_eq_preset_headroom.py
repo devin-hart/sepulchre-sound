@@ -13,15 +13,17 @@ import render_common as rc
 KNEE_DBFS = 20.0 * math.log10(0.70) # -3.10 dBFS
 
 EQ_PRESETS = [
-    # id, name, 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (Round 39 re-centred)
-    (1, "Bathory '84", -2.5, -12.5, -6.0, -2.5, 12.5, 9.0, 3.0, -3.5),
-    (2, "Deathcrush '87", 5.0, -2.0, -1.0, 5.5, -7.0, 12.0, -3.0, -1.5),
-    (3, "Transilvanian '94", -9.0, -2.0, 0.0, 12.0, -2.0, 9.0, -3.5, -0.5),
-    (4, "Nightside '94", 3.0, 7.0, -5.0, -4.0, 5.5, 7.5, -2.0, -4.5),
-    (5, "Filosofem '96", 3.5, 4.0, -5.0, 9.5, 12.5, 3.5, 14.0, -6.0),
-    (6, "In Sorte '07", 0.0, -3.5, -1.5, 3.5, 6.0, 3.5, 3.0, 0.5),
-    (7, "Evangelion '09", 4.0, 0.0, -1.0, 8.0, 10.0, 1.0, 9.5, -3.5),
+    # id, name, 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (Round 39 re-centred, Round 58 names without years)
+    (1, "Bathory", -2.5, -12.5, -6.0, -2.5, 12.5, 9.0, 3.0, -3.5),
+    (2, "Deathcrush", 5.0, -2.0, -1.0, 5.5, -7.0, 12.0, -3.0, -1.5),
+    (3, "Transilvanian", -9.0, -2.0, 0.0, 12.0, -2.0, 9.0, -3.5, -0.5),
+    (4, "Nightside", 3.0, 7.0, -5.0, -4.0, 5.5, 7.5, -2.0, -4.5),
+    (5, "Filosofem", 3.5, 4.0, -5.0, 9.5, 12.5, 3.5, 14.0, -6.0),
+    (6, "In Sorte", 0.0, -3.5, -1.5, 3.5, 6.0, 3.5, 3.0, 0.5),
+    (7, "Evangelion", 4.0, 0.0, -1.0, 8.0, 10.0, 1.0, 9.5, -3.5),
 ]
+
+SPECTRE_CURVE = (-9.0, -5.0, 8.0, 14.0, 12.0, 4.0, 0.0, 0.0)
 
 def run_eq_preset_headroom():
     sr = 48000
@@ -138,7 +140,55 @@ def run_eq_preset_headroom():
     if os.path.exists(out_wav): os.remove(out_wav)
     if os.path.exists(rpp_path): os.remove(rpp_path)
 
-    return tube_results, off_results
+    # Pass 3 (Round 58/59): Spectre #8 (Pre-Pedal) across all 4 pedals
+    print("\n" + "=" * 105)
+    print("--- PASS 3: SPECTRE #8 EQ PRESET (Pre-Pedal, slider76=0) ACROSS 4 PEDALS ---")
+    print(f"{'Pedal':<16} | {'EQ Off LUFS':<14} | {'Spectre LUFS':<14} | {'Delta LUFS':<12} | {'Spectre Peak':<14} | Limiter Status")
+    print("=" * 105)
+
+    pedals = ["RAT", "DS-1", "Metal Zone", "HM-2"]
+    spectre_eq = {
+        65: 1, 75: 8, 76: 0,
+        66: -9.0, 67: -5.0, 68: 8.0, 69: 14.0, 70: 12.0, 71: 4.0, 72: 0.0, 73: 0.0
+    }
+
+    spectre_tracks = []
+    for i, p in enumerate(pedals):
+        cfg_off = {**base, **rc.PEDAL_DEFAULTS[p], 65: 0}
+        spectre_tracks.append(rc.make_track(f"{p}_Off", cfg_off, di_path, pos=2 * i * item_gap, length=item_len))
+        cfg_on = {**base, **rc.PEDAL_DEFAULTS[p], **spectre_eq}
+        spectre_tracks.append(rc.make_track(f"{p}_Spectre", cfg_on, di_path, pos=(2 * i + 1) * item_gap, length=item_len))
+
+    sp_wav = os.path.join(RENDER_DIR, "out_spectre_headroom.wav")
+    sp_rpp = os.path.join(RENDER_DIR, "test_spectre_headroom.rpp")
+    sp_len = round(8 * item_gap + 0.5, 2)
+
+    with open(sp_rpp, "w", encoding="utf-8") as f:
+        f.write(rc.build_rpp(spectre_tracks, sp_wav, sp_len, sr=sr))
+
+    rc.run_reaper(sp_rpp)
+    sp_samples = rc.read_wav24(sp_wav, channel=0)
+
+    spectre_results = []
+    for i, p in enumerate(pedals):
+        seg_off = sp_samples[int((2 * i * item_gap + 0.03) * sr) : int((2 * i * item_gap + 0.03) * sr) + seg_spl]
+        seg_on = sp_samples[int(((2 * i + 1) * item_gap + 0.03) * sr) : int(((2 * i + 1) * item_gap + 0.03) * sr) + seg_spl]
+        lufs_off = rc.calc_lufs(seg_off)
+        lufs_on = rc.calc_lufs(seg_on)
+        pk_on = rc.calc_peak_db(seg_on)
+        delta = lufs_on - lufs_off
+        assert pk_on < KNEE_DBFS, f"Spectre + {p} exceeded limiter knee: {pk_on:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
+        headroom = KNEE_DBFS - pk_on
+        status = f"Clean ({headroom:.2f} dB below knee)"
+        print(f"{p:<16} | {lufs_off:6.2f} LUFS     | {lufs_on:6.2f} LUFS     | {delta:+6.2f} dB     | {pk_on:6.2f} dBFS     | {status}")
+        spectre_results.append((p, lufs_off, lufs_on, delta, pk_on, status))
+
+    print("=" * 105)
+
+    if os.path.exists(sp_wav): os.remove(sp_wav)
+    if os.path.exists(sp_rpp): os.remove(sp_rpp)
+
+    return tube_results, off_results, spectre_results
 
 if __name__ == "__main__":
     run_eq_preset_headroom()

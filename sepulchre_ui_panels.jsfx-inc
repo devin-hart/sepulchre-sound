@@ -8,11 +8,11 @@
 UI_DIM = 0.28;
 UI_BODY_Y = 158;     // first control row (slab top 106 + 40 header + 12 padding)
 
-// Load a record EQ preset (values: eq_preset_vals in sepulchre_presets.jsfx-inc). Turns the EQ on and puts it after the pedal, where
-// its Level was loudness-matched (Round 39).
+// Load an EQ preset (values: eq_preset_vals in sepulchre_presets.jsfx-inc). Turns the EQ on; record curves go after the
+// pedal, where their Level was loudness-matched (Round 39); Spectre goes before it (eq_preset_pos, Round 58).
 function recall_eq_preset(i) local(k) (
   eq_preset_vals(i);                                           // table in sepulchre_presets.jsfx-inc
-  i > 0 ? ( slider65 = 1; slider76 = 1; auto_slider(76, 1); );
+  i > 0 ? ( slider65 = 1; slider76 = eq_preset_pos(i); auto_slider(76, 1); );
   slider75 = i; eq_last_preset = i; eq_dirty = 0;
   k = 65; loop(9, auto_slider(k, 1); k += 1; ); auto_slider(75, 1);
   ui_need_sync = 1;
@@ -126,8 +126,8 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, div, a, y, p, n) (
   ) : mod_id == 4 ? (                                   // GE-7: seven band faders + level
     ui_vs_hot = 0; n = floor(slider75 + 0.5);                // Round 34: record EQ presets, < > to step
     c_border(); u_frame(ix, UI_BODY_Y - 4, iw, 24);
-    ui_hit(ix, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n > 0 ? n - 1 : 7);
-    ui_hit(ix + iw - 20, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n < 7 ? n + 1 : 0);
+    ui_hit(ix, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n > 0 ? n - 1 : EQ_COUNT);
+    ui_hit(ix + iw - 20, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n < EQ_COUNT ? n + 1 : 0);
     f_value(); c_fill(); u_text(ix + 5, UI_BODY_Y, "<"); u_text_r(ix + iw - 5, UI_BODY_Y, ">");
     f_tiny(); c_bone(); strcpy(#eq_pn, get_eq_preset_name(n)); eq_dirty && n > 0 ? strcat(#eq_pn, " *");
     u_text_sp_c(ix + iw * 0.5, UI_BODY_Y + 8, #eq_pn, 0.6);

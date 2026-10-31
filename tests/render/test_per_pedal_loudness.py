@@ -23,115 +23,128 @@ def run_per_pedal_loudness_comparison():
     with open(presets_path, "r", encoding="utf-8") as f:
         presets = v.parse_global_presets(f.read())
 
-    # Default base configuration (WAV IR slot 0, Tube Amp, valid sliders only)
+    # --- PART 1: FOUR PEDALS DEFAULT LOUDNESS BALANCE (WAV IR Slot 0, Tube Amp) ---
     base = {
         1: 0.0, 2: 105.0, 3: -52.0, 4: 1,
         10: 1,
-        20: 0, 40: 0, # Disable chorus/reverb for clean dry loudness
+        20: 0, 40: 0,
         49: 1, 51: -0.5, 53: 0, 54: 1, 55: 54.0, 56: 44.0, 57: 62.0, 58: 64.0,
         65: 0, 76: 1
     }
 
-    # 4 pedals at factory defaults
-    rat_def = {**base, **rc.PEDAL_DEFAULTS["RAT"]}
-    ds1_def = {**base, **rc.PEDAL_DEFAULTS["DS-1"]}
-    mt2_def = {**base, **rc.PEDAL_DEFAULTS["Metal Zone"]}
-    hm2_def = {**base, **rc.PEDAL_DEFAULTS["HM-2"]}
-
-    pedal_cases = [
-        ("Default RAT", "RAT", rat_def),
-        ("Default DS-1", "DS-1", ds1_def),
-        ("Default Metal Zone", "Metal Zone", mt2_def),
-        ("Default HM-2", "HM-2", hm2_def),
+    pedals = [
+        ("Default RAT", "RAT", {**base, **rc.PEDAL_DEFAULTS["RAT"]}),
+        ("Default DS-1", "DS-1", {**base, **rc.PEDAL_DEFAULTS["DS-1"]}),
+        ("Default Metal Zone", "Metal Zone", {**base, **rc.PEDAL_DEFAULTS["Metal Zone"]}),
+        ("Default HM-2", "HM-2", {**base, **rc.PEDAL_DEFAULTS["HM-2"]}),
     ]
 
-    preset_cases = [
-        ("Preset 01 (Frostbitten)", "DS-1", dict(presets[0])),
-        ("Preset 02 (Tremolo Rhythm)", "MT-2", dict(presets[1])),
-        ("Preset 03 (Raw 4-Track)", "DS-1", dict(presets[2])),
-        ("Preset 04 (Buzzsaw)", "HM-2", dict(presets[3])),
-        ("Preset 05 (Atmospheric Wall)", "RAT", dict(presets[4])),
-        ("Preset 06 (Depressive)", "RAT", dict(presets[5])),
-        ("Preset 07 (Modern Black)", "MT-2", dict(presets[6])),
-        ("Preset 08 (Cold Lead)", "RAT", dict(presets[7])),
-        ("Preset 09 (Freezing Clean)", "Clean", dict(presets[8])),
-        ("Preset 10 (Ambient Swell)", "RAT", dict(presets[9])),
-    ]
+    p_gap = 0.50
+    p_len = 0.45
+    p_tracks = []
+    for i, (name, model, cfg) in enumerate(pedals):
+        p_tracks.append(rc.make_track(f"{name}_{model}", cfg, di_path, round(i * p_gap, 2), p_len))
 
-    # Ensure dry loudness check for presets (no chorus/reverb bleed) and default WAV IR
-    for name, model, d in preset_cases:
-        d[49] = 1; d[53] = 0
+    p_wav = os.path.join(RENDER_DIR, "out_pedals_balance.wav")
+    p_rpp = os.path.join(RENDER_DIR, "test_pedals_balance.rpp")
+    p_total_len = round(len(pedals) * p_gap + 0.2, 2)
 
-    all_cases = pedal_cases + preset_cases
+    with open(p_rpp, "w", encoding="utf-8") as f:
+        f.write(rc.build_rpp(p_tracks, p_wav, p_total_len, sr=sr))
 
-    item_len = 0.45
-    item_gap = 0.50
-    total_len = round(len(all_cases) * item_gap + 0.2, 2)
-
-    tracks = []
-    for i, (name, model, cfg) in enumerate(all_cases):
-        t_pos = round(i * item_gap, 2)
-        tracks.append(rc.make_track(f"{name}_{model}", cfg, di_path, t_pos, item_len))
-
-    out_wav = os.path.join(RENDER_DIR, "out_per_pedal_loudness.wav")
-    rpp_path = os.path.join(RENDER_DIR, "test_per_pedal_loudness.rpp")
-
-    with open(rpp_path, "w", encoding="utf-8") as f:
-        f.write(rc.build_rpp(tracks, out_wav, total_len, sr=sr))
-
-    if os.path.exists(out_wav):
-        os.remove(out_wav)
-
-    print("Rendering WAV IR (Slot 0 BlackWizard) per-pedal and preset test cases in REAPER...")
-    rc.run_reaper(rpp_path)
-
-    samples = rc.read_wav24(out_wav, channel=0)
+    rc.run_reaper(p_rpp)
+    p_samples = rc.read_wav24(p_wav, channel=0)
     seg_spl = int(0.40 * sr)
 
-    results = []
-    for i, (name, model, _) in enumerate(all_cases):
-        st = int((i * item_gap + 0.03) * sr)
-        seg = samples[st : st + seg_spl]
+    p_results = []
+    for i, (name, model, _) in enumerate(pedals):
+        st = int((i * p_gap + 0.03) * sr)
+        seg = p_samples[st : st + seg_spl]
         lufs = rc.calc_lufs(seg)
         pk = rc.calc_peak_db(seg)
-        results.append((name, model, lufs, pk))
+        p_results.append((name, model, lufs, pk))
 
-    # Baseline: Metal Zone default loudness
-    mt2_lufs = results[2][2] # Index 2 is Default Metal Zone
+    mt2_lufs = p_results[2][2] # Metal Zone baseline
 
-    print("\n" + "=" * 92)
+    print("\n" + "=" * 96)
     print("--- 1. FOUR PEDALS DEFAULT LOUDNESS BALANCE (WAV IR Slot 0, Tube Amp) ---")
     print(f"{'Pedal':<22} | {'Voicing':<12} | {'WAV LUFS':<10} | {'Delta vs MT-2':<14} | {'WAV Peak':<10} | Limiter Status")
-    print("=" * 92)
+    print("=" * 96)
 
-    for name, model, lufs, pk in results[:4]:
+    for name, model, lufs, pk in p_results:
         delta = lufs - mt2_lufs
         headroom = KNEE_DBFS - pk
         status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
         print(f"{name:<22} | {model:<12} | {lufs:6.2f} LUFS| {delta:+6.2f} dB      | {pk:6.2f} dBFS | {status}")
         assert pk < KNEE_DBFS, f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
 
-    print("=" * 92)
+    print("=" * 96)
 
-    print("\n" + "=" * 92)
-    print("--- 2. GLOBAL PRESETS LOUDNESS & HEADROOM (WAV IR Slot 0, Active FX) ---")
-    print(f"{'Preset':<28} | {'Voicing':<10} | {'WAV LUFS':<10} | {'WAV Peak':<10} | Limiter Status")
-    print("=" * 92)
+    if os.path.exists(p_wav): os.remove(p_wav)
+    if os.path.exists(p_rpp): os.remove(p_rpp)
 
-    for name, model, lufs, pk in results[4:]:
+    # --- PART 2: GLOBAL PRESETS LOUDNESS GATE (WAV IR Slot 0, Isolated Tracks) ---
+    # Round 59 Gate: Every preset within +/-1.5 dB from median, no peak above -3.10 dBFS, no exceptions.
+    preset_names = [
+        "01: Frostbitten", "02: Tremolo Rhythm", "03: Raw 4-Track", "04: Buzzsaw",
+        "05: Atmospheric Wall", "06: Depressive", "07: Modern Black", "08: Cold Lead",
+        "09: Freezing Clean", "10: Ambient Swell"
+    ]
+
+    gap = 10.0
+    item_len = 0.45
+    tracks = []
+    for idx in range(10):
+        cfg = dict(presets[idx])
+        cfg[53] = 0 # WAV IR slot 0
+        t_pos = idx * gap
+        tracks.append(rc.make_track(f"Track_{idx}", cfg, di_path, pos=t_pos, length=item_len))
+
+    out_wav = os.path.join(RENDER_DIR, "out_presets_gate.wav")
+    rpp_path = os.path.join(RENDER_DIR, "test_presets_gate.rpp")
+    total_len = 10 * gap + 2.0
+
+    with open(rpp_path, "w", encoding="utf-8") as f:
+        f.write(rc.build_rpp(tracks, out_wav, total_len, sr=sr))
+
+    print("\nRendering 10 Global Presets in live REAPER (WAV IR Slot 0, Active FX, Isolated Tracks)...")
+    rc.run_reaper(rpp_path)
+
+    samples = rc.read_wav24(out_wav, channel=0)
+    lufs_list = []
+    pk_list = []
+    for idx in range(10):
+        seg = samples[int(idx * gap * sr) : int((idx * gap + item_len) * sr)]
+        lufs = rc.calc_lufs(seg)
+        pk = rc.calc_peak_db(seg)
+        lufs_list.append(lufs)
+        pk_list.append(pk)
+
+    med_lufs = np.median(lufs_list)
+
+    print("\n" + "=" * 105)
+    print(f"--- 2. GLOBAL PRESETS LOUDNESS GATE (WAV IR Slot 0, Active FX, Median: {med_lufs:.2f} LUFS) ---")
+    print(f"{'Preset':<28} | {'Mono LUFS':<10} | {'Delta vs Med':<14} | {'True Peak':<10} | Limiter Status (Knee: -3.10 dBFS)")
+    print("=" * 105)
+
+    for idx in range(10):
+        name = preset_names[idx]
+        lufs = lufs_list[idx]
+        pk = pk_list[idx]
+        delta = lufs - med_lufs
         headroom = KNEE_DBFS - pk
         status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
-        print(f"{name:<28} | {model:<10} | {lufs:6.2f} LUFS| {pk:6.2f} dBFS | {status}")
-        if pk >= KNEE_DBFS:
-            print(f"  [FLAG] {name} touches limiter knee ({pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS)")
+        print(f"{name:<28} | {lufs:6.2f} LUFS| {delta:+6.2f} dB      | {pk:6.2f} dBFS | {status}")
+        assert abs(delta) <= 1.5, f"{name} loudness delta {delta:+.2f} dB exceeds +/-1.5 dB from median ({med_lufs:.2f} LUFS)"
+        assert pk < KNEE_DBFS, f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
 
-    print("=" * 92)
+    print("=" * 105)
+    print(f"LOUDNESS GATE PASSED: All 10 presets within +/-{max(abs(l - med_lufs) for l in lufs_list):.2f} dB of median ({med_lufs:.2f} LUFS), 0 knee exceedances.")
 
-    # Clean up test files
     if os.path.exists(out_wav): os.remove(out_wav)
     if os.path.exists(rpp_path): os.remove(rpp_path)
 
-    return results
+    return p_results, lufs_list, pk_list
 
 if __name__ == "__main__":
     run_per_pedal_loudness_comparison()

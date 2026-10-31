@@ -6,7 +6,9 @@ Static checks and offline DSP mirror for Sepulchre Sound (run before every commi
    pdc_delay in @block, IR reload handler, no file I/O in coefficient updates, slider
    automation masks).
 2. Python mirror of the pedals (8x oversampled), amp, IIR cab and limiter:
-   - Round 55: every preset at K-weighted loudness -21 +/- 1 dB, peak <= -6 dBFS, DC < 0.004 (IIR cab path);
+   - Round 59: loudness through the real slot-0 IR (read from outside the repo; skipped if absent), check [8/8];
+   - every preset peaks below the -3.1 dBFS limiter knee with DC < 0.004 (IIR cab path); Round 58: preset loudness is
+     calibrated from REAPER renders (WAV IR, chorus / reverb), not by this mirror;
    - in-band aliasing per pedal (2578 Hz tone);
    - no pedal filter with pole Q > 3.5 at any knob extreme (no ringing);
    - IR_E48 matches the IIR cab's weighted energy;
@@ -65,7 +67,7 @@ def strip_comments_and_strings(code):
 
 
 def check_syntax_and_r2_fixes():
-    print("[1/7] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
+    print("[1/8] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
     raw_by_file = {}
     cleaned_by_file = {}
     for fname in EXPECTED_FILES:
@@ -460,14 +462,14 @@ def parse_global_presets(presets_src):
         g = re.search(r"gp_eq\((\d)\)", body)
         if g:
             n = int(g.group(1))
-            d.update({66 + j: v for j, v in enumerate(eqt[n])}); d.update({65: 1.0, 76: 1.0, 75: float(n)})
+            d.update({66 + j: v for j, v in enumerate(eqt[n])}); d.update({65: 1.0, 76: 0.0 if n == 8 else 1.0, 75: float(n)})
         d.update(sl(body))
         presets[int(chunks[k])] = d
     return presets
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[2/7] Preset loudness through the reference cab (K-weighted RMS -21 +/- 1 dB, peak <= -6 dBFS)...")
+    print("[2/8] Presets through the reference cab: peak below the -3.1 dBFS limiter knee, DC (loudness: REAPER renders)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n_samples = int(0.45 * sr)
@@ -479,7 +481,10 @@ def check_presets_dc_and_levels(presets_src):
         signal.append(val)
 
     kshelf, khp = bq_shelf_coeffs(1681.0, 4.0, sr, True), bq_hp_coeffs(38.0, 0.5, sr)
-    for idx in sorted(presets):   # Round 55: every preset, loudness-matched (K-weighted RMS, ~LUFS) instead of peak
+    # Round 58: loudness is calibrated from REAPER renders (WAV IR + chorus / reverb; Antigravity's per-preset table), not
+    # here: the Round 55 mirror match was off by up to 7.5 dB. The mirror's K-loudness is printed for reference only;
+    # the checks are the limiter knee and DC.
+    for idx in sorted(presets):
         out = simulate_chain(presets[idx], signal, sr, include_amp_cab=True, ref_cab=True)
         steady = out[int(0.03 * sr):]
         peak_db = 20.0 * math.log10(max(abs(x) for x in steady))
@@ -488,10 +493,11 @@ def check_presets_dc_and_levels(presets_src):
         k_db = 10.0 * math.log10(sum(v * v for v in kw) / len(kw))
         dc = abs(sum(steady) / len(steady))
         print(f"  - Preset {idx + 1:02d} K-loudness {k_db:+.2f} dB | peak {peak_db:+.2f} dBFS | DC {dc:.5f}")
-        if abs(k_db + 21.0) > 1.0:
-            raise AssertionError(f"Preset {idx + 1:02d} K-loudness {k_db:.2f} dB outside -21 +/- 1 dB")
-        if peak_db > -6.0:
-            raise AssertionError(f"Preset {idx + 1:02d} peak {peak_db:.2f} dBFS above -6 dBFS")
+        raw = dict(presets[idx]); raw[49] = 0.0   # Round 58: also with the cab off (feeding an external IR loader)
+        raw_db = 20.0 * math.log10(max(abs(x) for x in simulate_chain(raw, signal, sr)[int(0.03 * sr):]))
+        print(f"      cab off peak {raw_db:+.2f} dBFS")
+        if max(peak_db, raw_db) > -3.1:
+            raise AssertionError(f"Preset {idx + 1:02d} peak {max(peak_db, raw_db):.2f} dBFS reaches the -3.1 dBFS limiter knee")
         if dc > 0.004:
             raise AssertionError(f"Preset {idx + 1:02d} DC offset {dc:.5f} exceeds 0.004 threshold")
 
@@ -499,7 +505,7 @@ def check_presets_dc_and_levels(presets_src):
 def check_pre_cab_aliasing_all_bins(presets_src):
     # Round 9: every pedal model, at its preset settings, 8x oversampled. In-band (20 Hz - 8 kHz)
     # limit -40 dB for every pedal (Round 30: HM-2 tightened from -34 dB after its Round 23/27 rebuild measured -47 dB).
-    print("[3/7] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
+    print("[3/8] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
@@ -540,7 +546,7 @@ def pole_q(b):
 def check_no_resonant_filters():
     # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
     # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
-    print("[4/7] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
+    print("[4/8] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     worst = 0.0
@@ -564,7 +570,7 @@ def check_no_resonant_filters():
 def check_ir_loudness_constant():
     # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
     # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
-    print("[5/7] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    print("[5/8] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
     src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
@@ -590,7 +596,7 @@ def check_ir_loudness_constant():
 def check_distortion_gain_curve(presets_src):
     # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
     # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
-    print("[6/7] Verifying high-gain saturation curve (distortion output vs input level)...")
+    print("[6/8] Verifying high-gain saturation curve (distortion output vs input level)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = int(0.25 * sr)
@@ -608,7 +614,7 @@ def check_distortion_gain_curve(presets_src):
 
 def check_defaults_match_preset_1(presets_src):
     # Round 55: a freshly inserted plugin must sound exactly like the preset its header shows (01, slider60 = 0)
-    print("[7/7] Checking slider defaults == preset 01 (fresh insert)...")
+    print("[7/8] Checking slider defaults == preset 01 (fresh insert)...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     p0 = parse_global_presets(presets_src)[0]
@@ -620,6 +626,93 @@ def check_defaults_match_preset_1(presets_src):
         raise AssertionError(f"slider defaults differ from preset 01: {bad}")
 
 
+def _read_wav_mono(path):
+    import wave
+    import numpy as np
+    w = wave.open(path)
+    n, ch, sw = w.getnframes(), w.getnchannels(), w.getsampwidth()
+    b = np.frombuffer(w.readframes(n), dtype=np.uint8)
+    if sw == 3:
+        b = b.reshape(-1, 3)
+        v = b[:, 0].astype(np.int32) | (b[:, 1].astype(np.int32) << 8) | (b[:, 2].astype(np.int32) << 16)
+        v = np.where(v >= 2 ** 23, v - 2 ** 24, v) / 2.0 ** 23
+    elif sw == 2:
+        v = np.frombuffer(b.tobytes(), dtype=np.int16) / 32768.0
+    else:
+        v = np.frombuffer(b.tobytes(), dtype=np.int32) / 2.0 ** 31
+    return v.reshape(-1, ch)[:, 0], w.getframerate()
+
+
+def _bq_run(b, x):
+    b = list(b)
+    return [bq_step(b, v) for v in x]
+
+
+def _lufs_ungated(x):
+    # BS.1770 K-weighting at 48 kHz (same coefficients as tests/render/render_common.py), ungated mean square
+    hs = [1.53512485958697, -2.69169618940638, 1.19839281085285, -1.69065929318241, 0.73248077421585, 0.0, 0.0]
+    hp = [1.0, -2.0, 1.0, -1.99004745483398, 0.99007225035621, 0.0, 0.0]
+    y = _bq_run(hp, _bq_run(hs, x))
+    return -0.691 + 10.0 * math.log10(max(1e-12, sum(v * v for v in y) / len(y)))
+
+
+def check_real_ir_loudness(presets_src, raw_files):
+    # Round 59: the presets' loudness through the REAL cab IR (slot 0), mirroring prepare_ir_fft() / proc_cab_out().
+    # Validated in Round 59 against Antigravity's Round 57 REAPER renders: within 0.05..0.8 dB for presets with little or
+    # no chorus / reverb (the mirror has neither). Those presets must sit within 1 dB of the bank target; FX-heavy ones
+    # are printed only (their loudness gate is the REAPER render test). The Ugritone IRs are NOT in the repo: they are
+    # read from SEPULCHRE_IR_DIR or %APPDATA%\REAPER\Data\sepulchre_irs, and the check is skipped without them.
+    print("[8/8] Preset loudness through the real slot-0 IR (di_input.wav, BS.1770 ungated)...")
+    try:
+        import numpy as np
+    except ImportError:
+        print("  - SKIPPED: numpy not installed"); return
+    ir_dir = os.environ.get("SEPULCHRE_IR_DIR") or os.path.join(os.environ.get("APPDATA", ""), "REAPER", "Data", "sepulchre_irs")
+    ir_path = os.path.join(ir_dir, "01_BlackWizard_Center.wav")
+    di_path = os.path.join(ROOT, "tests", "render", "di_input.wav")
+    if not (os.path.exists(ir_path) and os.path.exists(di_path)):
+        print(f"  - SKIPPED: {ir_path if not os.path.exists(ir_path) else di_path} not found"); return
+    amp = raw_files["sepulchre_dsp_amp_cab.jsfx-inc"]
+    trim0 = float(re.search(r"idx == 0 \? ([-0-9.]+)", amp.split("function get_ir_slot_trim_db")[1]).group(1))
+    match_db = float(re.search(r"^IR_MATCH_DB = ([-0-9.]+);", amp, flags=re.MULTILINE).group(1))
+    e48 = float(re.search(r"^IR_E48 = ([0-9.]+);", amp, flags=re.MULTILINE).group(1))
+    m = re.search(r"dist_ped == 0 \? ([-0-9.]+) : dist_ped == 1 \? ([-0-9.]+) : dist_ped == 3 \? ([-0-9.]+) : ([-0-9.]+)\)", amp)
+    ped_db = {0: float(m.group(1)), 1: float(m.group(2)), 3: float(m.group(3)), 2: float(m.group(4))}
+    sr = 48000.0
+    raw, isr = _read_wav_mono(ir_path)
+    raw = raw[:4096]
+    isc = isr / sr
+    fl = int(min(math.floor(2048 * sr / 48000), math.floor(len(raw) / isc)))
+    i = np.arange(fl); ipos = np.floor(i * isc).astype(int); fr = i * isc - ipos
+    ir = raw[ipos] * (1 - fr) + raw[np.minimum(len(raw) - 1, ipos + 1)] * fr
+    buf = list(ir) + [0.0] * 2048
+    for b in (bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False),
+              bq_lp_coeffs(6000.0, 0.7071, sr)):
+        buf = _bq_run(b, buf)
+    ir = ir * math.sqrt(e48 / sum(v * v for v in buf)) * 10.0 ** ((trim0 + match_db) / 20.0)
+    di = list(_read_wav_mono(di_path)[0])
+    presets = parse_global_presets(presets_src)
+    target, fails = -18.6, []
+    for idx in sorted(presets):
+        p = dict(presets[idx])
+        master = p.get(51, 0.0)
+        p[49], p[51] = 0.0, -12.0                     # cab applied below; -12 dB keeps the limiter out of the mirror
+        y = np.array(simulate_chain(p, di, sr)) * 10.0 ** (12.0 / 20.0)
+        y = np.convolve(y, ir)[:len(y)]               # Air (in simulate_chain) is linear, so it commutes with the cab
+        if p.get(10, 1) > 0.5:
+            y = y * 10.0 ** (ped_db[int(p[11] + 0.5)] / 20.0)
+        y = np.array(_bq_run(bq_hp_coeffs(85.0, 0.7071, sr), y)) * 10.0 ** (master / 20.0)
+        y = [limit_sample(v, 0.89125) for v in y]
+        lu = _lufs_ungated(y)
+        dry = p.get(20, 0) < 0.5 and (p.get(40, 0) < 0.5 or p.get(45, 0) <= 15)
+        tag = "checked" if dry else "info only (chorus / long reverb not mirrored)"
+        print(f"  - Preset {idx + 1:02d}: {lu:+.2f} LUFS ({lu - target:+.2f} vs {target}) [{tag}]")
+        if dry and abs(lu - target) > 1.0:
+            fails.append(f"{idx + 1:02d} {lu:+.2f} LUFS")
+    if fails:
+        raise AssertionError("presets off the -18.6 LUFS bank target by > 1 dB through the real IR: " + ", ".join(fails))
+
+
 if __name__ == "__main__":
     try:
         raw_files = check_syntax_and_r2_fixes()
@@ -629,6 +722,7 @@ if __name__ == "__main__":
         check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
         check_defaults_match_preset_1(raw_files["sepulchre_presets.jsfx-inc"])
+        check_real_ir_loudness(raw_files["sepulchre_presets.jsfx-inc"], raw_files)
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)

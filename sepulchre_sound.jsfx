@@ -55,11 +55,11 @@ slider70:-2<-15,15,0.5>-EQ 1.6 kHz (dB)
 slider71:9<-15,15,0.5>-EQ 3.2 kHz (dB)
 slider72:-3.5<-15,15,0.5>-EQ 6.4 kHz (dB)
 slider73:-0.5<-15,15,0.5>-EQ Level (dB)
-slider75:3<0,7,1{Custom,Bathory 84,Deathcrush 87,Transilvanian Hunger 94,Nightside Eclipse 94,Filosofem 96,In Sorte Diaboli 07,Evangelion 09}>-EQ Preset
+slider75:3<0,8,1{Custom,Bathory,Deathcrush,Transilvanian Hunger,Nightside Eclipse,Filosofem,In Sorte Diaboli,Evangelion,Spectre}>-EQ Preset
 
 // Amp, Cabinet (WAV IR) & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
-slider51:-5.4<-24.0,6.0,0.1>-Master Output (dB)
+slider51:-3.8<-24.0,6.0,0.1>-Master Output (dB)
 slider53:0<0,9,1{01 BlackWizard Center,02 BlackWizard Edge,03 Destroyer Center,04 Destroyer Edge,05 LordOfGoats Center,06 LordOfGoats Edge,07 MysteriousSatan Center,08 Swordman Center,09 HeadKrush Center,10 PlagueBearer Center}>-Cabinet WAV Impulse Slot
 slider54:2<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
 slider55:40<0,100,1>-Amp Bass (%)
