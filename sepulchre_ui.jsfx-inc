@@ -9,20 +9,25 @@ gfx_ext_retina = 1;
 
 // ---------- Palette ----------
 function u_rgb(r, g, b) ( gfx_r = r / 255; gfx_g = g / 255; gfx_b = b / 255; gfx_a = ui_alpha; );
-function c_void()   ( u_rgb(9, 9, 9); );
-function c_bone()   ( u_rgb(232, 227, 215); );   // values, selected fill
-function c_lab()    ( u_rgb(163, 158, 148); );   // labels
-function c_soft()   ( u_rgb(154, 149, 139); );   // unselected button text
-function c_border() ( u_rgb(58, 56, 54); );      // button / box outlines
-function c_track()  ( u_rgb(42, 41, 39); );      // slider track
-function c_fill()   ( u_rgb(143, 138, 128); );   // slider fill
-function c_thumb()  ( u_rgb(239, 233, 220); );
-function c_det()    ( u_rgb(86, 83, 78); );      // centre detent
-function c_blood()  ( u_rgb(132, 18, 22); );     // engaged toggle fill
-function c_ember()  ( u_rgb(176, 28, 34); );     // power LEDs, gate threshold
-function c_mbg()    ( u_rgb(29, 28, 27); );      // meter background
-function c_tick()   ( u_rgb(119, 114, 106); );
-function c_ink()    ( u_rgb(10, 10, 10); );      // text on bone
+// Round 60 "decrepit crypt" palette: aged bone, lichen-grey labels, worn stone, dried blood, candle flame
+function c_void()   ( u_rgb(9, 9, 8); );
+function c_bone()   ( u_rgb(226, 214, 188); );   // values, selected plate (aged bone)
+function c_lab()    ( u_rgb(150, 148, 128); );   // labels (lichen grey)
+function c_soft()   ( u_rgb(140, 136, 120); );   // unselected button text
+function c_border() ( u_rgb(64, 60, 52); );      // stone edge
+function c_track()  ( u_rgb(16, 15, 13); );      // chiselled groove floor
+function c_fill()   ( u_rgb(150, 140, 118); );   // bone dust in the groove
+function c_thumb()  ( u_rgb(232, 220, 192); );   // bone chip
+function c_det()    ( u_rgb(96, 90, 78); );      // centre notch, hover edge
+function c_blood()  ( u_rgb(92, 20, 16); );      // engaged toggle (dried blood)
+function c_ember()  ( u_rgb(230, 150, 62); );    // candle flame: power LEDs, gate threshold
+function c_flame()  ( u_rgb(255, 214, 140); );   // flame core
+function c_mbg()    ( u_rgb(14, 13, 12); );      // meter groove
+function c_tick()   ( u_rgb(118, 114, 98); );
+function c_ink()    ( u_rgb(12, 11, 9); );       // text carved into bone
+function c_lip()    ( u_rgb(78, 74, 64); );      // lit lower lip of a carved groove / lit edge of raised stone
+function c_shade()  ( u_rgb(4, 4, 3); );         // shadowed edge
+function c_stone()  ( u_rgb(38, 36, 31); );      // raised stone face
 
 function f_label() ( gfx_setfont(1, "Bahnschrift", 10.5 * ui_S, 'b'); );
 function f_value() ( gfx_setfont(2, "Consolas", 12.5 * ui_S); );
@@ -58,6 +63,11 @@ function u_tw(s) local(w, h) ( gfx_measurestr(s, w, h); w / ui_S; );
 function u_th(s) local(w, h) ( gfx_measurestr(s, w, h); h / ui_S; );
 function u_text(x, y, s) ( gfx_x = ui_ox + x * ui_S; gfx_y = ui_oy + y * ui_S; gfx_drawstr(s); );
 function u_text_r(xr, y, s) ( u_text(xr - u_tw(s), y, s); );
+// Carved into the stone (shadow top/left, lit lip bottom/right) and raised stone (the reverse); light from top-left
+function u_carve(x, y, w, h) ( c_track(); u_rect(x, y, w, h); c_shade(); u_rect(x, y, w, 1); u_rect(x, y, 1, h);
+  c_lip(); u_rect(x, y + h - 1, w, 1); u_rect(x + w - 1, y, 1, h); );
+function u_raise(x, y, w, h) ( c_stone(); u_rect(x, y, w, h); c_lip(); u_rect(x, y, w, 1); u_rect(x, y, 1, h);
+  c_shade(); u_rect(x, y + h - 1, w, 1); u_rect(x + w - 1, y, 1, h); );
 // Letter-spaced text (labels): returns width in design units
 function u_tw_sp(s, sp) ( u_tw(s) + sp * max(0, strlen(s) - 1); );
 function u_text_sp(x, y, s, sp) local(i, x0) (
@@ -129,28 +139,31 @@ function set_param(id, v) (
   id == 53 ? ir_reload_req = 1;
 );
 // ---------- Widgets ----------
-// Choice button: selected = bone block with ink text
+// Choice button: worn raised stone; selected = aged bone plate with carved ink text
 function ui_seg(x, y, w, h, label, sel) local(hit) (
   hit = ui_hit(x, y, w, h);
-  sel ? ( c_bone(); u_rect(x, y, w, h); ) : ( mouse_in(x, y, w, h) && !ui_dropdown_open ? c_det() : c_border(); u_frame(x, y, w, h); );
+  sel ? ( c_bone(); u_rect(x, y, w, h); c_shade(); u_rect(x, y + h - 1, w, 1); u_rect(x + w - 1, y, 1, h); )
+      : ( u_raise(x, y, w, h); mouse_in(x, y, w, h) && !ui_dropdown_open ? ( c_det(); u_frame(x, y, w, h); ); );
   f_label(); sel ? c_ink() : c_soft();
   u_text_sp_c(x + w * 0.5, y + h * 0.5, label, 1);
   hit;
 );
-// Engaged toggle: blood fill when on
+// Toggle: raised stone; engaged = pressed in, stained with dried blood
 function ui_toggle(x, y, w, h, label, on) local(hit) (
   hit = ui_hit(x, y, w, h);
-  on ? ( c_blood(); u_rect(x, y, w, h); ) : ( c_border(); u_frame(x, y, w, h); );
+  on ? ( c_blood(); u_rect(x, y, w, h); c_shade(); u_rect(x, y, w, 2); u_rect(x, y, 2, h); c_lip(); u_rect(x, y + h - 1, w, 1); )
+     : u_raise(x, y, w, h);
   f_label(); on ? c_thumb() : c_soft();
   u_text_sp_c(x + w * 0.5, y + h * 0.5, label, 1.5);
   hit;
 );
-// Square power LED with glow; returns 1 when clicked
+// Candle in a carved socket: lit = flame with a soft glow, out = empty socket; returns 1 when clicked
 function ui_power_led(x, y, on) local(hit, a0) (
   hit = ui_hit(x - 5, y - 5, 21, 21);
   a0 = ui_alpha; ui_alpha = 1;
-  on ? ( ui_alpha = 0.22; c_ember(); u_rect(x - 3, y - 3, 17, 17); ui_alpha = 1; c_ember(); u_rect(x, y, 11, 11); )
-     : ( c_det(); u_frame(x, y, 11, 11); );
+  on ? ( ui_alpha = 0.08; c_ember(); u_rect(x - 7, y - 7, 25, 25); ui_alpha = 0.18; u_rect(x - 3, y - 3, 17, 17);
+         ui_alpha = 1; c_ember(); u_rect(x, y, 11, 11); c_flame(); u_rect(x + 3, y + 2, 5, 6); )
+     : u_carve(x, y, 11, 11);
   ui_alpha = a0;
   hit;
 );
@@ -194,13 +207,13 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
 
   norm = clamp((new_val - min_v) / (max_v - min_v), 0, 1);
   fx = x + norm * w;
-  c_track(); u_rect(x, ty, w, 3);
+  u_carve(x, ty - 1, w, 5);                                       // Round 60: groove chiselled into the stone
   bip_k > 0 ? (
     cx = x + w * 0.5;
     c_fill(); u_rect(min(cx, fx), ty, max(1, abs(fx - cx)), 3);
     c_det(); u_rect(cx - 0.5, ty - 4, 1, 11);
-  ) : ( c_fill(); u_rect(x, ty, max(0, fx - x), 3); );
-  c_thumb(); u_rect(fx - 1.5, ty - 5, 3, 13);
+  ) : ( c_fill(); u_rect(x + 1, ty, max(0, fx - x - 1), 3); );
+  c_shade(); u_rect(fx - 1.5, ty - 5, 5, 15); c_thumb(); u_rect(fx - 2.5, ty - 6, 5, 15);   // bone chip + shadow
   new_val;
 );
 
@@ -215,9 +228,9 @@ function ui_meter(x, y, w, label, peak_lin, thr_db, target) local(db, by, tx) (
   db > -80 ? sprintf(#m_str, "%+.1f", db) : strcpy(#m_str, "-INF");
   u_text_r(x + w, y, #m_str);
   by = y + 20;
-  c_mbg(); u_rect(x, by, w, 8);
-  target < 0 ? ( ui_alpha *= 0.55; c_blood(); u_rect(m_x(target, x, w), by, m_x(target + 12, x, w) - m_x(target, x, w), 8); ui_alpha /= 0.55; );
-  db > -60 ? ( db > -1 ? u_rgb(218, 40, 40) : c_bone(); u_rect(x, by + 2, m_x(db, x, w) - x, 4); );
+  u_carve(x, by, w, 8);
+  target < 0 ? ( ui_alpha *= 0.3; c_ember(); u_rect(m_x(target, x, w), by + 1, m_x(target + 12, x, w) - m_x(target, x, w), 6); ui_alpha /= 0.3; );
+  db > -60 ? ( db > -1 ? u_rgb(200, 44, 30) : c_bone(); u_rect(x + 1, by + 2, m_x(db, x, w) - x - 1, 4); );
   thr_db > -100 ? ( tx = m_x(thr_db, x, w); c_ember(); u_rect(tx - 1, by - 5, 2, 18); );
   f_tiny(); c_tick();
   m_tick(-48, x, w, by + 10, "-48"); m_tick(-24, x, w, by + 10, "-24"); m_tick(-12, x, w, by + 10, "-12");
@@ -236,8 +249,7 @@ function draw_preset_dropdown_bar(x, y, w, h) local(n) (
   ui_seg(x, y, h, h, "<", 0) ? ( recall_global_preset(n > 0 ? n - 1 : GP_COUNT - 1); auto_slider(60, 1); ui_dropdown_open = 0; );
   ui_seg(x + h + 3, y, h, h, ">", 0) ? ( recall_global_preset(n < GP_COUNT - 1 ? n + 1 : 0); auto_slider(60, 1); ui_dropdown_open = 0; );
   x += 2 * h + 6; w -= 2 * h + 6;
-  ui_alpha = 0.4; c_ink(); u_rect(x, y, w, h); ui_alpha = 1;
-  c_border(); u_frame(x, y, w, h);
+  u_carve(x, y, w, h);
   f_value(); c_bone(); u_text(x + 12, y + (h - u_th("0")) * 0.5, get_global_preset_name(slider60));
   preset_dirty ? ( c_ember(); u_text(x + 18 + u_tw(get_global_preset_name(slider60)), y + (h - u_th("0")) * 0.5, "*"); );
   c_fill(); u_tri(x + w - 20, y + h * 0.5 - 2, x + w - 10, y + h * 0.5 - 2, x + w - 15, y + h * 0.5 + 3);
@@ -246,8 +258,7 @@ function draw_preset_dropdown_bar(x, y, w, h) local(n) (
 function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, hovered) (
   ui_dropdown_open ? (
     ui_alpha = 1;
-    u_rgb(13, 13, 13); u_rect(x, y, w, GP_COUNT * row_h);
-    c_border(); u_frame(x, y, w, GP_COUNT * row_h);
+    u_raise(x, y, w, GP_COUNT * row_h); ui_alpha = 0.75; c_void(); u_rect(x + 1, y + 1, w - 2, GP_COUNT * row_h - 2); ui_alpha = 1;
     i = 0;
     loop(GP_COUNT,
       ry = y + i * row_h; hovered = mouse_in(x, ry, w, row_h);

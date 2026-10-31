@@ -70,10 +70,10 @@ function ui_vslider(id, x, y, h, label, val, min_v, max_v, dflt_v, step_v) local
   new_val != val ? eq_dirty = 1;                       // a fader moved: EQ preset name gets a '*'
   (ui_drag_id == id || mouse_in(x - 6, y - 4, 13, h + 8)) ? ( ui_vs_hot = id; ui_vs_val = new_val; ui_vs_lab = label; );
   norm = clamp((new_val - min_v) / (max_v - min_v), 0, 1); fy = y + (1 - norm) * h; cy = y + h * 0.5;
-  c_track(); u_rect(x - 1, y, 3, h);
+  u_carve(x - 2, y, 5, h);                                    // Round 60: chiselled groove
   c_det(); u_rect(x - 4, cy - 0.5, 9, 1);
   c_fill(); u_rect(x - 1, min(cy, fy), 3, max(1, abs(fy - cy)));
-  c_thumb(); u_rect(x - 5, fy - 1.5, 11, 3);
+  c_shade(); u_rect(x - 5, fy - 1.5, 12, 5); c_thumb(); u_rect(x - 6, fy - 2.5, 12, 5);   // bone chip + shadow
   f_tiny(); c_lab(); u_text(x - u_tw(label) * 0.5, y + h + 8, label);
   new_val;
 );
@@ -125,7 +125,7 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, div, a, y, p, n) (
     slider78 = ui_hslider(78, ix, lay(30), iw, "DEPTH", slider78, 0, 10, 6, 0.1, "%.1f", 0);
   ) : mod_id == 4 ? (                                   // GE-7: seven band faders + level
     ui_vs_hot = 0; n = floor(slider75 + 0.5);                // Round 34: record EQ presets, < > to step
-    c_border(); u_frame(ix, UI_BODY_Y - 4, iw, 24);
+    u_carve(ix, UI_BODY_Y - 4, iw, 24);
     ui_hit(ix, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n > 0 ? n - 1 : EQ_COUNT);
     ui_hit(ix + iw - 20, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n < EQ_COUNT ? n + 1 : 0);
     f_value(); c_fill(); u_text(ix + 5, UI_BODY_Y, "<"); u_text_r(ix + iw - 5, UI_BODY_Y, ">");
@@ -179,7 +179,7 @@ function panel_cab_out(x, w) local(ix, iw, on, bw, k) (
   ui_slab_head(x, w, 6, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
   ui_alpha = on ? 1 : UI_DIM;                              // Round 42: WAV IR only (IIR 4x12 = silent fallback)
   k = floor(slider53 + 0.5);
-  c_border(); u_frame(ix, 162, iw, 34);
+  u_carve(ix, 162, iw, 34);
   ui_hit(ix, 162, 22, 34) ? set_param(53, max(0, k - 1));
   ui_hit(ix + iw - 22, 162, 22, 34) ? set_param(53, min(9, k + 1));
   f_value(); c_fill(); u_text(ix + 6, 170, "<"); u_text_r(ix + iw - 6, 170, ">");
