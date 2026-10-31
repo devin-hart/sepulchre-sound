@@ -22,14 +22,44 @@ def get_declared_sliders(jsfx_path=None):
 
 VALID_SLIDERS = get_declared_sliders()
 
-# Base slider defaults for clean/bypass conditions (Round 44 simplified architecture: no delay 30..36)
+# Round 56: Plugin fresh-insert slider defaults now correspond to Preset 01 (Frostbitten).
+FRESH_INSERT_DEFAULTS = {
+    1: 0.0, 2: 140.0, 3: -50.0, 4: 1,
+    76: 1,
+    10: 1, 11: 1, 26: 8.0, 27: 3.5, 28: 6.7,
+    29: 10.0, 37: 7.5, 38: 8.0,
+    39: 7.5, 46: 6.5, 47: 4.5, 48: 6.0, 59: 4.5, 61: 7.5,
+    62: 10.0, 63: 10.0, 64: 10.0, 9: 4.4,
+    20: 0, 77: 4.5, 78: 4.0,
+    40: 1, 41: 0, 42: 1.8, 43: 20.0, 44: 60.0, 45: 10.0,
+    65: 1, 66: -9.0, 67: -2.0, 68: 0.0, 69: 12.0, 70: -2.0, 71: 9.0, 72: -3.5, 73: -0.5, 75: 3,
+    49: 1, 51: -5.4, 53: 0, 54: 2, 55: 40.0, 56: 50.0, 57: 66.0, 58: 66.0,
+    60: 0,
+}
+
+# Base slider defaults for clean/bypass conditions
 BASE_DEFAULTS = {
     1: 0.0, 2: 40.0, 3: -52.0, 4: 0,
     10: 1,
     20: 0, 40: 0,
-    49: 0, 51: 0.0, 54: 0, 58: 50.0,
-    65: 0, 76: 1
+    49: 0, 51: 0.0, 53: 0, 54: 0, 58: 50.0,
+    60: 0,
+    65: 0, 66: 0.0, 67: 0.0, 68: 0.0, 69: 0.0, 70: 0.0, 71: 0.0, 72: 0.0, 73: 0.0, 75: 0,
+    76: 1
 }
+
+GLOBAL_PRESET_NAMES = [
+    (0, '01: Frostbitten', 'DS-1'),
+    (1, '02: Tremolo Rhythm', 'MT-2'),
+    (2, '03: Raw 4-Track', 'DS-1'),
+    (3, '04: Buzzsaw', 'HM-2'),
+    (4, '05: Atmospheric Wall', 'RAT'),
+    (5, '06: Depressive', 'RAT'),
+    (6, '07: Modern Black', 'MT-2'),
+    (7, '08: Cold Lead', 'RAT'),
+    (8, '09: Freezing Clean', 'Clean'),
+    (9, '10: Ambient Swell', 'RAT'),
+]
 
 # Pedal slider definitions at factory defaults
 PEDAL_DEFAULTS = {

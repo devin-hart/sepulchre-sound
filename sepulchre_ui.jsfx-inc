@@ -206,7 +206,8 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
 
 function m_x(db, x, w) ( x + w * clamp((db + 60) / 60, 0, 1); );
 function m_tick(t, x, w, y, s) ( u_text(m_x(t, x, w) - u_tw(s) * 0.5, y, s); );
-// Peak meter (40 tall): -60..0 dBFS, optional gate threshold marker and -10..-8 dBFS target band
+// Peak meter (40 tall): -60..0 dBFS, optional gate threshold marker and target band (Round 55: target < 0 = band
+// from target to target + 12 dB, e.g. -18 = the INPUT zone the presets are tuned for)
 function ui_meter(x, y, w, label, peak_lin, thr_db, target) local(db, by, tx) (
   db = peak_lin > 0.00003 ? 20 * log10(peak_lin) : -90;
   f_label(); c_lab(); u_text_sp(x, y + 1, label, 1.6);
@@ -215,7 +216,7 @@ function ui_meter(x, y, w, label, peak_lin, thr_db, target) local(db, by, tx) (
   u_text_r(x + w, y, #m_str);
   by = y + 20;
   c_mbg(); u_rect(x, by, w, 8);
-  target ? ( ui_alpha *= 0.55; c_blood(); u_rect(m_x(-10, x, w), by, m_x(-8, x, w) - m_x(-10, x, w), 8); ui_alpha /= 0.55; );
+  target < 0 ? ( ui_alpha *= 0.55; c_blood(); u_rect(m_x(target, x, w), by, m_x(target + 12, x, w) - m_x(target, x, w), 8); ui_alpha /= 0.55; );
   db > -60 ? ( db > -1 ? u_rgb(218, 40, 40) : c_bone(); u_rect(x, by + 2, m_x(db, x, w) - x, 4); );
   thr_db > -100 ? ( tx = m_x(thr_db, x, w); c_ember(); u_rect(tx - 1, by - 5, 2, 18); );
   f_tiny(); c_tick();
@@ -228,9 +229,13 @@ function ui_led(x, y, on, label) (
 );
 
 // ---------- Global preset selector ----------
-function draw_preset_dropdown_bar(x, y, w, h) (
-  ui_alpha = 1;
+// Round 55: < > step buttons left of the bar (each h x h), then the dropdown bar
+function draw_preset_dropdown_bar(x, y, w, h) local(n) (
+  ui_alpha = 1; n = floor(slider60 + 0.5);
   f_small(); c_lab(); u_text_sp(x, y - 16, "PRESET", 2);
+  ui_seg(x, y, h, h, "<", 0) ? ( recall_global_preset(n > 0 ? n - 1 : GP_COUNT - 1); auto_slider(60, 1); ui_dropdown_open = 0; );
+  ui_seg(x + h + 3, y, h, h, ">", 0) ? ( recall_global_preset(n < GP_COUNT - 1 ? n + 1 : 0); auto_slider(60, 1); ui_dropdown_open = 0; );
+  x += 2 * h + 6; w -= 2 * h + 6;
   ui_alpha = 0.4; c_ink(); u_rect(x, y, w, h); ui_alpha = 1;
   c_border(); u_frame(x, y, w, h);
   f_value(); c_bone(); u_text(x + 12, y + (h - u_th("0")) * 0.5, get_global_preset_name(slider60));
@@ -241,10 +246,10 @@ function draw_preset_dropdown_bar(x, y, w, h) (
 function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, hovered) (
   ui_dropdown_open ? (
     ui_alpha = 1;
-    u_rgb(13, 13, 13); u_rect(x, y, w, 7 * row_h);
-    c_border(); u_frame(x, y, w, 7 * row_h);
+    u_rgb(13, 13, 13); u_rect(x, y, w, GP_COUNT * row_h);
+    c_border(); u_frame(x, y, w, GP_COUNT * row_h);
     i = 0;
-    loop(7,
+    loop(GP_COUNT,
       ry = y + i * row_h; hovered = mouse_in(x, ry, w, row_h);
       hovered ? ( u_rgb(30, 29, 28); u_rect(x + 1, ry + 1, w - 2, row_h - 2); );
       i == slider60 ? ( c_ember(); u_rect(x + 1, ry + 4, 3, row_h - 8); );

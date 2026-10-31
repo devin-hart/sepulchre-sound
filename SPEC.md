@@ -9,13 +9,13 @@
 
 ### 2.1 File Modularization (<300 Lines per File)
 REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports seven modular `.jsfx-inc` headers (each beginning with `@init` and strictly under 300 lines):
-1. `sepulchre_sound.jsfx` (164 lines) — Slider declarations (`slider1`..`slider60`, including `slider52` Cabinet Source Mode), `filename:0,sepulchre_bg.jpg` and `filename:1,sepulchre_titles.png` asset declarations, `@init`/`@slider`/`@block`/`@sample`/`@gfx 1204 500` lifecycle sections, PDC convolution latency reporting (`pdc_delay = ir_chunk_size`), `ir_reload_req` handler, transport-start state clearing, thread-safe `@block` coefficient updates, and dynamic slot routing.
+1. `sepulchre_sound.jsfx` (169 lines) — Slider declarations (`slider1`..`slider60`, including `slider52` Cabinet Source Mode), `filename:0,sepulchre_bg.jpg` and `filename:1,sepulchre_titles.png` asset declarations, `@init`/`@slider`/`@block`/`@sample`/`@gfx 1204 500` lifecycle sections, PDC convolution latency reporting (`pdc_delay = ir_chunk_size`), `ir_reload_req` handler, transport-start state clearing, thread-safe `@block` coefficient updates, and dynamic slot routing.
 2. `sepulchre_dsp_core.jsfx-inc` (222 lines) — RBJ Audio EQ Cookbook biquad filters, C1 Hermite ceiling limiter (`limit_sample`), core buffer allocation, and Module 0 (Input & Hysteresis/Hold Gate). Module 1 (Distortion) lives in `sepulchre_dsp_dist.jsfx-inc` (198 lines, imported directly after core).
 3. `sepulchre_dsp_fx.jsfx-inc` (195 lines) — Fractional linear-interpolated ring buffers (`buf_read_interp`), RT60-calibrated damped comb filters (`comb_proc`), Schroeder allpass diffusers (`allpass_proc`), Module 2 (Chorus), Module 3 (Delay with bypassed self-oscillation decay clamp `!en ? fb = min(fb, 0.75)`), and Module 4 (Reverb) with continuous bypass spillover.
 4. `sepulchre_dsp_amp_cab.jsfx-inc` (256 lines) — Module 5: Tube / Solid-State Amp stage + 10 Hz post-amp DC blocker + 4-band tone stack (Bass, Mid, Treble, Presence/Air), 128-sample UPOLS WAV IR convolution (`slider52` mode, `slider53` slot 0..9), 3-profile IIR Cabinet mode, and master output stage.
-5. `sepulchre_presets.jsfx-inc` (110 lines) — Bitmask routing validator (`validate_routing`), WAV IR name lookup table (`get_ir_slot_name`), and parameter tables for 7 global presets (calibrated strictly to `[-10.0, -8.0] dBFS`).
-6. `sepulchre_ui.jsfx-inc` (258 lines) — "Crypt" necro-monochrome theme (`#090909` void, `#E8E3D7` bone values, `#A39E94` labels, `#841216` blood engaged toggles, `#B01C22` ember LEDs), resolution-independent scaling (`ui_begin` / `ui_S`, `gfx_ext_retina = 1`), 2x Retina background/title sprite loaders (`ui_load_images`, `ui_draw_background`, `ui_title`), `auto_slider(id, end_touch)` helper, and widgets (`ui_seg`, `ui_toggle`, `ui_power_led`, bipolar dB `ui_hslider`, `ui_meter` with `-48/-24/-12/-6/0` ticks, gate threshold marker, and `-10..-8 dBFS` target band, `ui_led`, and preset dropdown).
-7. `sepulchre_ui_panels.jsfx-inc` (222 lines) — Crypt 8-stage stone-slab layout (`I INPUT` → `II..V` swappable slots with hover `<`/`>` move arrows → `VI AMP` → `VII CABINET` → `VIII OUTPUT`) with 28% alpha bypass dimming, vertical column distributor (`lay_begin` / `lay`), and header with live `8x OVERSAMPLED / IR LATENCY` readout (`ui_header`).
+5. `sepulchre_presets.jsfx-inc` (155 lines) — Bitmask routing validator (`validate_routing`), WAV IR name lookup table (`get_ir_slot_name`), and parameter tables for 7 global presets (calibrated strictly to `[-10.0, -8.0] dBFS`).
+6. `sepulchre_ui.jsfx-inc` (263 lines) — "Crypt" necro-monochrome theme (`#090909` void, `#E8E3D7` bone values, `#A39E94` labels, `#841216` blood engaged toggles, `#B01C22` ember LEDs), resolution-independent scaling (`ui_begin` / `ui_S`, `gfx_ext_retina = 1`), 2x Retina background/title sprite loaders (`ui_load_images`, `ui_draw_background`, `ui_title`), `auto_slider(id, end_touch)` helper, and widgets (`ui_seg`, `ui_toggle`, `ui_power_led`, bipolar dB `ui_hslider`, `ui_meter` with `-48/-24/-12/-6/0` ticks, gate threshold marker, and `-10..-8 dBFS` target band, `ui_led`, and preset dropdown).
+7. `sepulchre_ui_panels.jsfx-inc` (216 lines) — Crypt 8-stage stone-slab layout (`I INPUT` → `II..V` swappable slots with hover `<`/`>` move arrows → `VI AMP` → `VII CABINET` → `VIII OUTPUT`) with 28% alpha bypass dimming, vertical column distributor (`lay_begin` / `lay`), and header with live `8x OVERSAMPLED / IR LATENCY` readout (`ui_header`).
 8. `sepulchre_bg.jpg` & `sepulchre_titles.png` — `2408×1000` (2x Retina) Crypt stone-slab + black-metal logo background and 2x Cinzel stage title / Roman numeral (`I..VIII`) sprite sheet.
 
 ### 2.2 Dynamic Signal Routing & Thread Safety
@@ -45,6 +45,7 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports seven modula
 - **Removed:** Input Pre-EQ (`slider13..15`; presets that used it now carry an equivalent GE-7 *Pre Pedal* curve), Lo-Fi Grit (`slider16`), cab source switch (`slider52`) and IIR profiles 2x12 / Damped (`slider50`). The IIR 4x12 survives only as the silent fallback when no IR file loads. The UI then says "IR MISSING: BUILT-IN 4x12". It is also the loudness reference behind `IR_E48`.
 - **Chorus = Boss CE-2** (`slider20` on, `slider77` Rate 0..10 → 0.1..3.5 Hz log, `slider78` Depth 0..10 → BBD sweep 3 ms + 0.3..5 ms). Per ElectroSmash: triangle LFO; wet path 48 Hz HPF → 3rd-order 6.6 / 6.9 kHz anti-alias LPF → BBD → same reconstruction LPF; dry + wet 50/50 (×0.78 for unity RMS). Mono like the pedal (same LFO on L/R). Old chorus sliders 21..25 removed.
 - **UI columns (Round 43):** I INPUT · II DISTORTION · III EQUALIZER (preset selector, PRE / POST PEDAL switch, 8 faders) · IV AMP · V CHORUS · VI REVERB · VII CABINET (IR slot only) / VIII OUTPUT (Air, Master, meter). Design space back to 1204×500 with the original 7-slab background (2408×1000).
+- **Round 56 — usability round.** Headstone logo (Cinzel caps, V-cut carved into the stone, baked into `sepulchre_bg.jpg`). New 10-preset black metal bank (§4) with loudness matching instead of peak matching. `gp_eq(n)` loads a record GE-7 curve from `eq_preset_vals` (moved to presets). Slider defaults = preset 01. < > preset step buttons. INPUT meter target zone −18..−6 dBFS. `@serialize` keeps the "edited" asterisks across reloads.
 - **Round 54 — cab sim RESTORED (Round 49 code, byte-identical); the Round 52 removal below is historical.** Devin A/B'd the built-in cab against a $70 commercial amp sim and heard no improvement. The Cabinet switch (`slider49`) stays, so TRVE Cab can still be used with the built-in cab off. TS-808 stays removed.
 - **(Historical) Round 52 — cab sim removed, TS-808 dropped.** No cabinet in the plugin: WAV IR engine (UPOLS), IR slots (`slider53`), Cabinet enable (`slider49`), IIR 4x12 fallback, per-slot / per-pedal IR trims and PDC are gone; the plugin reports zero latency. Follow it with an IR loader (Devin: Ugritone TRVE Cab with the same Old School Black Metal IRs). Output = amp / FX loop → Air → Master → −1 dBFS safety limiter; raw preset peaks −13.8..−5.3 dBFS, below the −3.1 dBFS knee (verify check [5/6]). The old IIR 4x12 lives on only in the Python mirror as a reference cab so the presets stay level-matched (−10..−8 dBFS through it). `sepulchre_dsp_amp_cab.jsfx-inc` renamed `sepulchre_dsp_amp.jsfx-inc` (`init_amp_dsp`, `reset_amp_state`, `update_amp_coeffs`, `proc_amp`, `proc_output`). UI: column VII is OUTPUT only (Air, Master, meter); background regenerated without the OUTPUT band. The Round 50 TS-808 boost was removed before it shipped.
 - **Delay removed (Round 43):** sliders 30..36, `proc_delay`, its 2×192000-float buffers and filters (memory top now 327,680).
@@ -105,17 +106,24 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports seven modula
 
 ---
 
-## 4. Global Preset Catalog (`slider60`)
+## 4. Global Preset Catalog (`slider60`) — Round 55 bank
 
-| # | Preset Name | Distortion | Amp Stage | Chorus | Delay | Reverb | Cab / Peak |
-| :- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| 0 | **01: TIGHT RHYTHM** | Metal Zone (Dist 7, Mid 6.5 @ ~950 Hz) | Tube Head | Bypass | Bypass | Hall (15%) | 4x12 (model `-9.19 dBFS`) |
-| 1 | **02: COLD LEAD** | RAT (Dist 7.5, Filter 3) | Tube Head | Analog BBD (36%) | Tape 390ms (28%) | Plate (24%) | 2x12 (model `-9.18 dBFS`) |
-| 2 | **03: DOOM WALL** | HM-2 (8.5 / Low 8 / High 7.5) | Tube Head | Dimension (28%) | Tape 520ms (28%) | Ambient (34%) | Damped (model `-8.99 dBFS`) |
-| 3 | **04: RAW 4-TRACK** | DS-1 (Dist 8.5, Tone 7) + Grit 40% | Solid-State | Bypass | Tape 140ms (18%) | Bypass | 2x12 (model `-8.85 dBFS`) |
-| 4 | **05: SWEDISH CHAINSAW** | HM-2 (all on 10) | Solid-State | Bypass | Bypass | Plate (14%) | 4x12 (model `-8.83 dBFS`) |
-| 5 | **06: FREEZING CLEAN** | Bypass (+3.5 dB In) | Tube Head | Analog BBD (48%) | Digital 440ms (32%) | Hall (34%) | 2x12 |
-| 6 | **07: AMBIENT SWELL** | RAT (Dist 6.5, Filter 4) | Tube Head | Dimension (40%) | Tape 580ms (38%) | Ambient (46%) | Damped (model `-8.99 dBFS`) |
+All ten are black metal. Every preset is matched to K-weighted loudness −21 ± 1 dB through the mirror's reference cab, for an input peaking around −12 dBFS (the INPUT meter's −18..−6 zone). Peaks are ≤ −6 dBFS. The IR slot is left as the player set it. Slider defaults equal preset 01, so a fresh insert matches its name (verify check [7/7]).
+
+| # | Name | Pedal | Amp | GE-7 | FX | Master |
+| :- | :--- | :--- | :--- | :--- | :--- | :--- |
+| 0 | **01: FROSTBITTEN** | DS-1 10 / Tone 7.5 / Level 8 | Solid | Transilvanian '94 (post) | Hall 10% | −5.4 |
+| 1 | **02: TREMOLO RHYTHM** | MT-2 7 / H 6 / L 4 / M 6.5 @ 4.5 | Tube | pre curve | Hall 12% | +0.1 |
+| 2 | **03: RAW 4-TRACK** | DS-1 8.5 / 7 / 8.2 | Solid | pre curve | dry | −1.0 |
+| 3 | **04: BUZZSAW** | HM-2 9 / Low 6 / High 8 / Level 5 | Tube | Bathory '84 (post) | Hall 14% | +3.7 |
+| 4 | **05: ATMOSPHERIC WALL** | RAT 7.5 / Filter 4 / Vol 6.6 | Tube | Filosofem '96 (post) | CE-2 + Hall 5.5 s 30% | −0.6 |
+| 5 | **06: DEPRESSIVE** | RAT 6.5 / Filter 6 / Vol 7 | Tube | off | CE-2 + Ambient 6.5 s 34% | −1.1 |
+| 6 | **07: MODERN BLACK** | MT-2 8 / H 6.5 / L 5 / M 5.5 @ 5 | Tube | Evangelion '09 (post) | Plate 10% | −1.9 |
+| 7 | **08: COLD LEAD** | RAT 7.5 / 3 / 6.6 | Tube | pre curve | CE-2 + Plate 24% | −0.8 |
+| 8 | **09: FREEZING CLEAN** | off (Trim +5) | Tube | off | CE-2 + Hall 34% | +6.0 |
+| 9 | **10: AMBIENT SWELL** | RAT 6.5 / 4 / 7.5 | Tube | pre curve | CE-2 + Ambient 7.8 s 46% | −3.3 |
+
+Chorus and reverb are not in the Python mirror, so the reverb-heavy presets (05, 06, 09, 10) may run louder in REAPER than the mirror says. Antigravity measures real LUFS in Round 57.
 
 ---
 
@@ -158,5 +166,6 @@ REAPER's JSFX engine compiles `sepulchre_sound.jsfx`, which imports seven modula
 | 2026-10-29 | Simplify (Claude Round 42): fixed chain with chorus / delay / reverb in the amp FX loop; GE-7 Pre/Post switch replaces the routing slots; remove Input Pre-EQ, Lo-Fi Grit and the IIR cab mode (kept as a fallback); chorus rebuilt as a Boss CE-2 | Devin: "i'm wondering now if we've overcomplicated this." Three overlapping EQs, five routing slots and two cab modes were more than a black metal rig needs. Reverb and delay now also skip the amp's distortion. |
 | 2026-10-29 | Remove the delay (Claude Round 43); UI back to 7 columns / 1204 px | Devin: "delay is probably overkill we can axe that". |
 | 2026-10-30 | TS-808 boost added (Claude Round 50), then removed (Round 52) | Devin asked for the "Drive 0 / Tone 5 / Level 10" trick, then judged it overkill next to the GE-7 Pre position: "let's get rid of the cab sim and the TS-808". |
+| 2026-10-30 | New 10-preset black metal bank, loudness-matched; logo A; defaults = preset 01; preset < >; INPUT target zone; persisted "edited" marks (Claude Round 56) | Devin: "the idea is that this is a simple plug in and start ripping black metal. we need some really good presets"; picked logo A and approved the audit fixes. Doom Wall and Swedish Chainsaw were dropped as not black metal. |
 | 2026-10-30 | Restore the cab sim exactly as of Round 49 (Claude Round 54) | Devin: "i was comparing our built-in cab" against a $70 amp sim demo that "didn't sound any better". The Cabinet switch covers the TRVE Cab case. |
 | 2026-10-30 | (Reverted in Round 54) Remove the cab sim (Claude Round 52); the plugin ends at Air / Master / limiter, IR loader goes after it | Devin owns TRVE Cab (8 IR slots with level / pan / filters / phase per slot). One IR at a time could not match it, the Ugritone IRs could not ship anyway, and removing it drops the 128-sample latency. |

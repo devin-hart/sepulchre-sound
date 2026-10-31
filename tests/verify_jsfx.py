@@ -6,7 +6,7 @@ Static checks and offline DSP mirror for Sepulchre Sound (run before every commi
    pdc_delay in @block, IR reload handler, no file I/O in coefficient updates, slider
    automation masks).
 2. Python mirror of the pedals (8x oversampled), amp, IIR cab and limiter:
-   - presets peak in [-10, -8] dBFS with DC < 0.004 (IIR cab path);
+   - Round 55: every preset at K-weighted loudness -21 +/- 1 dB, peak <= -6 dBFS, DC < 0.004 (IIR cab path);
    - in-band aliasing per pedal (2578 Hz tone);
    - no pedal filter with pole Q > 3.5 at any knob extreme (no ringing);
    - IR_E48 matches the IIR cab's weighted energy;
@@ -65,7 +65,7 @@ def strip_comments_and_strings(code):
 
 
 def check_syntax_and_r2_fixes():
-    print("[1/6] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
+    print("[1/7] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
     raw_by_file = {}
     cleaned_by_file = {}
     for fname in EXPECTED_FILES:
@@ -444,29 +444,30 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
 
 
 def parse_global_presets(presets_src):
+    # Round 55: generic parser. Applies recall_global_preset's reset block, then each 'idx == N ? (' branch, and
+    # expands gp_eq(n) (record curve from eq_preset_vals, EQ on, after the pedal).
+    sl = lambda body: {int(m.group(1)): float(m.group(2)) for m in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", body)}
+    eqt = {}
+    for m in re.finditer(r"i == (\d) \? eq_set8\(([^)]*)\)", presets_src):
+        eqt[int(m.group(1))] = [float(v) for v in m.group(2).split(",")]
+    rec = presets_src[presets_src.index("function recall_global_preset"):]
+    chunks = re.split(r"idx\s*==\s*(\d+)\s*\?\s*\(", rec)
+    reset = sl(chunks[0].split("preset_dirty = 0;")[1])
     presets = {}
-    chunks = re.split(r"idx\s*==\s*(\d+)\s*\?\s*\(", presets_src)
     for k in range(1, len(chunks), 2):
-        idx = int(chunks[k])
-        body = chunks[k + 1]
-        if idx == 5:
-            parts = re.split(r"\)\s*:\s*\(\s*//\s*07:", body)
-            body5, body6 = parts[0], parts[1].split("ui_need_sync")[0]
-            for sub_idx, sub_body in [(5, body5), (6, body6)]:
-                s_dict = {}
-                for sm in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", sub_body):
-                    s_dict[int(sm.group(1))] = float(sm.group(2))
-                presets[sub_idx] = s_dict
-        else:
-            s_dict = {}
-            for sm in re.finditer(r"slider(\d+)\s*=\s*([-+]?\d+(?:\.\d+)?)", body):
-                s_dict[int(sm.group(1))] = float(sm.group(2))
-            presets[idx] = s_dict
+        body = chunks[k + 1].split("eq_last_preset =")[0]
+        d = dict(reset)
+        g = re.search(r"gp_eq\((\d)\)", body)
+        if g:
+            n = int(g.group(1))
+            d.update({66 + j: v for j, v in enumerate(eqt[n])}); d.update({65: 1.0, 76: 1.0, 75: float(n)})
+        d.update(sl(body))
+        presets[int(chunks[k])] = d
     return presets
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[2/6] Running offline DSP simulation across the 6 distorted presets (Target: [-10.0, -8.0] dBFS)...")
+    print("[2/7] Preset loudness through the reference cab (K-weighted RMS -21 +/- 1 dB, peak <= -6 dBFS)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n_samples = int(0.45 * sr)
@@ -477,23 +478,28 @@ def check_presets_dc_and_levels(presets_src):
         val = 0.25 * env * (0.6 * math.sin(2 * math.pi * 82.41 * t) + 0.4 * math.sin(2 * math.pi * 164.82 * t) + 0.3 * math.sin(2 * math.pi * 247.23 * t))
         signal.append(val)
 
-    for idx in (0, 1, 2, 3, 4, 6):
+    kshelf, khp = bq_shelf_coeffs(1681.0, 4.0, sr, True), bq_hp_coeffs(38.0, 0.5, sr)
+    for idx in sorted(presets):   # Round 55: every preset, loudness-matched (K-weighted RMS, ~LUFS) instead of peak
         out = simulate_chain(presets[idx], signal, sr, include_amp_cab=True, ref_cab=True)
         steady = out[int(0.03 * sr):]
-        peak = max(abs(x) for x in steady)
-        peak_db = 20.0 * math.log10(peak)
+        peak_db = 20.0 * math.log10(max(abs(x) for x in steady))
+        a, b = list(kshelf), list(khp)
+        kw = [bq_step(b, bq_step(a, x)) for x in steady]
+        k_db = 10.0 * math.log10(sum(v * v for v in kw) / len(kw))
         dc = abs(sum(steady) / len(steady))
-        print(f"  - Preset {idx} peak: {peak_db:+.2f} dBFS | DC offset: {dc:.5f}")
-        if not (-10.0 <= peak_db <= -8.0):
-            raise AssertionError(f"Preset {idx} peak {peak_db:.2f} dBFS outside strict [-10.0, -8.0] dBFS target")
+        print(f"  - Preset {idx + 1:02d} K-loudness {k_db:+.2f} dB | peak {peak_db:+.2f} dBFS | DC {dc:.5f}")
+        if abs(k_db + 21.0) > 1.0:
+            raise AssertionError(f"Preset {idx + 1:02d} K-loudness {k_db:.2f} dB outside -21 +/- 1 dB")
+        if peak_db > -6.0:
+            raise AssertionError(f"Preset {idx + 1:02d} peak {peak_db:.2f} dBFS above -6 dBFS")
         if dc > 0.004:
-            raise AssertionError(f"Preset {idx} DC offset {dc:.5f} exceeds 0.004 threshold")
+            raise AssertionError(f"Preset {idx + 1:02d} DC offset {dc:.5f} exceeds 0.004 threshold")
 
 
 def check_pre_cab_aliasing_all_bins(presets_src):
     # Round 9: every pedal model, at its preset settings, 8x oversampled. In-band (20 Hz - 8 kHz)
     # limit -40 dB for every pedal (Round 30: HM-2 tightened from -34 dB after its Round 23/27 rebuild measured -47 dB).
-    print("[3/6] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
+    print("[3/7] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
@@ -502,8 +508,9 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 4096)]
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
     bin_8k = int(8000.0 * n / sr)
-    for idx, name, limit in ((1, "RAT", -40.0), (3, "DS-1", -40.0), (0, "Metal Zone", -40.0), (4, "HM-2 (all 10)", -40.0)):
-        p = dict(presets[idx])
+    hm10 = dict(presets[3]); hm10.update({62: 10.0, 63: 10.0, 64: 10.0})   # Round 55: HM-2 worst case, all knobs on 10
+    for p0, name, limit in ((presets[7], "RAT", -40.0), (presets[0], "DS-1", -40.0), (presets[1], "Metal Zone", -40.0), (hm10, "HM-2 (all 10)", -40.0)):
+        p = dict(p0)
         p[16] = 0.0
         out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
         harm_8k = alias_8k = 0.0
@@ -533,7 +540,7 @@ def pole_q(b):
 def check_no_resonant_filters():
     # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
     # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
-    print("[4/6] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
+    print("[4/7] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     worst = 0.0
@@ -557,7 +564,7 @@ def check_no_resonant_filters():
 def check_ir_loudness_constant():
     # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
     # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
-    print("[5/6] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    print("[5/7] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
     src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
@@ -583,7 +590,7 @@ def check_ir_loudness_constant():
 def check_distortion_gain_curve(presets_src):
     # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
     # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
-    print("[6/6] Verifying high-gain saturation curve (distortion output vs input level)...")
+    print("[6/7] Verifying high-gain saturation curve (distortion output vs input level)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = int(0.25 * sr)
@@ -592,12 +599,26 @@ def check_distortion_gain_curve(presets_src):
     rms = {}
     for lvl in (-12.0, -36.0):
         g = 10.0 ** (lvl / 20.0) / pk
-        out = simulate_chain(presets[0], [x * g for x in note], sr, include_amp_cab=False)[int(0.05 * sr):]
+        out = simulate_chain(presets[1], [x * g for x in note], sr, include_amp_cab=False)[int(0.05 * sr):]
         rms[lvl] = 10.0 * math.log10(sum(x * x for x in out) / len(out))
         print(f"  - Input {lvl:+.0f} dBFS -> distortion output RMS {rms[lvl]:+.1f} dB")
     drop = rms[-12.0] - rms[-36.0]
     if drop > 6.0:
         raise AssertionError(f"Distortion loses {drop:.1f} dB between -12 and -36 dBFS input (> 6 dB): not high-gain")
+
+def check_defaults_match_preset_1(presets_src):
+    # Round 55: a freshly inserted plugin must sound exactly like the preset its header shows (01, slider60 = 0)
+    print("[7/7] Checking slider defaults == preset 01 (fresh insert)...")
+    if not SLIDER_DEFAULTS:
+        load_slider_defaults()
+    p0 = parse_global_presets(presets_src)[0]
+    bad = [(k, SLIDER_DEFAULTS.get(k), v) for k, v in sorted(p0.items()) if abs(SLIDER_DEFAULTS.get(k, 1e9) - v) > 1e-9]
+    if SLIDER_DEFAULTS.get(60) != 0.0:
+        bad.append((60, SLIDER_DEFAULTS.get(60), 0.0))
+    print(f"  - {len(p0)} preset-01 sliders checked, {len(bad)} mismatches")
+    if bad:
+        raise AssertionError(f"slider defaults differ from preset 01: {bad}")
+
 
 if __name__ == "__main__":
     try:
@@ -607,6 +628,7 @@ if __name__ == "__main__":
         check_no_resonant_filters()
         check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
+        check_defaults_match_preset_1(raw_files["sepulchre_presets.jsfx-inc"])
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:
         print(f"\nVERIFICATION FAILED: {exc}", file=sys.stderr)

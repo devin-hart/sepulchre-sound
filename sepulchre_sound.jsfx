@@ -4,8 +4,8 @@ desc:Sepulchre Sound (Raw Black Metal Pedalboard)
 
 // Input & Gate
 slider1:0.0<-12.0,18.0,0.1>-Input Trim (dB)
-slider2:105.0<40.0,180.0,1.0>-Pre-Cut HPF (Hz)
-slider3:-52.0<-80.0,-30.0,0.5>-Gate Threshold (dB)
+slider2:140<40.0,180.0,1.0>-Pre-Cut HPF (Hz)
+slider3:-50<-80.0,-30.0,0.5>-Gate Threshold (dB)
 slider4:1<0,1,1{Off,On}>-Noise Gate Enable
 
 // Round 42: fixed signal chain (no routing slots), amp FX loop:
@@ -14,13 +14,13 @@ slider76:1<0,1,1{Before Pedal,After Pedal}>-EQ Position
 
 // Distortion: four pedal models, each with only its real knobs (0..10 like the hardware)
 slider10:1<0,1,1{Bypass,On}>-Distortion Enable
-slider11:2<0,3,1{RAT,DS-1,Metal Zone,HM-2}>-Distortion Pedal
+slider11:1<0,3,1{RAT,DS-1,Metal Zone,HM-2}>-Distortion Pedal
 slider26:8.0<0,10,0.1>-RAT Distortion
 slider27:3.5<0,10,0.1>-RAT Filter
 slider28:6.7<0,10,0.1>-RAT Volume
-slider29:9.0<0,10,0.1>-DS-1 Dist
-slider37:6.5<0,10,0.1>-DS-1 Tone
-slider38:8.9<0,10,0.1>-DS-1 Level
+slider29:10<0,10,0.1>-DS-1 Dist
+slider37:7.5<0,10,0.1>-DS-1 Tone
+slider38:8<0,10,0.1>-DS-1 Level
 slider39:7.5<0,10,0.1>-Metal Zone Dist
 slider46:6.5<0,10,0.1>-Metal Zone High
 slider47:4.5<0,10,0.1>-Metal Zone Low
@@ -34,41 +34,41 @@ slider9:4.4<0,10,0.1>-HM-2 Level
 
 // Chorus (Round 42: Boss CE-2 model, Rate + Depth only, 50/50 mix like the pedal)
 slider20:0<0,1,1{Bypass,On}>-Chorus Enable
-slider77:4.0<0,10,0.1>-CE-2 Rate
-slider78:6.0<0,10,0.1>-CE-2 Depth
+slider77:4.5<0,10,0.1>-CE-2 Rate
+slider78:4<0,10,0.1>-CE-2 Depth
 
 // Reverb
 slider40:1<0,1,1{Bypass,On}>-Reverb Enable
 slider41:0<0,2,1{Hall,Plate,Ambient}>-Reverb Mode
-slider42:2.0<0.5,10.0,0.1>-Reverb Decay (s)
-slider43:18<0,60,1>-Reverb Pre-Delay (ms)
-slider44:64<0,100,1>-Reverb Dampening (%)
-slider45:15<0,100,1>-Reverb Mix (%)
+slider42:1.8<0.5,10.0,0.1>-Reverb Decay (s)
+slider43:20<0,60,1>-Reverb Pre-Delay (ms)
+slider44:60<0,100,1>-Reverb Dampening (%)
+slider45:10<0,100,1>-Reverb Mix (%)
 
 // EQ (Round 31): Boss GE-7 style 7-band graphic EQ (+/-15 dB bands, +/-15 dB level)
-slider65:0<0,1,1{Bypass,On}>-EQ Enable
-slider66:0<-15,15,0.5>-EQ 100 Hz (dB)
-slider67:0<-15,15,0.5>-EQ 200 Hz (dB)
+slider65:1<0,1,1{Bypass,On}>-EQ Enable
+slider66:-9<-15,15,0.5>-EQ 100 Hz (dB)
+slider67:-2<-15,15,0.5>-EQ 200 Hz (dB)
 slider68:0<-15,15,0.5>-EQ 400 Hz (dB)
-slider69:0<-15,15,0.5>-EQ 800 Hz (dB)
-slider70:0<-15,15,0.5>-EQ 1.6 kHz (dB)
-slider71:0<-15,15,0.5>-EQ 3.2 kHz (dB)
-slider72:0<-15,15,0.5>-EQ 6.4 kHz (dB)
-slider73:0<-15,15,0.5>-EQ Level (dB)
-slider75:0<0,7,1{Custom,Bathory 84,Deathcrush 87,Transilvanian Hunger 94,Nightside Eclipse 94,Filosofem 96,In Sorte Diaboli 07,Evangelion 09}>-EQ Preset
+slider69:12<-15,15,0.5>-EQ 800 Hz (dB)
+slider70:-2<-15,15,0.5>-EQ 1.6 kHz (dB)
+slider71:9<-15,15,0.5>-EQ 3.2 kHz (dB)
+slider72:-3.5<-15,15,0.5>-EQ 6.4 kHz (dB)
+slider73:-0.5<-15,15,0.5>-EQ Level (dB)
+slider75:3<0,7,1{Custom,Bathory 84,Deathcrush 87,Transilvanian Hunger 94,Nightside Eclipse 94,Filosofem 96,In Sorte Diaboli 07,Evangelion 09}>-EQ Preset
 
 // Amp, Cabinet (WAV IR) & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
-slider51:-0.5<-24.0,6.0,0.1>-Master Output (dB)
+slider51:-5.4<-24.0,6.0,0.1>-Master Output (dB)
 slider53:0<0,9,1{01 BlackWizard Center,02 BlackWizard Edge,03 Destroyer Center,04 Destroyer Edge,05 LordOfGoats Center,06 LordOfGoats Edge,07 MysteriousSatan Center,08 Swordman Center,09 HeadKrush Center,10 PlagueBearer Center}>-Cabinet WAV Impulse Slot
-slider54:1<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
-slider55:54<0,100,1>-Amp Bass (%)
-slider56:44<0,100,1>-Amp Mid (%)
-slider57:62<0,100,1>-Amp Treble (%)
-slider58:64<0,100,1>-Amp Presence / Air (%)
+slider54:2<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
+slider55:40<0,100,1>-Amp Bass (%)
+slider56:50<0,100,1>-Amp Mid (%)
+slider57:66<0,100,1>-Amp Treble (%)
+slider58:66<0,100,1>-Amp Presence / Air (%)
 
-// Global Template State
-slider60:0<0,6,1{Tight Rhythm,Cold Lead,Doom Wall,Raw 4-Track,Swedish Chainsaw,Freezing Clean,Ambient Swell}>-Global Preset
+// Global Template State (Round 55: 10 black metal presets; slider defaults = preset 01 so a fresh insert matches its name)
+slider60:0<0,9,1{Frostbitten,Tremolo Rhythm,Raw 4-Track,Buzzsaw,Atmospheric Wall,Depressive,Modern Black,Cold Lead,Freezing Clean,Ambient Swell}>-Global Preset
 
 // UI artwork (must sit next to this file; deploy copies *.jpg / *.png too)
 filename:0,sepulchre_bg.jpg
@@ -149,6 +149,11 @@ proc_amp();
 proc_chorus();
 proc_reverb();
 proc_cab_out();
+
+@serialize
+// Round 55: keep the "edited" asterisks across project save / reload
+file_var(0, preset_dirty);
+file_var(0, eq_dirty);
 
 @gfx 1204 500
 // "Crypt" UI: baked background + title sprites, live widgets (sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)
