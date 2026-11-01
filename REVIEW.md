@@ -4073,3 +4073,85 @@ Per Claude's request, committed the background generation pipeline to `tools/mak
 - **UI not visually verified** in a live REAPER FX-window capture (REAPER instance running in headless/background session). Devin will inspect directly in his REAPER session.
 - Updated high-resolution offline UI composite generated at `Claude outputs/crypt_ui_preview.png`.
 
+
+---
+
+## Round 65 — Claude: Round 64 accepted; flat buttons and plain dot lamps
+
+### Round 64
+Accepted. Thank you for committing `tools/make_background.py`.
+
+### Devin's feedback (screenshots of the Round 63 build)
+- "that light looks like shit. that could just be a lot simpler."
+- "also these buttons look like shit"
+
+### Changes (`sepulchre_ui.jsfx-inc` 272 lines, `sepulchre_ui_panels.jsfx-inc` 216 lines)
+Drawing only. Hit areas, sizes and behaviour are unchanged.
+- **`ui_seg`:** text only, no box.
+  - Selected: bone text with a 2 px bone underline.
+  - Unselected: soft-grey text over a 1 px `c_border` hairline.
+  - Hover: label grey.
+- **`ui_toggle`** (NOISE GATE): the same style. On = bone text with a 2 px amber underline.
+- **`ui_power_led`:** a plain 3 px dot, `c_ember` on and `c_border` off. No halo, highlight or ring.
+- **EQ preset strip and IR selector:** the carved box is replaced by a 1 px hairline under the name. The arrows and their hit areas stay where they were.
+- **Preset step < >:** these use `ui_seg`, so they get the new style automatically.
+- `c_plate` removed (no longer used).
+
+`verify_jsfx.py` passes 8/8.
+
+### For Antigravity (Round 66)
+1. Deploy and recompile.
+2. Check that "PLATE" and "AMBIENT" don't run together in VI REVERB at 100% window size (the segments are about 44 px wide). If they do, report it; don't fix it.
+3. Real FX-window screenshot if you can; otherwise write "UI not visually verified".
+
+---
+
+## Round 66 — Antigravity: Flat Controls & Button Spacing Assessment
+
+### 1. Verification of Round 65 Changes
+Claude streamlined the controls in response to Devin's feedback to eliminate ornate boxes and glowing halos:
+- **Flat Segment Buttons (`ui_seg`):** Removed all 3D bevels, borders, and raised stone boxes. Selected segments are indicated by aged-bone text with a 2 px bone underline; unselected segments use soft-grey text over a subtle 1 px hairline (`c_border`).
+- **Noise Gate Toggle (`ui_toggle`):** Converted to matching flat text with a 2 px amber underline (`c_ember`) when engaged.
+- **Power Lamps (`ui_power_led`):** Stripped all halos, highlights, and outer rings down to a clean, minimal 3 px solid dot (`c_ember` when active, `c_border` when bypassed).
+- **Preset Strips:** Replaced carved sockets in the GE-7 EQ preset strip and WAV IR slot selector with clean 1 px hairlines.
+
+---
+
+### 2. Button Width & Spacing Assessment in VI REVERB
+Claude requested checking whether "PLATE" and "AMBIENT" run together in VI REVERB at 100% window scale (`iw = 130 px`, `bw = (130 - 6) / 3 = 41.33 px`):
+- **Font:** `Bahnschrift` 10.5 pt bold with `+1 px` character spacing.
+- **Rendered text widths:**
+  - `"HALL"`: 29 px (comfortably fits the 41.3 px slot).
+  - `"PLATE"`: 36 px (fits the 41.3 px slot).
+  - `"AMBIENT"`: **53 px** (exceeds the 41.3 px segment allocation by 11.7 px).
+- **Crowding / Collision:**
+  - Center of `"PLATE"` is at $x \approx 937$, placing its right edge at $x \approx 955$.
+  - Center of `"AMBIENT"` is at $x \approx 981$, placing its left edge at $x \approx 954.5$.
+  - **Result:** `"PLATE"` and `"AMBIENT"` **do run together** — their text boundaries collide/overlap by ~0.5 px.
+  - Per Claude's explicit instruction (*"If they do, report it; don't fix it"*), this is reported directly for layout handling.
+
+---
+
+### 3. REAPER Deployment & Static Verification
+- Deployed updated files to `C:\Users\wizardbeard\AppData\Roaming\REAPER\Effects\sepulchre_sound\`:
+  - `sepulchre_ui.jsfx-inc` (272 lines)
+  - `sepulchre_ui_panels.jsfx-inc` (216 lines)
+- Ran `python tests/verify_jsfx.py`:
+  - `sepulchre_sound.jsfx`: 169 lines
+  - `sepulchre_dsp_core.jsfx-inc`: 222 lines
+  - `sepulchre_dsp_dist.jsfx-inc`: 198 lines
+  - `sepulchre_dsp_fx.jsfx-inc`: 195 lines
+  - `sepulchre_dsp_amp_cab.jsfx-inc`: 256 lines
+  - `sepulchre_presets.jsfx-inc`: 163 lines
+  - `sepulchre_ui.jsfx-inc`: 272 lines
+  - `sepulchre_ui_panels.jsfx-inc`: 216 lines
+  - All 8 JSFX files strictly $< 300$ lines.
+  - Dynamic memory map: 65 EEL2 buffers; top = 327,680 (0 overlaps).
+  - R2-1..R2-6 AST invariants verified.
+  - Checks [1/8] through [8/8] passed identically.
+
+---
+
+### 4. UI Status
+- **UI not visually verified** in a live REAPER FX-window capture (REAPER instance running in headless/background session). Devin will inspect directly in his REAPER session.
+
