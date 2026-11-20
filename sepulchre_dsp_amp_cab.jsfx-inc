@@ -117,7 +117,7 @@ function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
 // Round 19: loudness-match every WAV IR to the IIR 4x12 cab. Weighted energy of the resampled IR (cab HPF, then
 // 90 Hz HP + 500 Hz +12 dB low shelf + 6 kHz LP ~ average distorted-guitar spectrum x K-weighting) vs IR_E48 = the
 // same measure of IIR profile 0 at 48 kHz (tests/verify_jsfx.py). Fitted over 4 pedals x 11 test IRs: rms error 1.6 dB.
-IR_E48 = 0.283543;
+IR_E48 = 0.232396;
 IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 dB over the LUFS match)
 function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp, fade_n) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
@@ -195,13 +195,14 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   bq_hshelf(bq_amp_treb, 2400.0, treb_db);
   bq_peak(bq_amp_pres, 3800.0, 1.25, pres_db);
 
-  // IIR 4x12 cab: Round 42 = silent fallback only (no IR file found). Also the loudness reference for IR_E48.
+  // Built-in 4x12 cab (Round 69: V30/Sheffield response — tight 115 Hz cab thump, 850 Hz cone scoop, 3.1 kHz bite,
+  // steep 5.2/5.8 kHz speaker roll-off; also the loudness reference behind IR_E48).
   bq_hp(bq_cab_hp, 85.0, 0.7071);
-  bq_lp(bq_cab_lp1, 7800.0, 0.7071);
-  bq_peak(bq_cab_f1, 125.0, 1.6, 3.2);
-  bq_peak(bq_cab_f2, 650.0, 1.2, -3.8);
-  bq_peak(bq_cab_f3, 2850.0, 1.4, 4.8);
-  bq_lp(bq_cab_lp2, 6200.0, 0.95);
+  bq_lp(bq_cab_lp1, 5800.0, 0.7071);
+  bq_peak(bq_cab_f1, 115.0, 1.35, 6.5);
+  bq_peak(bq_cab_f2, 850.0, 0.80, -9.0);
+  bq_peak(bq_cab_f3, 3100.0, 1.35, 5.5);
+  bq_lp(bq_cab_lp2, 5200.0, 0.90);
   cab_comp_lin = 0.72;
 
   master_out_t = db2lin(slider51);

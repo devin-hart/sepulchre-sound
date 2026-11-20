@@ -377,11 +377,11 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
     bq_amp_t = bq_shelf_coeffs(2400.0, (sliders[57] - 50.0) * 0.20 + 1.5, sr, True)
     bq_amp_p = bq_peak_coeffs(3800.0, 1.25, (sliders[58] - 50.0) * 0.24, sr)
 
-    # IIR 4x12 cab (the plugin's fallback / loudness reference; WAV IRs are not in the repo)
+    # Built-in IIR 4x12 cab (Round 69: V30/Sheffield response; also the loudness reference behind IR_E48)
     bq_cab_hp = bq_hp_coeffs(85.0, 0.7071, sr)
-    bq_cab_lp1 = bq_lp_coeffs(7800.0, 0.7071, sr)
-    cf1, cf2, cf3 = bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr)
-    clp2, cab_comp = bq_lp_coeffs(6200.0, 0.95, sr), 0.72
+    bq_cab_lp1 = bq_lp_coeffs(5800.0, 0.7071, sr)
+    cf1, cf2, cf3 = bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -9.0, sr), bq_peak_coeffs(3100.0, 1.35, 5.5, sr)
+    clp2, cab_comp = bq_lp_coeffs(5200.0, 0.90, sr), 0.72
 
     master_lin = 10.0 ** (sliders[51] * 0.05)
     dc_r = math.exp(-2.0 * math.pi * 10.0 / sr)
@@ -577,8 +577,8 @@ def check_ir_loudness_constant():
         raise AssertionError("IR_E48 constant not found")
     sr = 48000.0
     hp = bq_hp_coeffs(85.0, 0.7071, sr)
-    chain = [hp, bq_peak_coeffs(125.0, 1.6, 3.2, sr), bq_peak_coeffs(650.0, 1.2, -3.8, sr), bq_peak_coeffs(2850.0, 1.4, 4.8, sr),
-             bq_lp_coeffs(6200.0, 0.95, sr), bq_lp_coeffs(7800.0, 0.7071, sr)]
+    chain = [hp, bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -9.0, sr), bq_peak_coeffs(3100.0, 1.35, 5.5, sr),
+             bq_lp_coeffs(5200.0, 0.90, sr), bq_lp_coeffs(5800.0, 0.7071, sr)]
     weight = [bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False), bq_lp_coeffs(6000.0, 0.7071, sr)]
     x = [1.0] + [0.0] * 4094
     for b in chain:

@@ -101,7 +101,7 @@ def test_exact_ir_null_and_continuity():
     scratch = apply_bq(irw3, scratch)
 
     e = np.sum(scratch ** 2)
-    IR_E48 = 0.283543
+    IR_E48 = 0.232396
     norm_g = math.sqrt(IR_E48 * (48000.0 / srate) / e) if e > 1e-10 else 1.0
 
     # Round 68: generic IR_E48 + ear-match offset (+3.8 dB); per-slot trim table removed for user-loadable IRs
