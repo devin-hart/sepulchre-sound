@@ -7,6 +7,7 @@
 - **Scope & File Size:** Implement only what is requested. Split files along clear modular boundaries before they exceed ~300 lines. Every `.jsfx-inc` file MUST begin with an `@init` section header so REAPER's EEL2 compiler registers its functions.
 - **Thread Safety:** Never call `sync_all_DSP()` from `@gfx` or `@sample` (`sync_all_DSP()` runs exclusively in `@block`/`@init`). `load_ir_slot()` runs in `@init`, `@slider`, and on one-shot `ir_reload_req` in `@block` (accepted trade-off: keeps `ir_raw_buf` single-writer with `prepare_ir_fft()`; never call `load_ir_slot()` inside `update_amp_cab_coeffs()` or `@sample`).
 - **Inter-Agent Review Protocol:** Always read `REVIEW.md` from disk before writing and append only (`Append=true`). Each agent keeps **one** rolling report file and appends every round to it; never create per-round `reviews/roundN_<agent>.md` files. Claude → `reviews/claude_reports.md`, Antigravity → `reviews/antigravity_reports.md`. Read your own file from disk first, then append the round at the bottom as a `## Round N — <Agent>: <summary>` section, separated by `---`. Edit only your own report file, never the other agent's.
+- **Sound changes:** Read `SOUND_REFERENCES.md` before changing anything that affects the sound. Values tagged **[ear]** there are Devin's listening decisions; never change them without his OK.
 - **Git & Docs:** Commit after each working step with a descriptive message (what changed and why). Keep `AGENTS.md` code map and `SPEC.md` roadmap/decisions log updated with every commit.
 
 ## 2. Tech Stack & Locations
@@ -35,6 +36,7 @@
 
 ## 4. Code Map
 - `AGENTS.md`: Operating rules, stack, deployment/test commands, and file index for coding agents and reviewers.
+- `SOUND_REFERENCES.md`: Sound targets and provenance: historical black metal rigs, the source and reliability of each module's numbers, ear-tuned values, Devin's listening history, research findings and open questions (Round 67).
 - `SPEC.md`: Full technical architecture, DSP equations/parameters, gain-staging spec, preset table, roadmap, and decision log.
 - `REVIEW.md` & `reviews/`: Inter-agent architectural, DSP, and UI audit log between Claude and Antigravity. `reviews/claude_reports.md` and `reviews/antigravity_reports.md` hold each agent's rolling standalone round reports (the per-round files were merged into them in Round 67).
 - `sepulchre_sound.jsfx` (169 lines): Main JSFX entry point, slider declarations (`slider1`..`slider60`, including `slider52` Cabinet Source Mode), `filename:0,sepulchre_bg.jpg` and `filename:1,sepulchre_titles.png` asset declarations, `@block` PDC reporting (`pdc_delay = ir_chunk_size`), `ir_reload_req` handler, coefficient sync & transport-start state reset, dynamic 4-slot routing dispatcher, and `@gfx 1204 500` frame entry.
