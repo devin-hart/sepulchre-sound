@@ -13,16 +13,15 @@ function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac
   buf[idx0] * (1.0 - frac) + buf[idx1] * frac;
 );
 
-function comb_proc(buf, len, idx_ptr, lp_ptr, x, fb, damp) local(idx, out, lp) (
-  idx = idx_ptr[0]; idx >= len ? idx = 0;           // Round 39: ptr[0], not mem[ptr]; Round 67: wrap before read
-  out = buf[idx];
-  lp = lp_ptr[0] * damp + out * (1.0 - damp);
-  lp_ptr[0] = lp;
-  buf[idx] = x + lp * fb;
-  idx += 1;
-  idx >= len ? idx = 0;
+function fdn_read(buf, len, wpos, d_spl) (
+  buf_read_interp(buf, len, wpos, clamp(d_spl, 2.0, len - 4.0));
+);
+
+function fdn_write(buf, len, idx_ptr, x) local(idx) (
+  idx = idx_ptr[0]; idx >= len ? idx = 0;
+  buf[idx] = x;
+  idx += 1; idx >= len ? idx = 0;
   idx_ptr[0] = idx;
-  out;
 );
 
 function allpass_proc(buf, len, idx_ptr, x, g) local(idx, buf_out, y) (
@@ -68,7 +67,7 @@ function init_fx_dsp() (
 
   rev_state = alloc_buf(32);
   bq_rev_shelf = alloc_buf(9);
-  rev_en_s = 0.0; rev_idle_max = 4800;
+  rev_en_s = 0.0; rev_idle_max = 4800; rev_mod_ph = 0.0;
 );
 
 function reset_fx_state() (
@@ -84,7 +83,7 @@ function reset_fx_state() (
   bq_clear(bq_chorus_lp); bq_clear(bq_chorus_aa); bq_clear(bq_rev_shelf);
   chorus_wpos = 0; chorus_phase = 0.0;
   ch_hp_xl = 0; ch_hp_yl = 0; ch_hp_xr = 0; ch_hp_yr = 0; ch_a1l = 0; ch_a1r = 0; ch_r1l = 0; ch_r1r = 0;
-  rev_pre_wpos = 0;
+  rev_pre_wpos = 0; rev_mod_ph = 0.0;
   reverb_mix_s = reverb_mix_t; rev_en_s = slider40 > 0.5 ? 1.0 : 0.0; rev_idle = 0;
 );
 
@@ -98,25 +97,25 @@ function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay, d48) (
   ch_dmin = 0.003 * srate;                                      // BBD delay: 3 ms ..
   ch_dsw = (0.0003 + 0.0047 * slider78 * 0.1) * srate;          //   + 0.3 .. 5 ms sweep (Depth knob)
 
-  // Mutual-prime comb lengths (1559, 1619, 1493, 1423) scaled for sample rate
+  // Round 69 (SOUND_REFERENCES §7-D): Diffused modulated 4x4 Hadamard FDN tank (replaces metallic Schroeder combs)
   rev_mode = floor(slider41 + 0.5);
   s_scale = srate / 44100.0;
-  mode_scale = rev_mode == 1 ? 0.68 : (rev_mode == 2 ? 1.32 : 1.0);
-  c_len_l1 = min(comb_max - 4, floor(1559 * s_scale * mode_scale));
-  c_len_l2 = min(comb_max - 4, floor(1619 * s_scale * mode_scale));
-  c_len_l3 = min(comb_max - 4, floor(1493 * s_scale * mode_scale));
-  c_len_l4 = min(comb_max - 4, floor(1423 * s_scale * mode_scale));
-  c_len_r1 = min(comb_max - 4, floor((1559 + 23) * s_scale * mode_scale));
-  c_len_r2 = min(comb_max - 4, floor((1619 + 29) * s_scale * mode_scale));
-  c_len_r3 = min(comb_max - 4, floor((1493 + 31) * s_scale * mode_scale));
-  c_len_r4 = min(comb_max - 4, floor((1423 + 37) * s_scale * mode_scale));
+  mode_scale = rev_mode == 1 ? 0.62 : (rev_mode == 2 ? 1.32 : 1.0);
+  c_len_l1 = min(comb_max - 32, floor(1559 * s_scale * mode_scale));
+  c_len_l2 = min(comb_max - 32, floor(1871 * s_scale * mode_scale));
+  c_len_l3 = min(comb_max - 32, floor(2207 * s_scale * mode_scale));
+  c_len_l4 = min(comb_max - 32, floor(2593 * s_scale * mode_scale));
+  c_len_r1 = min(comb_max - 32, floor(1619 * s_scale * mode_scale));
+  c_len_r2 = min(comb_max - 32, floor(1933 * s_scale * mode_scale));
+  c_len_r3 = min(comb_max - 32, floor(2269 * s_scale * mode_scale));
+  c_len_r4 = min(comb_max - 32, floor(2657 * s_scale * mode_scale));
 
-  ap_len_l1 = min(ap_max - 4, floor(227 * s_scale));
-  ap_len_l2 = min(ap_max - 4, floor(557 * s_scale));
-  ap_len_r1 = min(ap_max - 4, floor((227 + 17) * s_scale));
-  ap_len_r2 = min(ap_max - 4, floor((557 + 19) * s_scale));
+  ap_len_l1 = min(ap_max - 4, floor(149 * s_scale));
+  ap_len_l2 = min(ap_max - 4, floor(383 * s_scale));
+  ap_len_r1 = min(ap_max - 4, floor(163 * s_scale));
+  ap_len_r2 = min(ap_max - 4, floor(409 * s_scale));
 
-  // Calibrated RT60 feedback per comb length (Bug #1 fix)
+  // Calibrated RT60 feedback per FDN line (orthogonal 0.5*H4 preserves exact RT60 energy)
   eff_decay = slider42 * (rev_mode == 2 ? 1.25 : 1.0);
   c_fb_l1 = rt60_fb(c_len_l1, eff_decay); c_fb_l2 = rt60_fb(c_len_l2, eff_decay);
   c_fb_l3 = rt60_fb(c_len_l3, eff_decay); c_fb_l4 = rt60_fb(c_len_l4, eff_decay);
@@ -126,7 +125,9 @@ function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay, d48) (
   // Round 67: 48 kHz-anchored exponential srate scaling keeps cutoff constant across sample rates without changing 48k
   d48 = clamp((slider44 * 0.0070 + (rev_mode == 0 ? 0.16 : 0.05)) * (44100.0 / 48000.0), 0.03, 0.85);
   rev_damp = d48 ^ (48000.0 / srate);
-  rev_ap_g = rev_mode == 1 ? 0.68 : 0.55;
+  rev_ap_g = rev_mode == 1 ? 0.65 : 0.58;
+  rev_mod_inc = 2.0 * $pi * (rev_mode == 2 ? 0.55 : 0.72) / srate;
+  rev_mod_d = (rev_mode == 1 ? 5.0 : 8.5) * s_scale;
   rev_fc = 1200.0 + (1.0 - slider44 * 0.01) * 6500.0;
   bq_hshelf(bq_rev_shelf, rev_fc, -3.0 - (slider44 * 0.12));
   reverb_mix_t = slider45 * 0.01;
@@ -153,8 +154,8 @@ function proc_chorus() local(tri, d, x, wl, wr) (
   spl1 += chorus_mix_s * ((spl1 + wr) * 0.78 - spl1);
 );
 
-// Runs while on and while a bypassed tail is still audible (spillover); Round 46: idles once the tail is under -120 dB
-function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cross_r) (
+// Diffused modulated 4x4 Hadamard FDN reverb with bypass spillover and -120 dB idle gate
+function proc_reverb() local(en, pre_spl, in_l, in_r, m1, m2, y0, y1, y2, y3, yr0, yr1, yr2, yr3, a, b, c, d, sum_l, sum_r, cross_l, cross_r) (
   en = slider40 > 0.5;
   rev_en_s = param_smooth_c * rev_en_s + (1.0 - param_smooth_c) * (en ? 1.0 : 0.0);
   en || rev_en_s > 0.0001 ? rev_idle = 0;
@@ -169,24 +170,39 @@ function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cro
   rev_pre_wpos += 1;
   rev_pre_wpos >= rev_pre_len ? rev_pre_wpos = 0;
 
-  sum_l = comb_proc(comb_l1, c_len_l1, rev_state + 0, rev_state + 8,  in_l, c_fb_l1, rev_damp)
-        + comb_proc(comb_l2, c_len_l2, rev_state + 1, rev_state + 9,  in_l, c_fb_l2, rev_damp)
-        + comb_proc(comb_l3, c_len_l3, rev_state + 2, rev_state + 10, in_l, c_fb_l3, rev_damp)
-        + comb_proc(comb_l4, c_len_l4, rev_state + 3, rev_state + 11, in_l, c_fb_l4, rev_damp);
+  // Input diffusion allpasses (smears sharp tremolo-picking transients before the FDN tank)
+  in_l = allpass_proc(ap_l2, ap_len_l2, rev_state + 17, allpass_proc(ap_l1, ap_len_l1, rev_state + 16, in_l, rev_ap_g), rev_ap_g);
+  in_r = allpass_proc(ap_r2, ap_len_r2, rev_state + 19, allpass_proc(ap_r1, ap_len_r1, rev_state + 18, in_r, rev_ap_g), rev_ap_g);
 
-  sum_r = comb_proc(comb_r1, c_len_r1, rev_state + 4, rev_state + 12, in_r, c_fb_r1, rev_damp)
-        + comb_proc(comb_r2, c_len_r2, rev_state + 5, rev_state + 13, in_r, c_fb_r2, rev_damp)
-        + comb_proc(comb_r3, c_len_r3, rev_state + 6, rev_state + 14, in_r, c_fb_r3, rev_damp)
-        + comb_proc(comb_r4, c_len_r4, rev_state + 7, rev_state + 15, in_r, c_fb_r4, rev_damp);
+  rev_mod_ph += rev_mod_inc; rev_mod_ph >= 2.0 * $pi ? rev_mod_ph -= 2.0 * $pi;
+  m1 = sin(rev_mod_ph) * rev_mod_d; m2 = cos(rev_mod_ph) * rev_mod_d;
 
-  sum_l *= 0.25; sum_r *= 0.25;
-  sum_l = allpass_proc(ap_l1, ap_len_l1, rev_state + 16, sum_l, rev_ap_g);
-  sum_l = allpass_proc(ap_l2, ap_len_l2, rev_state + 17, sum_l, rev_ap_g);
-  sum_r = allpass_proc(ap_r1, ap_len_r1, rev_state + 18, sum_r, rev_ap_g);
-  sum_r = allpass_proc(ap_r2, ap_len_r2, rev_state + 19, sum_r, rev_ap_g);
+  // Read modulated FDN lines + per-line 1-pole damping
+  y0 = fdn_read(comb_l1, comb_max, rev_state[0], c_len_l1 + m1); rev_state[8]  = rev_state[8]  * rev_damp + y0 * (1.0 - rev_damp); y0 = rev_state[8];
+  y1 = fdn_read(comb_l2, comb_max, rev_state[1], c_len_l2 - m2); rev_state[9]  = rev_state[9]  * rev_damp + y1 * (1.0 - rev_damp); y1 = rev_state[9];
+  y2 = fdn_read(comb_l3, comb_max, rev_state[2], c_len_l3 - m1); rev_state[10] = rev_state[10] * rev_damp + y2 * (1.0 - rev_damp); y2 = rev_state[10];
+  y3 = fdn_read(comb_l4, comb_max, rev_state[3], c_len_l4 + m2); rev_state[11] = rev_state[11] * rev_damp + y3 * (1.0 - rev_damp); y3 = rev_state[11];
 
-  sum_l = bq_proc_l(bq_rev_shelf, sum_l);
-  sum_r = bq_proc_r(bq_rev_shelf, sum_r);
+  yr0 = fdn_read(comb_r1, comb_max, rev_state[4], c_len_r1 - m1); rev_state[12] = rev_state[12] * rev_damp + yr0 * (1.0 - rev_damp); yr0 = rev_state[12];
+  yr1 = fdn_read(comb_r2, comb_max, rev_state[5], c_len_r2 + m2); rev_state[13] = rev_state[13] * rev_damp + yr1 * (1.0 - rev_damp); yr1 = rev_state[13];
+  yr2 = fdn_read(comb_r3, comb_max, rev_state[6], c_len_r3 + m1); rev_state[14] = rev_state[14] * rev_damp + yr2 * (1.0 - rev_damp); yr2 = rev_state[14];
+  yr3 = fdn_read(comb_r4, comb_max, rev_state[7], c_len_r4 - m2); rev_state[15] = rev_state[15] * rev_damp + yr3 * (1.0 - rev_damp); yr3 = rev_state[15];
+
+  // Orthogonal 4x4 Hadamard feedback (0.5 * H4) + decorrelated input injection
+  a = y0 + y1; b = y0 - y1; c = y2 + y3; d = y2 - y3;
+  fdn_write(comb_l1, comb_max, rev_state + 0, in_l * 0.5 + (a + c) * 0.5 * c_fb_l1);
+  fdn_write(comb_l2, comb_max, rev_state + 1, -in_l * 0.5 + (b + d) * 0.5 * c_fb_l2);
+  fdn_write(comb_l3, comb_max, rev_state + 2, in_l * 0.5 + (a - c) * 0.5 * c_fb_l3);
+  fdn_write(comb_l4, comb_max, rev_state + 3, -in_l * 0.5 + (b - d) * 0.5 * c_fb_l4);
+
+  a = yr0 + yr1; b = yr0 - yr1; c = yr2 + yr3; d = yr2 - yr3;
+  fdn_write(comb_r1, comb_max, rev_state + 4, in_r * 0.5 + (a + c) * 0.5 * c_fb_r1);
+  fdn_write(comb_r2, comb_max, rev_state + 5, -in_r * 0.5 + (b + d) * 0.5 * c_fb_r2);
+  fdn_write(comb_r3, comb_max, rev_state + 6, in_r * 0.5 + (a - c) * 0.5 * c_fb_r3);
+  fdn_write(comb_r4, comb_max, rev_state + 7, -in_r * 0.5 + (b - d) * 0.5 * c_fb_r4);
+
+  sum_l = bq_proc_l(bq_rev_shelf, (y0 - y1 + y2 - y3) * 0.35);
+  sum_r = bq_proc_r(bq_rev_shelf, (yr0 - yr1 + yr2 - yr3) * 0.35);
 
   // Symmetric stereo cross-wash in Ambient mode
   rev_mode == 2 ? (
