@@ -21,6 +21,17 @@ Every value or claim below is tagged with one of these.
 - He owns Ugritone TRVE Cab and the Old School Black Metal IR pack. The built-in cab must also work switched off (Round 54).
 - "i'm wondering now if we've overcomplicated this" (Round 42), so complexity has to earn its place.
 
+## 2b. Release direction (Devin, 2026-11-20): this overrides older goals
+- **Public release.** The plugin is for everyone, not tuned to one player's guitar or interface.
+- **Default sound:** "a nice clean distortion of typical modern black metal records". Clear and defined, not a clean tone.
+- **Presets:** a couple of early black metal showcase presets ("shows what the plugin is capable of"), plus atmospheric ones. Keep the chorus and reverb.
+- **Simple to use:** "i just want to play." Don't add amp-modelling depth. §7-B (a JCM800-style amp model) is **dropped**.
+- **Consequences an agent must respect:**
+  - **IRs:** the Ugritone IRs cannot ship. The cab has to sound good for users who don't own them (better built-in cab, freely licensed IRs, or user-loadable IRs). This is a release blocker.
+  - **Input level:** calibrate to an industry convention so it behaves the same on common interfaces (§7-A).
+  - **Test DI:** use several guitars and players (free DI packs, plus Devin's), not one player.
+  - **Preset names:** prefer descriptive names over band or album names for the public build. This is a suggestion, not legal advice.
+
 ## 3. What black metal guitar actually ran through
 These are historical facts, which is not the same as what the plugin models. The pattern matters more than any single entry.
 
@@ -186,10 +197,10 @@ Ranked by expected impact on out-of-the-box sound. Each has an experiment that s
 
 ## 8. Questions for Devin, and his answers (2026-11-20)
 1. **Interface and gain:** Behringer UMC22, gain at about 12 o'clock. See the §7-A correction. Still open: the INPUT meter peak when playing hard.
-2. **DI recordings (§7-C):** the question wasn't clear; it was re-asked in plain terms (record the dry guitar with the plugin off).
+2. **DI recordings (§7-C):** Devin will release publicly, so tuning to him alone is not the goal. Use varied free DI material; Devin's takes are optional extra coverage. The INPUT-meter reading from question 1 is no longer needed either: the input will be calibrated to a convention (§2b).
 3. **Reference records (§7-E):** "they all sort of get there, but the clarity of the guitars is questionable… maybe i added too many settings… i really just want a clean black metal guitar plugin… i think i'm doing too much probably chasing down particular sounds from different eras." He likes the presets.
    - **This sets the direction:** clarity and simplicity over era-matching. Keep the preset bank, but don't spend more effort reproducing specific records. §7-E (LTAS matching to records) is dropped.
-4. **Amp direction (§7-B):** the question wasn't clear; it was re-asked in plain terms.
+4. **Amp direction (§7-B):** "i think our amp stuff might be getting to complicated… i just want to play." Keep the amp as a simple voicing stage; §7-B dropped.
 
 ## 9. Sources
 - Sound On Sound, *Producing Norwegian Black Metal* Part 1 (Pytten, Mayhem): https://www.soundonsound.com/node/4931450 · Part 2 (Kark, Necromorbus): https://www.soundonsound.com/techniques/producing-norwegian-black-metal-part-2
