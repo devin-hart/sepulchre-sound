@@ -1873,3 +1873,71 @@ I read Antigravity's Round 67 audit (`reviews/antigravity_reports.md`, "Round 67
 
 ### Not verified
 Nothing was run in REAPER. Antigravity's findings were checked by reading the code. The damping cutoffs were computed by script and the overflow sizes by hand; none of the clicks were measured.
+
+---
+
+## Round 69 — Claude: sound references, research, release direction, next steps
+
+### Round 68 (Gemini / Antigravity audit fixes)
+Noted. Commit `98e43a3` implements the combined Round 67 fixes. Antigravity's Round 68 report lists them, and Devin confirms Gemini did the edits. I haven't reviewed the code diff line by line. What I checked:
+- **`python3 tests/verify_jsfx.py` passes 8/8 on Linux.** numpy is now present, so check [8/8] runs. The four "checked" presets are within 0.73 dB of −18.6 LUFS. The FX-heavy ones are info only, ranging −1.90 to +2.49 dB.
+- **The deployed copy** in `~/.config/REAPER/Effects/sepulchre_sound/` matches the repo.
+- **RAT `rd / 43` (my R67 L1) is resolved:** 47 Ω ∥ 560 Ω = 43.4 Ω, now commented. Not a typo.
+- **Still unverified in REAPER:** the user-preset / undo protection (R67 H2), and the UI on Linux fonts.
+
+### New: `SOUND_REFERENCES.md`
+- **Why:** Devin asked for a sound-reference doc, now that Gemini does the code edits, plus research into what we might be missing.
+- **What it holds:**
+  - historical black metal rigs, from interviews where possible (SOS 2024: Pytten on *DMDS*, Kark; Guitar World: Burzum, Nocturno Culto; Premier Guitar);
+  - the source of every module's numbers, tagged [circuit] / [measured] / **[ear]** / [fan] / [interview];
+  - the ear-tuned values agents must not change;
+  - Devin's listening history;
+  - ranked research findings;
+  - the release direction;
+  - the cab IR plan.
+- `AGENTS.md` now says to read it before any change that affects the sound.
+
+### Research findings, and how Devin's answers changed them
+| # | Finding | Status |
+| :-- | :-- | :-- |
+| A | The plugin assumes 0 dBFS = 1 V. The industry convention (Neural DSP) is 1 V peak ≈ −13 dBFS. The test DI (−12.5 dBFS) drives the pedals ~12.5 dB below a real guitar on a Focusrite/UAD interface. | **Corrected for Devin.** His UMC22 Hi-Z clips at +2 dBu at minimum gain (1 V ≈ −3 dBFS), and he runs it at noon. For the **public release** it still matters: calibrate to a convention so common interfaces behave alike. |
+| B | The amp stage isn't a real amp; the classic records were a pedal into a distorting amp. | **Dropped** (Devin: "i just want to play"). The amp stays a simple voicing stage. |
+| C | Presets were calibrated on one 0.5 s DI clip. | **Open.** Use several free DI sources and players, not Devin alone. |
+| D | The Schroeder 4-comb reverb is the documented metallic design. | **Open.** Dattorro plate / FDN; matters for the atmospheric presets. |
+| E | LTAS matching against reference records | **Dropped**: no more era-matching. |
+
+### Release direction (Devin, 2026-11-20)
+- **Public release.** Default: "a nice clean distortion of typical modern black metal records", meaning clear and defined.
+- A couple of early black metal showcase presets, plus atmospheric ones. Keep the chorus and reverb.
+- Devin on clarity: "they all sort of get there, but the clarity of the guitars is questionable… maybe i added too many settings."
+- **Likely cause** (not measured): stacked gain. Pedals at 10, then amp clipping, then GE-7 boosts up to +14 dB.
+
+### Cabinet IRs
+- The Ugritone IRs can't ship. Devin's call: users load their own IRs, and one freeware IR is bundled if the license allows (ideally a 5150).
+- **License research:** no free 5150 IR is clearly cleared for bundling.
+  - Shift Line (has a real 5150 4x12) publishes no license.
+  - Jester Dyne's Brutal Pack is free for commercial use but says nothing on redistribution.
+  - overdriven.fr forbids vendor redistribution without written agreement.
+- **Devin:** bundling and the permission emails are deferred. Keep the Ugritone IRs locally for now; he wants to test other IRs.
+- Today only the 10 hard-coded filenames load. Workaround until then: swap a test IR in under a slot's filename, after backing up the original.
+
+### Next steps (proposed order; the code goes to Gemini)
+1. **User-loadable IRs** (unblocks Devin's IR testing):
+   - a JSFX file slider on `Data/sepulchre_irs/`;
+   - drop the per-slot name and trim tables; keep the generic `IR_E48` match and `IR_MATCH_DB` [ear];
+   - any channel count or sample rate; fade out the truncation at 42.7 ms;
+   - fall back to the built-in cab when the folder is empty or the load fails.
+   - Design notes are in SOUND_REFERENCES §8b.
+2. **Built-in cab as a real default:** voice the IIR 4x12 on a V30 or Sheffield 4x12 response, so the plugin sounds right with no files. This is the public release blocker.
+3. **Input calibration** to a convention (1 V peak ≈ −13 dBFS), so the INPUT meter's target zone tells users how to set interface gain. Re-centre the pedal Level make-ups after it. This changes every preset, so Devin approves first.
+4. **DI test set:** several free DI sources (check the licenses), tremolo picking, chords and palm mutes, two takes each.
+5. **Clarity re-voice of the bank:**
+   - a clear modern default with less stacked gain, the low end cut before the drive, and the fizz trimmed;
+   - two early-BM showcases and a few atmospheric presets;
+   - fewer presets, with descriptive names for the public build.
+   - Judge them double-tracked, in context.
+6. **Reverb:** a less metallic design (Dattorro plate / FDN), same knobs.
+7. **Later:** bundle permission requests (Devin), README / install instructions (IR folder location), REAPER checks for H2 and the Linux UI.
+
+### Not verified
+Nothing here was run in REAPER. The research claims carry their source tags in SOUND_REFERENCES.md. The clarity diagnosis (stacked gain) is a hypothesis, not a measurement.
