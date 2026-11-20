@@ -11,24 +11,26 @@
 
 ## 2. Tech Stack & Locations
 - **Platform:** Cockos REAPER JSFX (EEL2 real-time DSP + `@gfx` UI language).
-- **Source Repository:** `D:\VSTs\sepulchre_sound\`
-- **REAPER Runtime Deployment Path:** `C:\Users\wizardbeard\AppData\Roaming\REAPER\Effects\sepulchre_sound\`
-- **WAV Impulse Response Bank:** `C:\Users\wizardbeard\AppData\Roaming\REAPER\Data\sepulchre_irs\` (10 curated WAV impulses from `D:\GuitarPlugins`).
-- **Verification Environment:** Python 3 dynamic EEL2 parser, memory-map verifier, and offline DSP simulation suite (`tests/verify_jsfx.py`).
+- **Host OS:** **Linux** (Manjaro, bash) since 2026-11-20. Rounds 1–66 were developed on Windows, so older `REVIEW.md` / `reviews/` entries and some test defaults still use Windows paths (`D:\`, `%APPDATA%`, `reaper.exe`).
+- **Source Repository:** `~/projects/sepulchre_sound/`
+- **REAPER:** `/usr/bin/reaper`; resource folder `~/.config/REAPER/`.
+- **REAPER Runtime Deployment Path:** `~/.config/REAPER/Effects/sepulchre_sound/`
+- **WAV Impulse Response Bank:** `~/.config/REAPER/Data/sepulchre_irs/` (10 curated WAV impulses). Never copy the IRs into the repo.
+- **Verification Environment:** Python 3 dynamic EEL2 parser, memory-map verifier, and offline DSP simulation suite (`tests/verify_jsfx.py`). Check [8/8] and the render tests need `numpy`.
+- **Fonts:** the UI asks for `Bahnschrift` and `Consolas`, which are Windows fonts and are not installed here; REAPER substitutes, so text widths on Linux differ from the Windows measurements in older reviews.
 
 ## 3. Commands
-- **Run Syntax, Memory & Offline DSP Verification:**
-  ```powershell
-  python D:\VSTs\sepulchre_sound\tests\verify_jsfx.py
+- **Run Syntax, Memory & Offline DSP Verification** (the env var lets check [8/8] find the IRs; without numpy it is skipped):
+  ```bash
+  SEPULCHRE_IR_DIR=~/.config/REAPER/Data/sepulchre_irs python3 ~/projects/sepulchre_sound/tests/verify_jsfx.py
   ```
-- **Run Live REAPER CLI Batch Render Harness (`reaper.exe -newinst -nosplash -renderproject`):**
-  ```powershell
-  python D:\VSTs\sepulchre_sound\tests\render\run_reaper_render.py
+- **Run a Live REAPER CLI Render Test** (`reaper -newinst -nosplash -renderproject`; `render_common.py` defaults to Windows paths, so set `REAPER_EXE` and `APPDATA`, which it uses as the folder holding `REAPER/`). Tests are `tests/render/test_*.py`, e.g.:
+  ```bash
+  REAPER_EXE=/usr/bin/reaper APPDATA=~/.config python3 ~/projects/sepulchre_sound/tests/render/test_mirror_null.py
   ```
-- **Deploy to REAPER Effects Folder (Windows):**
-  ```powershell
-  New-Item -ItemType Directory -Force -Path "$env:APPDATA\REAPER\Effects\sepulchre_sound" | Out-Null
-  Copy-Item -Path "D:\VSTs\sepulchre_sound\sepulchre_*.jsfx*", "D:\VSTs\sepulchre_sound\sepulchre_*.jpg", "D:\VSTs\sepulchre_sound\sepulchre_*.png" -Destination "$env:APPDATA\REAPER\Effects\sepulchre_sound\" -Force
+- **Deploy to REAPER Effects Folder:**
+  ```bash
+  mkdir -p ~/.config/REAPER/Effects/sepulchre_sound && cp ~/projects/sepulchre_sound/sepulchre_*.jsfx* ~/projects/sepulchre_sound/sepulchre_*.jpg ~/projects/sepulchre_sound/sepulchre_*.png ~/.config/REAPER/Effects/sepulchre_sound/
   ```
 
 ## 4. Code Map
@@ -44,7 +46,7 @@
 - `sepulchre_ui.jsfx-inc` (272 lines): "Crypt" necro-monochrome theme (`#090909` void, `#E8E3D7` bone, `#A39E94` labels, `#841216` blood, `#B01C22` ember LEDs), resolution-independent scaling (`ui_begin` / `ui_S`, `gfx_ext_retina = 1`), image/sprite loaders (`ui_load_images`, `ui_draw_background`, `ui_title`), `auto_slider` automation helper, and live widgets (`ui_seg`, `ui_toggle`, `ui_power_led`, bipolar dB `ui_hslider`, `ui_meter` with gate threshold marker & `-10..-8 dBFS` target band, `ui_led`, preset dropdown).
 - `sepulchre_ui_panels.jsfx-inc` (216 lines): Crypt 8-stage stone-slab layout (`I INPUT` → `II..V` swappable slots with hover `<`/`>` move arrows → `VI AMP` → `VII CABINET` / `VIII OUTPUT`), `lay_begin`/`lay` vertical column distributor, 28% alpha bypass dimming, and live oversampling/PDC header (`ui_header`).
 - `sepulchre_bg.jpg` & `sepulchre_titles.png`: Baked `2408×1000` (2x Retina) Crypt stone-slab + black-metal logo background and 2x Cinzel stage title / Roman numeral (`I..VIII`) sprite sheet.
-- `tests/verify_jsfx.py` & `tests/render/run_reaper_render.py`: Automated EEL2 parser, high-gain saturation-curve guard (`check_distortion_gain_curve`), `<300` line enforcer, asset verifier, dynamic `alloc_buf` memory verifier, AST invariant checks, Python DSP mirror (preset levels, per-pedal aliasing, filter pole-Q, IR loudness constant), and live REAPER 7.83 CLI batch render harness (`reaper.exe -newinst -nosplash -renderproject`).
+- `tests/verify_jsfx.py` & `tests/render/` (`render_common.py` + `test_*.py`): Automated EEL2 parser, high-gain saturation-curve guard (`check_distortion_gain_curve`), `<300` line enforcer, asset verifier, dynamic `alloc_buf` memory verifier, AST invariant checks, Python DSP mirror (preset levels, per-pedal aliasing, filter pole-Q, IR loudness constant), and live REAPER CLI batch render harness (`reaper -newinst -nosplash -renderproject`).
 
 > **Round 42 (Claude):** the plugin is now a fixed chain (see SPEC "Round 42 architecture"). Routing slots, Input Pre-EQ, Lo-Fi Grit and the IIR cab mode were removed; chorus is a Boss CE-2 model. Older file descriptions above that mention them are historical.
 > **Round 43 (Claude):** delay removed; UI back to 7 columns at 1204×500.
