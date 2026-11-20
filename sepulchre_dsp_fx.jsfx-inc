@@ -14,7 +14,7 @@ function buf_read_interp(buf, len, wpos, delay_spl) local(rpos, idx0, idx1, frac
 );
 
 function comb_proc(buf, len, idx_ptr, lp_ptr, x, fb, damp) local(idx, out, lp) (
-  idx = idx_ptr[0];                                 // Round 39: ptr[0], not mem[ptr] (mem was an undeclared 0)
+  idx = idx_ptr[0]; idx >= len ? idx = 0;           // Round 39: ptr[0], not mem[ptr]; Round 67: wrap before read
   out = buf[idx];
   lp = lp_ptr[0] * damp + out * (1.0 - damp);
   lp_ptr[0] = lp;
@@ -26,7 +26,7 @@ function comb_proc(buf, len, idx_ptr, lp_ptr, x, fb, damp) local(idx, out, lp) (
 );
 
 function allpass_proc(buf, len, idx_ptr, x, g) local(idx, buf_out, y) (
-  idx = idx_ptr[0];
+  idx = idx_ptr[0]; idx >= len ? idx = 0;
   buf_out = buf[idx];
   y = -g * x + buf_out;
   buf[idx] = x + g * buf_out;
@@ -68,6 +68,7 @@ function init_fx_dsp() (
 
   rev_state = alloc_buf(32);
   bq_rev_shelf = alloc_buf(9);
+  rev_en_s = 0.0; rev_idle_max = 4800;
 );
 
 function reset_fx_state() (
@@ -84,9 +85,10 @@ function reset_fx_state() (
   chorus_wpos = 0; chorus_phase = 0.0;
   ch_hp_xl = 0; ch_hp_yl = 0; ch_hp_xr = 0; ch_hp_yr = 0; ch_a1l = 0; ch_a1r = 0; ch_r1l = 0; ch_r1r = 0;
   rev_pre_wpos = 0;
+  reverb_mix_s = reverb_mix_t; rev_en_s = slider40 > 0.5 ? 1.0 : 0.0; rev_idle = 0;
 );
 
-function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay) (
+function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay, d48) (
   // Round 42: Boss CE-2 (ElectroSmash analysis). Wet path: 48 Hz HPF -> 3rd-order anti-alias LPF (6.6 kHz pole +
   // 6.9 kHz pair) -> MN3007 BBD delay swept by a triangle LFO -> same 3rd-order reconstruction LPF. Dry + wet summed
   // with equal resistors (50/50); x0.78 keeps the engaged RMS level within 0.1 dB of bypass on a guitar DI. Pre/de-emphasis cancel (no BBD noise modelled).
@@ -97,8 +99,9 @@ function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay) (
   ch_dsw = (0.0003 + 0.0047 * slider78 * 0.1) * srate;          //   + 0.3 .. 5 ms sweep (Depth knob)
 
   // Mutual-prime comb lengths (1559, 1619, 1493, 1423) scaled for sample rate
+  rev_mode = floor(slider41 + 0.5);
   s_scale = srate / 44100.0;
-  mode_scale = slider41 == 1 ? 0.68 : (slider41 == 2 ? 1.32 : 1.0);
+  mode_scale = rev_mode == 1 ? 0.68 : (rev_mode == 2 ? 1.32 : 1.0);
   c_len_l1 = min(comb_max - 4, floor(1559 * s_scale * mode_scale));
   c_len_l2 = min(comb_max - 4, floor(1619 * s_scale * mode_scale));
   c_len_l3 = min(comb_max - 4, floor(1493 * s_scale * mode_scale));
@@ -114,17 +117,20 @@ function update_fx_coeffs() local(rev_fc, s_scale, mode_scale, eff_decay) (
   ap_len_r2 = min(ap_max - 4, floor((557 + 19) * s_scale));
 
   // Calibrated RT60 feedback per comb length (Bug #1 fix)
-  eff_decay = slider42 * (slider41 == 2 ? 1.25 : 1.0);
+  eff_decay = slider42 * (rev_mode == 2 ? 1.25 : 1.0);
   c_fb_l1 = rt60_fb(c_len_l1, eff_decay); c_fb_l2 = rt60_fb(c_len_l2, eff_decay);
   c_fb_l3 = rt60_fb(c_len_l3, eff_decay); c_fb_l4 = rt60_fb(c_len_l4, eff_decay);
   c_fb_r1 = rt60_fb(c_len_r1, eff_decay); c_fb_r2 = rt60_fb(c_len_r2, eff_decay);
   c_fb_r3 = rt60_fb(c_len_r3, eff_decay); c_fb_r4 = rt60_fb(c_len_r4, eff_decay);
 
-  rev_damp = clamp((slider44 * 0.0070 + (slider41 == 0 ? 0.16 : 0.05)) * (44100.0 / srate), 0.03, 0.85);
-  rev_ap_g = slider41 == 1 ? 0.68 : 0.55;
+  // Round 67: 48 kHz-anchored exponential srate scaling keeps cutoff constant across sample rates without changing 48k
+  d48 = clamp((slider44 * 0.0070 + (rev_mode == 0 ? 0.16 : 0.05)) * (44100.0 / 48000.0), 0.03, 0.85);
+  rev_damp = d48 ^ (48000.0 / srate);
+  rev_ap_g = rev_mode == 1 ? 0.68 : 0.55;
   rev_fc = 1200.0 + (1.0 - slider44 * 0.01) * 6500.0;
   bq_hshelf(bq_rev_shelf, rev_fc, -3.0 - (slider44 * 0.12));
   reverb_mix_t = slider45 * 0.01;
+  rev_idle_max = floor(0.1 * srate);
 );
 
 // Boss CE-2 chorus. Bypass crossfades over ~20 ms; buffer keeps running so engaging it is click-free.
@@ -150,8 +156,9 @@ function proc_chorus() local(tri, d, x, wl, wr) (
 // Runs while on and while a bypassed tail is still audible (spillover); Round 46: idles once the tail is under -120 dB
 function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cross_r) (
   en = slider40 > 0.5;
-  en ? rev_idle = 0;
-  rev_idle < 4800 ? (
+  rev_en_s = param_smooth_c * rev_en_s + (1.0 - param_smooth_c) * (en ? 1.0 : 0.0);
+  en || rev_en_s > 0.0001 ? rev_idle = 0;
+  rev_idle < rev_idle_max ? (
   reverb_mix_s = param_smooth_c * reverb_mix_s + (1.0 - param_smooth_c) * reverb_mix_t;
 
   pre_spl = clamp(slider43 * 0.001 * srate, 1.0, rev_pre_len - 16.0);
@@ -182,14 +189,14 @@ function proc_reverb() local(en, pre_spl, in_l, in_r, sum_l, sum_r, cross_l, cro
   sum_r = bq_proc_r(bq_rev_shelf, sum_r);
 
   // Symmetric stereo cross-wash in Ambient mode
-  slider41 == 2 ? (
+  rev_mode == 2 ? (
     cross_l = 0.78 * sum_l + 0.22 * sum_r;
     cross_r = 0.78 * sum_r + 0.22 * sum_l;
     sum_l = cross_l; sum_r = cross_r;
   );
 
-  spl0 = spl0 * (1.0 - (en ? reverb_mix_s * 0.45 : 0.0)) + sum_l * reverb_mix_s;
-  spl1 = spl1 * (1.0 - (en ? reverb_mix_s * 0.45 : 0.0)) + sum_r * reverb_mix_s;
-  !en ? ( max(abs(sum_l), abs(sum_r)) < 0.000001 ? ( rev_idle += 1; ) : ( rev_idle = 0; ); );
+  spl0 = spl0 * (1.0 - rev_en_s * reverb_mix_s * 0.45) + sum_l * reverb_mix_s;
+  spl1 = spl1 * (1.0 - rev_en_s * reverb_mix_s * 0.45) + sum_r * reverb_mix_s;
+  !en && rev_en_s <= 0.0001 ? ( max(abs(sum_l), abs(sum_r)) < 0.000001 ? ( rev_idle += 1; ) : ( rev_idle = 0; ); );
   );
 );

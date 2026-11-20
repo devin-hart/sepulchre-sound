@@ -95,16 +95,19 @@ ext_noinit = 1;
   eq_last_preset = floor(slider75 + 0.5);   // saved fader values win over the preset table on project load
   gp_last = floor(slider60 + 0.5);          // same for the global preset (R2-1: never recall on load)
   load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+  snap_all_sliders();
 );
 sync_all_DSP();
 
 @slider
-// EQ preset chosen from REAPER's slider list / automation (the UI calls recall_eq_preset directly)
-floor(slider75 + 0.5) != eq_last_preset ? recall_eq_preset(floor(slider75 + 0.5));
-// Global preset changed by host automation / control surface (Round 39)
-floor(slider60 + 0.5) != gp_last ? recall_global_preset(floor(slider60 + 0.5));
+// Round 67 (H2): only recall factory presets when slider75/60 changed alone (preserves REAPER user presets & undo)
+eq_p = floor(slider75 + 0.5);
+eq_p != eq_last_preset ? ( !other_sliders_changed(75) ? recall_eq_preset(eq_p) : ( eq_last_preset = eq_p; ); );
+gp_p = floor(slider60 + 0.5);
+gp_p != gp_last ? ( !other_sliders_changed(60) ? recall_global_preset(gp_p) : ( gp_last = gp_p; ); );
 tmp_ir_idx = clamp(floor(slider53 + 0.001), 0, 9);
 tmp_ir_idx != ir_loaded_slot ? load_ir_slot(tmp_ir_idx);
+snap_all_sliders();
 ui_need_sync = 1;
 
 @block

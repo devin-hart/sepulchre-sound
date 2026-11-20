@@ -9,9 +9,9 @@ import numpy as np
 # Repository and Path Resolution
 REPO_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 RENDER_DIR = os.path.join(REPO_DIR, "tests", "render")
-REAPER_EXE = os.environ.get("REAPER_EXE", "D:/Reaper/reaper.exe")
-APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming"))
-IR_DIR = os.path.join(APPDATA_DIR, "REAPER", "Data", "sepulchre_irs")
+REAPER_EXE = os.environ.get("REAPER_EXE", "D:/Reaper/reaper.exe" if sys.platform == "win32" else "/usr/bin/reaper")
+APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming") if sys.platform == "win32" else os.path.expanduser("~/.config"))
+IR_DIR = os.environ.get("SEPULCHRE_IR_DIR", os.path.join(APPDATA_DIR, "REAPER", "Data", "sepulchre_irs"))
 
 def get_declared_sliders(jsfx_path=None):
     if jsfx_path is None:
@@ -33,7 +33,7 @@ FRESH_INSERT_DEFAULTS = {
     20: 0, 77: 4.5, 78: 4.0,
     40: 1, 41: 0, 42: 1.8, 43: 20.0, 44: 60.0, 45: 10.0,
     65: 1, 66: -9.0, 67: -2.0, 68: 0.0, 69: 12.0, 70: -2.0, 71: 9.0, 72: -3.5, 73: -0.5, 75: 3,
-    49: 1, 51: -5.4, 53: 0, 54: 2, 55: 40.0, 56: 50.0, 57: 66.0, 58: 66.0,
+    49: 1, 51: -3.8, 53: 0, 54: 2, 55: 40.0, 56: 50.0, 57: 66.0, 58: 66.0,
     60: 0,
 }
 

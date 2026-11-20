@@ -624,6 +624,18 @@ def check_defaults_match_preset_1(presets_src):
     print(f"  - {len(p0)} preset-01 sliders checked, {len(bad)} mismatches")
     if bad:
         raise AssertionError(f"slider defaults differ from preset 01: {bad}")
+    # Round 67: also verify UI double-click defaults (ui_hslider dflt_v) match sepulchre_sound.jsfx slider defaults
+    with open(os.path.join(ROOT, "sepulchre_ui_panels.jsfx-inc"), "r", encoding="utf-8") as f:
+        panels_src = strip_comments_and_strings(f.read())
+    ui_bad, ui_cnt = [], 0
+    for m in re.finditer(r"ui_hslider\(\s*(\d+)\s*,(?:[^,]+,){7}\s*([-0-9.]+)\s*,", panels_src):
+        sid, dflt = int(m.group(1)), float(m.group(2))
+        ui_cnt += 1
+        if abs(SLIDER_DEFAULTS.get(sid, 1e9) - dflt) > 1e-9:
+            ui_bad.append((sid, dflt, SLIDER_DEFAULTS.get(sid)))
+    print(f"  - {ui_cnt} UI double-click defaults checked, {len(ui_bad)} mismatches")
+    if ui_bad:
+        raise AssertionError(f"UI double-click defaults differ from slider defaults: {ui_bad}")
 
 
 def _read_wav_mono(path):
@@ -667,7 +679,9 @@ def check_real_ir_loudness(presets_src, raw_files):
         import numpy as np
     except ImportError:
         print("  - SKIPPED: numpy not installed"); return
-    ir_dir = os.environ.get("SEPULCHRE_IR_DIR") or os.path.join(os.environ.get("APPDATA", ""), "REAPER", "Data", "sepulchre_irs")
+    default_ir_dir = (os.path.join(os.environ.get("APPDATA", ""), "REAPER", "Data", "sepulchre_irs")
+                      if sys.platform == "win32" else os.path.expanduser("~/.config/REAPER/Data/sepulchre_irs"))
+    ir_dir = os.environ.get("SEPULCHRE_IR_DIR") or default_ir_dir
     ir_path = os.path.join(ir_dir, "01_BlackWizard_Center.wav")
     di_path = os.path.join(ROOT, "tests", "render", "di_input.wav")
     if not (os.path.exists(ir_path) and os.path.exists(di_path)):

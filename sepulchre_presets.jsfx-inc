@@ -10,6 +10,17 @@ function sync_all_DSP() (
   update_eq_coeffs();
 );
 
+// Round 67 (H2): snapshot sliders so @slider only recalls factory presets when slider60/75 changed alone
+// (avoids clobbering REAPER user presets or undo/redo when multiple sliders are restored together).
+function snap_all_sliders() local(i) (
+  i = 1; loop(78, sl_snap[i] = slider(i); i += 1; );
+);
+function other_sliders_changed(skip_id) local(i, chg) (
+  chg = 0; i = 1;
+  loop(78, i != skip_id && abs(slider(i) - sl_snap[i]) > 0.0001 ? chg = 1; i += 1; );
+  chg;
+);
+
 // Round 34: GE-7 settings for classic black metal records, read off Devin's reference photos (approximate, +/-1.5 dB).
 // Order: 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (dB). recall_eq_preset() lives in sepulchre_ui_panels (needs auto_slider);
 // Round 55: the values live here (eq_preset_vals) so global presets can load a record curve too.
@@ -71,14 +82,13 @@ GP_COUNT = 10;
 // render (WAV IR slot 0, chorus / reverb on, di_input.wav peaking -12.5 dBFS) to the median, -18.6 LUFS. The Round 55
 // mirror match (synthetic, IIR reference cab, no FX) was off by up to 7.5 dB. Round 59: Buzzsaw moved from Bathory (the
 // cab ate its treble; matched level hit the limiter) to Spectre, set with the real-IR mirror (verify check [8/8]).
-// The IR slot is left as the player set it.
+// The cab on/off switch (slider49) and IR slot (slider53) are left as the player set them (Round 67).
 // Sliders: 1 trim, 2 low cut, 3/4 gate; 10/11 pedal; RAT 26-28, DS-1 29/37/38, MT-2 39/46/47/48/59/61, HM-2 62-64/9;
-// 20/77/78 CE-2; 40-45 reverb; 54-58 amp + air; 49 cab, 51 master. EQ is reset to off / flat first.
+// 20/77/78 CE-2; 40-45 reverb; 54-58 amp + air; 51 master. EQ is reset to off / flat first.
 function recall_global_preset(idx) (
   slider60 = idx; gp_last = idx;
   preset_dirty = 0;
   slider65 = 0; slider76 = 1; slider75 = 0; slider66 = 0; slider67 = 0; slider68 = 0; slider69 = 0; slider70 = 0; slider71 = 0; slider72 = 0; slider73 = 0;
-  slider49 = 1;
 
   idx == 0 ? ( // 01 Frostbitten: DS-1 flat out, solid-state, Transilvanian curve, thin and buzzing
     slider1 = 0.0; slider2 = 140; slider3 = -50; slider4 = 1;
@@ -159,5 +169,6 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 50; slider56 = 54; slider57 = 58; slider58 = 60; slider51 = -1.8;
   );
   eq_last_preset = floor(slider75 + 0.5); eq_dirty = 0;
+  snap_all_sliders();
   ui_need_sync = 1;
 );

@@ -45,7 +45,7 @@ function update_dist_coeffs() local(os_sr, os_fc, rd, t) (
     rat_kA = rd / 560; rat_kB = rd / 47;
     rat_a60 = c1x(60); rat_a15 = c1x(1540);
     rat_aA = c1x(rd > 0 ? min(316000 / (1 + rd / 560), 1 / (2 * $pi * rd * 0.0000000001)) : 1000000000);
-    rat_aB = c1x(rd > 0 ? min(316000 / (1 + rd / 43), 1 / (2 * $pi * rd * 0.0000000001)) : 1000000000);
+    rat_aB = c1x(rd > 0 ? min(316000 / (1 + rd / 43), 1 / (2 * $pi * rd * 0.0000000001)) : 1000000000);   // 47 || 560 ~= 43.4 ohm
     rat_slew = 300000 / os_sr;
     rat_af = c1b(1 / (2 * $pi * (1500 + 100000 * a_taper(slider27 * 0.1)) * 0.0000000033));
     dist_mk_t = 1.6 * a_taper(slider28 * 0.1);
@@ -156,6 +156,7 @@ function reset_dist_state() (
 
 // Round 39: on/off crossfades over ~20 ms (was a hard switch: click). Fully bypassed = idle + state cleared.
 function proc_distortion() local(k, xl, xr, l, r, gk, dl, dr) (
+  dist_ped != dist_ped_last ? ( dist_ped_last = dist_ped; reset_dist_state(); );
   dist_mk_s = param_smooth_c * dist_mk_s + (1.0 - param_smooth_c) * dist_mk_t;
   dist_mix_s = param_smooth_c * dist_mix_s + (1.0 - param_smooth_c) * (slider10 > 0.5 ? 1.0 : 0.0);
   dist_mix_s > 0.0001 ? (

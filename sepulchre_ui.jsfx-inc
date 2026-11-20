@@ -19,12 +19,8 @@ function c_track()  ( u_rgb(16, 15, 13); );      // chiselled groove floor
 function c_fill()   ( u_rgb(150, 140, 118); );   // bone dust in the groove
 function c_thumb()  ( u_rgb(232, 220, 192); );   // bone chip
 function c_det()    ( u_rgb(96, 90, 78); );      // centre notch, hover edge
-function c_blood()  ( u_rgb(92, 20, 16); );      // engaged toggle (dried blood)
 function c_ember()  ( u_rgb(230, 150, 62); );    // candle flame: power LEDs, gate threshold
-function c_flame()  ( u_rgb(255, 214, 140); );   // flame core
-function c_mbg()    ( u_rgb(14, 13, 12); );      // meter groove
 function c_tick()   ( u_rgb(118, 114, 98); );
-function c_ink()    ( u_rgb(12, 11, 9); );       // text carved into bone
 function c_lip()    ( u_rgb(78, 74, 64); );      // lit lower lip of a carved groove / lit edge of raised stone
 function c_shade()  ( u_rgb(4, 4, 3); );         // shadowed edge
 function c_stone()  ( u_rgb(38, 36, 31); );      // raised stone face
@@ -50,11 +46,6 @@ function u_py(y) ( floor(ui_oy + y * ui_S + 0.5); );
 function u_rect(x, y, w, h) local(x0, y0) (
   x0 = u_px(x); y0 = u_py(y);
   gfx_rect(x0, y0, max(1, u_px(x + w) - x0), max(1, u_py(y + h) - y0));
-);
-function u_frame(x, y, w, h) local(x0, y0, x1, y1) (
-  x0 = u_px(x); y0 = u_py(y); x1 = u_px(x + w) - 1; y1 = u_py(y + h) - 1;
-  gfx_line(x0, y0, x1, y0, 0); gfx_line(x1, y0, x1, y1, 0);
-  gfx_line(x1, y1, x0, y1, 0); gfx_line(x0, y1, x0, y0, 0);
 );
 function u_tri(x1, y1, x2, y2, x3, y3) (
   gfx_triangle(ui_ox + x1 * ui_S, ui_oy + y1 * ui_S, ui_ox + x2 * ui_S, ui_oy + y2 * ui_S, ui_ox + x3 * ui_S, ui_oy + y3 * ui_S);
@@ -129,12 +120,11 @@ function auto_slider(id, end_touch) (
   id == 68 ? slider_automate(slider68, end_touch) : id == 69 ? slider_automate(slider69, end_touch) :
   id == 70 ? slider_automate(slider70, end_touch) : id == 71 ? slider_automate(slider71, end_touch) :
   id == 72 ? slider_automate(slider72, end_touch) : id == 73 ? slider_automate(slider73, end_touch) :
-  id == 74 ? slider_automate(slider74, end_touch) : id == 75 ? slider_automate(slider75, end_touch) :
-  id == 76 ? slider_automate(slider76, end_touch) : id == 77 ? slider_automate(slider77, end_touch) :
-  id == 78 ? slider_automate(slider78, end_touch);
+  id == 75 ? slider_automate(slider75, end_touch) : id == 76 ? slider_automate(slider76, end_touch) :
+  id == 77 ? slider_automate(slider77, end_touch) : id == 78 ? slider_automate(slider78, end_touch);
 );
 function set_param(id, v) (
-  slider(id) = v; auto_slider(id, 1);
+  slider(id) = v; sl_snap[id] = v; auto_slider(id, 1);
   ui_need_sync = 1; preset_dirty = 1;
   id == 53 ? ir_reload_req = 1;
 );
@@ -200,7 +190,7 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
     ) : ( new_val = min_v + clamp((ui_mx - x) / w, 0, 1) * (max_v - min_v); );
     step_v > 0 ? new_val = floor(new_val / step_v + 0.5) * step_v;
     new_val = clamp(new_val, min_v, max_v);
-    new_val != val ? ( slider(id) = new_val; auto_slider(id, 0); ui_need_sync = 1; preset_dirty = 1; );
+    new_val != val ? ( slider(id) = new_val; sl_snap[id] = new_val; auto_slider(id, 0); ui_need_sync = 1; preset_dirty = 1; );
   );
 
   norm = clamp((new_val - min_v) / (max_v - min_v), 0, 1);
@@ -234,37 +224,34 @@ function ui_meter(x, y, w, label, peak_lin, thr_db, target) local(db, by, tx) (
   m_tick(-48, x, w, by + 10, "-48"); m_tick(-24, x, w, by + 10, "-24"); m_tick(-12, x, w, by + 10, "-12");
   m_tick(-6, x, w, by + 10, "-6"); m_tick(0, x, w, by + 10, "0");
 );
-function ui_led(x, y, on, label) (
-  on ? c_thumb() : c_blood(); u_rect(x, y + 2, 7, 7);
-  f_small(); c_lab(); u_text_sp(x + 14, y, label, 1.5);
-);
 
 // ---------- Global preset selector ----------
 // Round 55: < > step buttons left of the bar (each h x h), then the dropdown bar
 function draw_preset_dropdown_bar(x, y, w, h) local(n) (
   ui_alpha = 1; n = floor(slider60 + 0.5);
   f_small(); c_lab(); u_text_sp(x, y - 16, "PRESET", 2);
-  ui_seg(x, y, h, h, "<", 0) ? ( recall_global_preset(n > 0 ? n - 1 : GP_COUNT - 1); auto_slider(60, 1); ui_dropdown_open = 0; );
-  ui_seg(x + h + 3, y, h, h, ">", 0) ? ( recall_global_preset(n < GP_COUNT - 1 ? n + 1 : 0); auto_slider(60, 1); ui_dropdown_open = 0; );
+  ui_seg(x, y, h, h, "<", 0) ? ( recall_global_preset(n > 0 ? n - 1 : GP_COUNT - 1); auto_slider(60, 1); sliderchange(-1); ui_dropdown_open = 0; );
+  ui_seg(x + h + 3, y, h, h, ">", 0) ? ( recall_global_preset(n < GP_COUNT - 1 ? n + 1 : 0); auto_slider(60, 1); sliderchange(-1); ui_dropdown_open = 0; );
   x += 2 * h + 6; w -= 2 * h + 6;
   u_carve(x, y, w, h);
-  f_value(); c_bone(); u_text(x + 12, y + (h - u_th("0")) * 0.5, get_global_preset_name(slider60));
-  preset_dirty ? ( c_ember(); u_text(x + 18 + u_tw(get_global_preset_name(slider60)), y + (h - u_th("0")) * 0.5, "*"); );
+  n = floor(slider60 + 0.5);
+  f_value(); c_bone(); u_text(x + 12, y + (h - u_th("0")) * 0.5, get_global_preset_name(n));
+  preset_dirty ? ( c_ember(); u_text(x + 18 + u_tw(get_global_preset_name(n)), y + (h - u_th("0")) * 0.5, "*"); );
   c_fill(); u_tri(x + w - 20, y + h * 0.5 - 2, x + w - 10, y + h * 0.5 - 2, x + w - 15, y + h * 0.5 + 3);
   ui_mouse_clicked && mouse_in(x, y, w, h) ? ( ui_dropdown_open = !ui_dropdown_open; ui_mouse_clicked = 0; );
 );
-function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, hovered) (
+function draw_preset_dropdown_menu(x, y, w, row_h) local(i, ry, hovered, cur) (
   ui_dropdown_open ? (
-    ui_alpha = 1;
+    ui_alpha = 1; cur = floor(slider60 + 0.5);
     u_raise(x, y, w, GP_COUNT * row_h); ui_alpha = 0.75; c_void(); u_rect(x + 1, y + 1, w - 2, GP_COUNT * row_h - 2); ui_alpha = 1;
     i = 0;
     loop(GP_COUNT,
       ry = y + i * row_h; hovered = mouse_in(x, ry, w, row_h);
       hovered ? ( u_rgb(30, 29, 28); u_rect(x + 1, ry + 1, w - 2, row_h - 2); );
-      i == slider60 ? ( c_ember(); u_rect(x + 1, ry + 4, 3, row_h - 8); );
-      f_value(); (i == slider60 || hovered) ? c_bone() : c_soft();
+      i == cur ? ( c_ember(); u_rect(x + 1, ry + 4, 3, row_h - 8); );
+      f_value(); (i == cur || hovered) ? c_bone() : c_soft();
       u_text(x + 14, ry + (row_h - u_th("0")) * 0.5, get_global_preset_name(i));
-      ui_mouse_clicked && hovered ? ( recall_global_preset(i); auto_slider(60, 1); ui_dropdown_open = 0; ui_mouse_clicked = 0; );
+      ui_mouse_clicked && hovered ? ( recall_global_preset(i); auto_slider(60, 1); sliderchange(-1); ui_dropdown_open = 0; ui_mouse_clicked = 0; );
       i += 1;
     );
     ui_mouse_clicked ? ( ui_dropdown_open = 0; ui_mouse_clicked = 0; );

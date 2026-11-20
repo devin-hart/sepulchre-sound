@@ -150,6 +150,7 @@ function init_core_dsp() (
   bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
   bq_eq1 = alloc_buf(9); bq_eq2 = alloc_buf(9); bq_eq3 = alloc_buf(9); bq_eq4 = alloc_buf(9);   // GE-7 bands
   bq_eq5 = alloc_buf(9); bq_eq6 = alloc_buf(9); bq_eq7 = alloc_buf(9);
+  sl_snap = alloc_buf(80);
   eq_mix_s = 0.0; eq_lvl_s = 1.0;
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
@@ -166,10 +167,10 @@ function reset_core_state() (
   eq_clear();
   gate_env = 0.0; gate_gain = 0.0; gate_open = 0; gate_hold_cnt = 0;
   dc_x1_l = 0.0; dc_y1_l = 0.0; dc_x1_r = 0.0; dc_y1_r = 0.0;
-  in_trim_s = in_trim_t; dist_mk_s = dist_mk_t; master_out_s = master_out_t;
+  in_trim_s = in_trim_t; dist_mk_s = dist_mk_t; master_out_s = master_out_t; eq_lvl_s = eq_lvl_t;
 );
 
-function update_core_coeffs() local(low_db, mid_db, high_db, slew_fc, os_sr, os_fc) (
+function update_core_coeffs() (
   param_smooth_c = exp(-1.0 / (0.020 * srate));
   meter_decay_c = exp(-1.0 / (0.300 * srate));
   dc_r = exp(-2.0 * $pi * 10.0 / srate);

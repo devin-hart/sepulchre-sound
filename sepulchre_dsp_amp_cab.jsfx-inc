@@ -37,6 +37,7 @@ function init_amp_cab_dsp() (
   cv_frame = ir_blk_last + 8192; cv_acc = ir_blk_last + 8704; cv_tmp = ir_blk_last + 9216; cv_out = ir_blk_last + 9728;
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
+  ir_ped_g_s = 1.0; ir_ped_g_t = 1.0; cab_was_on = 0;
 );
 
 function reset_amp_cab_state() (
@@ -49,6 +50,7 @@ function reset_amp_cab_state() (
   ir_bpos = 0; cv_fdl_pos = 0;
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
+  ir_ped_g_s = ir_ped_g_t;
 );
 
 function get_ir_filename(idx) (
@@ -81,14 +83,14 @@ function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
       file_riff(fh, nch, ir_sr);
       nch > 0 ? (
         avail = floor(file_avail(fh) / nch);
-        ir_raw_len = min(4096, avail);
+        ir_raw_len = min(4096, min(avail, floor(32768 / nch)));
         ir_raw_nch = nch;
         ir_raw_srate = ir_sr;
         file_mem(fh, ir_raw_buf, ir_raw_len * nch);
         ir_need_refft = 1;
-      );
+      ) : ( ir_filter_len = 0; );
       file_close(fh);
-    );
+    ) : ( ir_filter_len = 0; );
   ) : (
     ir_filter_len = 0;
   );
@@ -107,7 +109,7 @@ IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 
 function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
     isc = ir_raw_srate / srate;
-    ir_filter_len = min(floor(2048 * srate / 48000), floor(ir_raw_len / isc));   // Round 39: 42.7 ms at any rate (<= 8192 taps / 64 parts)
+    ir_filter_len = min(8192, min(floor(2048 * srate / 48000), floor(ir_raw_len / isc)));   // Round 39/67: 42.7 ms, <= 8192 taps / 64 parts
     ir_parts = ceil(ir_filter_len / CV_B);
     i = 0;                                           // resample channel 0 into ir_blk_cur (FDL is cleared below)
     loop(ir_filter_len,
@@ -187,7 +189,7 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   // Round 29: per-pedal WAV IR trim (dB). With IR_MATCH_DB = 3.8 (Devin's ear-match on the Metal Zone), Antigravity's
   // Round 28 table gave WAV-IIR LUFS deltas RAT +4.17, DS-1 +0.67/-0.23, MT-2 +3.38, HM-2 +3.73/+4.83/+3.87. These trims
   // bring every pedal to the Metal Zone's ear-matched +3.4 dB. The DS-1's brightness gets the most help from the IIR cab's 2.85 kHz peak.
-  ir_ped_g = slider10 < 0.5 ? 1 : db2lin(dist_ped == 0 ? -0.8 : dist_ped == 1 ? 3.1 : dist_ped == 3 ? -0.6 : 0.0);
+  ir_ped_g_t = slider10 < 0.5 ? 1 : db2lin(dist_ped == 0 ? -0.8 : dist_ped == 1 ? 3.1 : dist_ped == 3 ? -0.6 : 0.0);
 );
 
 function proc_amp_stage(x, mode) (
@@ -200,13 +202,13 @@ function proc_amp_stage(x, mode) (
 
 // Amp stage (0=Off, 1=Tube Head, 2=Solid-State) + post-amp DC blocker + tone stack. Round 42: split from the cab so
 // chorus / reverb run in the amp's FX loop (after the amp, before the cab).
-function proc_amp() local(l, r, dc_l, dc_r_out) (
-  l = spl0; r = spl1;
+function proc_amp() local(l, r, dc_l, dc_r_out, am) (
+  l = spl0; r = spl1; am = floor(slider54 + 0.5);
 
-  slider54 > 0.5 ? (
+  am > 0 ? (
     l = bq_proc_l(bq_amp_hp, l); r = bq_proc_r(bq_amp_hp, r);
-    l = proc_amp_stage(l, slider54);
-    r = proc_amp_stage(r, slider54);
+    l = proc_amp_stage(l, am);
+    r = proc_amp_stage(r, am);
     dc_l = l - amp_dc_x1_l + dc_r * amp_dc_y1_l; amp_dc_x1_l = l; amp_dc_y1_l = dc_l; l = dc_l;
     dc_r_out = r - amp_dc_x1_r + dc_r * amp_dc_y1_r; amp_dc_x1_r = r; amp_dc_y1_r = dc_r_out; r = dc_r_out;
     l = bq_proc_l(bq_amp_bass, l); r = bq_proc_r(bq_amp_bass, r);
@@ -223,11 +225,13 @@ function proc_amp() local(l, r, dc_l, dc_r_out) (
 // Cabinet (WAV IR; IIR 4x12 only if no IR file loaded) -> Air -> Master -> -1 dBFS limiter
 function proc_cab_out() local(l, r, bp2) (
   l = spl0; r = spl1;
+  ir_ped_g_s = param_smooth_c * ir_ped_g_s + (1.0 - param_smooth_c) * ir_ped_g_t;
   slider49 > 0.5 ? (
+    cab_was_on = 1;
     ir_filter_len > 0 ? (
       bp2 = ir_bpos * 2;
       cv_frame[CV_B * 2 + bp2] = l; cv_frame[CV_B * 2 + bp2 + 1] = r;   // L/R in, as real/imag
-      l = cv_out[bp2] * ir_ped_g; r = cv_out[bp2 + 1] * ir_ped_g;        // previous block's output (latency CV_B)
+      l = cv_out[bp2] * ir_ped_g_s; r = cv_out[bp2 + 1] * ir_ped_g_s;    // previous block's output (latency CV_B)
       ir_bpos += 1;
       ir_bpos >= CV_B ? conv_block();
       l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);
@@ -240,7 +244,9 @@ function proc_cab_out() local(l, r, bp2) (
       l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
       l *= cab_comp_lin; r *= cab_comp_lin;
     );
-  );
+  ) : ( cab_was_on ? ( cab_was_on = 0; memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);
+    ir_bpos = 0; cv_fdl_pos = 0; bq_clear(bq_cab_hp); bq_clear(bq_cab_lp1); bq_clear(bq_cab_lp2);
+    bq_clear(bq_cab_f1); bq_clear(bq_cab_f2); bq_clear(bq_cab_f3); ); );
 
   l = bq_proc_l(bq_amp_pres, l);
   r = bq_proc_r(bq_amp_pres, r);

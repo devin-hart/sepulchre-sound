@@ -59,6 +59,14 @@ def generate_background(wall_source=None, font_path=None, output_path="sepulchre
             tile2_full = Image.new("RGB", (W, H), (0, 0, 0))
             tile2_full.paste(tile2, (tile2_pos_x, 0))
             base_canvas.paste(tile2_full, (0, 0), mask)
+        else:
+            x_off = scaled_w
+            flip = True
+            while x_off < W:
+                src = tile2 if flip else scaled_wall
+                base_canvas.paste(src.crop((0, 0, min(scaled_w, W - x_off), H)), (x_off, 0))
+                x_off += scaled_w
+                flip = not flip
 
         enhancer = ImageEnhance.Color(base_canvas)
         base_canvas = enhancer.enhance(0.75)
