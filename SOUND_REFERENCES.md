@@ -113,7 +113,13 @@ Note that rounds 7, 23 and 27 all describe **the same symptom: not enough satura
 ## 7. Research findings: what we may be getting wrong
 Ranked by expected impact on out-of-the-box sound. Each has an experiment that settles it. None of this is implemented.
 
-### A. Input calibration: the pedals probably see about 12 dB too little signal (high impact, cheap to test)
+### A. Input calibration (impact depends on the interface; for Devin's setup, unknown until measured)
+> **Correction (Round 67, after Devin's answers):** Devin uses a **Behringer UMC22**, Hi-Z input, gain at about 12 o'clock.
+> - At minimum gain the UMC22's instrument input clips at +2 dBu (B&H spec sheet and the manual excerpt; one listing says −2 dBu). That is 0 dBFS ≈ 1.4 V peak, so **1 V peak ≈ −3 dBFS, only about 3 dB from this plugin's 1 V = 0 dBFS**.
+> - At 12 o'clock he adds gain on top (Behringer doesn't publish the knob's dB range), so his pedals may see *more* voltage than the real pedal would, not less.
+> - The "12 dB too little" case below applies to Focusrite/UAD-style interfaces and to the test DI, not necessarily to Devin.
+> - What settles it: the INPUT meter peak when he plays hard, at his usual gain. Until then this item is **lower priority than C and the clarity work**.
+
 - **The plugin's convention:** 1.0 digital = 1 V at the pedal input, so 0 dBFS = 1 V peak (SPEC §3.2).
 - **The industry convention:**
   - Neural DSP's support post: a **1 V peak sine reads about −13 dBFS** on a UAD Apollo or a Focusrite Scarlett at minimum gain. It is −13.1 to −15.1 dBFS across six common interfaces.
@@ -178,11 +184,12 @@ Ranked by expected impact on out-of-the-box sound. Each has an experiment that s
 - **ADAA** (Parker, Zavalishin & Le Bivic, DAFx-16; Bilbao et al., IEEE SPL 2017): antiderivative anti-aliasing could replace or reduce the 8x oversampling on the static clippers, saving CPU. The current aliasing already passes (−47 to −57 dB), so this is only worth it if CPU becomes a problem.
 - **Speaker impedance / power amp interaction:** forum evidence says it's small next to the IR's frequency response. Skip unless the power amp is modelled (B).
 
-## 8. Questions for Devin
-1. Which audio interface, and at what input gain do you play? This is needed for §7-A.
-2. Can you record the DI set in §7-C at that gain and drop it in `tests/render/` (or a local folder outside the repo)?
-3. Which 3–5 records should the plugin get closest to (§7-E)?
-4. Is the "pedal into a distorting amp" direction (§7-B) what you want, or should the amp stay a light colouring stage?
+## 8. Questions for Devin, and his answers (2026-11-20)
+1. **Interface and gain:** Behringer UMC22, gain at about 12 o'clock. See the §7-A correction. Still open: the INPUT meter peak when playing hard.
+2. **DI recordings (§7-C):** the question wasn't clear; it was re-asked in plain terms (record the dry guitar with the plugin off).
+3. **Reference records (§7-E):** "they all sort of get there, but the clarity of the guitars is questionable… maybe i added too many settings… i really just want a clean black metal guitar plugin… i think i'm doing too much probably chasing down particular sounds from different eras." He likes the presets.
+   - **This sets the direction:** clarity and simplicity over era-matching. Keep the preset bank, but don't spend more effort reproducing specific records. §7-E (LTAS matching to records) is dropped.
+4. **Amp direction (§7-B):** the question wasn't clear; it was re-asked in plain terms.
 
 ## 9. Sources
 - Sound On Sound, *Producing Norwegian Black Metal* Part 1 (Pytten, Mayhem): https://www.soundonsound.com/node/4931450 · Part 2 (Kark, Necromorbus): https://www.soundonsound.com/techniques/producing-norwegian-black-metal-part-2
