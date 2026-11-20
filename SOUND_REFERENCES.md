@@ -202,6 +202,35 @@ Ranked by expected impact on out-of-the-box sound. Each has an experiment that s
    - **This sets the direction:** clarity and simplicity over era-matching. Keep the preset bank, but don't spend more effort reproducing specific records. §7-E (LTAS matching to records) is dropped.
 4. **Amp direction (§7-B):** "i think our amp stuff might be getting to complicated… i just want to play." Keep the amp as a simple voicing stage; §7-B dropped.
 
+## 8b. Cabinet IRs for the public build (Devin, 2026-11-20)
+Devin's call: **users can load their own IR files**, and the plugin should bundle one freeware IR if the license allows, ideally a 5150.
+
+**License research (2026-11-20). No free 5150 IR is clearly cleared for bundling.**
+
+| Candidate | Cab | Terms found | Verdict |
+| :-- | :-- | :-- | :-- |
+| Shift Line *Guitar HD IR Pack 1* | Includes a real Peavey 5150 4x12 (Sheffield 1200) in the full pack; the free pack's contents aren't listed | No license text published | **Ask first.** Contact page exists. |
+| Jester Dyne *Brutal Pack* | Modified Behringer BG412S, V30 / G12F-60 / DV-77, 44.1 + 48 kHz | Author: free "even for commercial use"; silent on redistribution. (darwinscat calls it CC0, but the author's page doesn't.) | **Ask first.** Strongest non-5150 candidate. |
+| overdriven.fr *US-412 / V30* | Mesa-style 4x12 V30 | Free for any use, but **software vendors may not distribute without written agreement**; link to the download instead | Not bundleable without permission |
+| Origin Effects, Forward Audio free packs, Metal Cabs (Ekholm), fnpngn repo | various | No redistribution grant, or redistribution prohibited (Origin, per darwinscat); Ekholm's link is dead | Not bundleable |
+
+**Recommendation:**
+1. Ship with the **built-in cab as the default**, so the plugin sounds right for everyone with no files. It needs voicing work: model it on a 4x12 V30 or Sheffield response rather than the current generic curve.
+2. Support **user IRs**.
+3. Ask Shift Line (5150) and Jester Dyne (Brutal Pack) for written permission to bundle one IR, with attribution. **The email is Devin's to send.**
+4. Until a reply arrives, the README links to free downloads, which is always allowed, including overdriven.fr.
+
+**User-IR design notes (for the implementing agent; verify each against the current JSFX reference):**
+- **File slider:** replace the fixed `slider53` enum with a JSFX **file slider**, `slider53:/sepulchre_irs:<default>:Cabinet IR`. REAPER then lists every file in `<REAPER resource>/Data/sepulchre_irs/`, and `file_open(slider53)` opens the selected one.
+- **No file dialog:** JSFX has none, so users copy IRs into that folder (document this in the README). The name for the UI can come from `strcpy_fromslider()`.
+- **Remove the per-slot tables:** `get_ir_filename`, `get_ir_slot_name`, `get_ir_slot_trim_db`. Keep the generic weighted-energy loudness match (`IR_E48`) and `IR_MATCH_DB` **[ear]**. They work for any IR; the per-slot trims only fit the 10 Ugritone files.
+- **Expect any format:** mono or stereo (use channel 0 or the mean), 44.1–192 kHz, 20 ms–1 s+.
+  - Apply the Antigravity R67 H-4 clamps (`ir_filter_len ≤ 8192`, `ir_raw_len ≤ 32768 / nch`).
+  - Fade out the truncation at 42.7 ms instead of hard-cutting it.
+  - On a failed load, fall back to the built-in cab and say so in the UI (Claude R67 H1).
+- **Defaults:** an empty folder, or no selection, means the built-in cab with no PDC latency.
+- **Keep the Cabinet on/off switch** for users who run their own IR loader, and don't let presets force it on (Claude R67 H3).
+
 ## 9. Sources
 - Sound On Sound, *Producing Norwegian Black Metal* Part 1 (Pytten, Mayhem): https://www.soundonsound.com/node/4931450 · Part 2 (Kark, Necromorbus): https://www.soundonsound.com/techniques/producing-norwegian-black-metal-part-2
 - Guitar World, *Burzum: Heart of Darkness* (2010): https://www.guitarworld.com/gw-archive/burzum-heart-darkness
@@ -219,4 +248,6 @@ Ranked by expected impact on out-of-the-box sound. Each has an experiment that s
 - Parker, Zavalishin & Le Bivic, ADAA (DAFx-16): https://dafx.de/paper-archive/details/vem_XXF5qBbfiWOH2RVVAA · Jatin Chowdhury ADAA notes: https://ccrma.stanford.edu/~jatin/Notebooks/adaa.html
 - Dattorro, *Effect Design Part 1*: https://ccrma.stanford.edu/~dattorro/EffectDesignPart1.pdf · Valhalla DSP reverb papers: https://valhalladsp.com/2021/09/22/getting-started-with-reverb-design-part-2-the-foundations/ · musicdsp reverb notes: https://musicdsp.readthedocs.io/en/latest/Effects/45-reverberation-techniques.html
 - Electric Druid MT-2 analysis: https://electricdruid.net/boss-mt-2-metal-zone-pedal-analysis/ · ElectroSmash (RAT, DS-1, CE-2 analyses): https://www.electrosmash.com
+- IR licensing: Shift Line *Guitar HD IR Pack 1*: https://shift-line.com/guitarhdirpack1 · Jester Dyne *Brutal Pack*: https://www.jester-dyne-productions.com/brutal-ir-pack/ · darwinscat IR utility: https://darwinscat.com/sound-utils/cabinet-ir-utility · overdriven.fr US-412: https://overdriven.fr/overdriven/index.php/us-412-v30-home-studio-edition-free-guitar-cab-impulse-responses-download/ · fnpngn free IR list: https://github.com/fnpngn/IR
+- JSFX file sliders and `file_open`: https://www.reaper.fm/sdk/js/file.php · https://www.reaper.fm/sdk/js/js.php
 - SampleOddity *Thrash DI* (free DI): https://bedroomproducersblog.com/2012/10/13/thrash-di-a-commercial-metal-guitar-sample-library-by-sampleoddity/
