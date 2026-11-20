@@ -50,19 +50,6 @@ function eq_preset_vals(i) (
 );
 // Preset curve into the GE-7 (record curves after the pedal, Spectre before it)
 function gp_eq(i) ( eq_preset_vals(i); slider65 = 1; slider76 = eq_preset_pos(i); slider75 = i; );
-// Name table matching %APPDATA%\REAPER\Data\sepulchre_irs\
-function get_ir_slot_name(idx) (
-  idx == 0 ? "01 BlackWizard C" :
-  idx == 1 ? "02 BlackWizard E" :
-  idx == 2 ? "03 Destroyer C" :
-  idx == 3 ? "04 Destroyer E" :
-  idx == 4 ? "05 LordOfGoats C" :
-  idx == 5 ? "06 LordOfGoats E" :
-  idx == 6 ? "07 MystSatan C" :
-  idx == 7 ? "08 Swordman C" :
-  idx == 8 ? "09 HeadKrush C" :
-             "10 PlagueBearer C";
-);
 
 function get_global_preset_name(idx) (
   idx == 0 ? "01: FROSTBITTEN" :

@@ -37,7 +37,7 @@ def run_eq_preset_headroom():
         10: 1,
         **rc.PEDAL_DEFAULTS["Metal Zone"],
         20: 0, 40: 0,
-        49: 1, 51: -0.5, 53: 0,
+        49: 1, 51: -0.5, 53: "01_BlackWizard_Center.wav",
         54: 1, 55: 54.0, 56: 44.0, 57: 62.0, 58: 64.0,
         65: 1,
         75: 0,

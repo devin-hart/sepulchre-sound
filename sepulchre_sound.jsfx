@@ -60,7 +60,7 @@ slider75:3<0,8,1{Custom,Bathory,Deathcrush,Transilvanian Hunger,Nightside Eclips
 // Amp, Cabinet (WAV IR) & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
 slider51:-3.8<-24.0,6.0,0.1>-Master Output (dB)
-slider53:0<0,9,1{01 BlackWizard Center,02 BlackWizard Edge,03 Destroyer Center,04 Destroyer Edge,05 LordOfGoats Center,06 LordOfGoats Edge,07 MysteriousSatan Center,08 Swordman Center,09 HeadKrush Center,10 PlagueBearer Center}>-Cabinet WAV Impulse Slot
+slider53:/sepulchre_irs:none:-Cabinet IR
 slider54:2<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
 slider55:40<0,100,1>-Amp Bass (%)
 slider56:50<0,100,1>-Amp Mid (%)
@@ -94,18 +94,19 @@ ext_noinit = 1;
   ir_loaded_slot = -1;
   eq_last_preset = floor(slider75 + 0.5);   // saved fader values win over the preset table on project load
   gp_last = floor(slider60 + 0.5);          // same for the global preset (R2-1: never recall on load)
-  load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+  load_ir_slot(max(0, floor(slider53 + 0.001)));
   snap_all_sliders();
 );
 sync_all_DSP();
 
 @slider
+!ir_counted ? ( scan_ir_count(); ir_counted = 1; );
 // Round 67 (H2): only recall factory presets when slider75/60 changed alone (preserves REAPER user presets & undo)
 eq_p = floor(slider75 + 0.5);
 eq_p != eq_last_preset ? ( !other_sliders_changed(75) ? recall_eq_preset(eq_p) : ( eq_last_preset = eq_p; ); );
 gp_p = floor(slider60 + 0.5);
 gp_p != gp_last ? ( !other_sliders_changed(60) ? recall_global_preset(gp_p) : ( gp_last = gp_p; ); );
-tmp_ir_idx = clamp(floor(slider53 + 0.001), 0, 9);
+tmp_ir_idx = max(0, floor(slider53 + 0.001));
 tmp_ir_idx != ir_loaded_slot ? load_ir_slot(tmp_ir_idx);
 snap_all_sliders();
 ui_need_sync = 1;
@@ -114,7 +115,7 @@ ui_need_sync = 1;
 // One-shot IR WAV load when @gfx changes slider53 (Fixes R3-1)
 ir_reload_req ? (
   ir_reload_req = 0;
-  load_ir_slot(clamp(floor(slider53 + 0.001), 0, 9));
+  load_ir_slot(max(0, floor(slider53 + 0.001)));
 );
 
 (last_srate != srate || ui_need_sync) ? (

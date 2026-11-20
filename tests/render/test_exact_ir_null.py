@@ -66,13 +66,13 @@ def test_exact_ir_null_and_continuity():
     if not os.path.exists(ir_slot0_path):
         raise FileNotFoundError(f"Slot 0 IR WAV not found at {ir_slot0_path}")
 
-    # 1. Load slot 0 raw IR
-    raw_ir = rc.read_wav24(ir_slot0_path, channel=0)
+    # 1. Load slot 0 raw IR (matching load_ir_slot's 8192-sample raw cap)
+    raw_ir = rc.read_wav24(ir_slot0_path, channel=0)[:8192]
     ir_srate = 44100.0
     isc = ir_srate / srate
-    ir_len = min(2048, int(len(raw_ir) / isc))
+    ir_len = min(8192, min(2048, int(len(raw_ir) / isc)))
 
-    # Linear interpolation resampler exactly matching prepare_ir_fft() in JSFX
+    # Linear interpolation resampler + 2.5 ms raised-cosine truncation fade-out matching prepare_ir_fft()
     resampled_ir = np.zeros(ir_len)
     for i in range(ir_len):
         ipos = int(i * isc)
@@ -80,6 +80,11 @@ def test_exact_ir_null_and_continuity():
         p0 = raw_ir[ipos]
         p1 = raw_ir[min(len(raw_ir) - 1, ipos + 1)]
         resampled_ir[i] = p0 * (1.0 - frac) + p1 * frac
+
+    fade_n = min(int(0.0025 * srate), int(ir_len * 0.1))
+    if fade_n > 1 and int(len(raw_ir) / isc) > ir_len:
+        for fi in range(fade_n):
+            resampled_ir[ir_len - fade_n + fi] *= 0.5 * (1.0 + math.cos(math.pi * (fi + 1) / fade_n))
 
     # Exactly reproduce prepare_ir_fft energy calculation
     n = ir_len + 2048
@@ -99,13 +104,13 @@ def test_exact_ir_null_and_continuity():
     IR_E48 = 0.283543
     norm_g = math.sqrt(IR_E48 * (48000.0 / srate) / e) if e > 1e-10 else 1.0
 
-    # Account for slot 0 trim (-1.33 dB) and ear-match offset (+3.8 dB)
-    norm_g *= 10.0 ** ((-1.33 + 3.8) / 20.0)
+    # Round 68: generic IR_E48 + ear-match offset (+3.8 dB); per-slot trim table removed for user-loadable IRs
+    norm_g *= 10.0 ** (3.8 / 20.0)
 
     # Base clean track settings for IR test (valid sliders only)
     base_clean = {
         1: 0.0, 2: 40.0, 4: 0, 10: 0, 20: 0, 40: 0,
-        49: 1, 51: 0.0, 53: 0, 54: 0, 58: 50.0, 65: 0, 76: 1
+        49: 1, 51: 0.0, 53: "01_BlackWizard_Center.wav", 54: 0, 58: 50.0, 65: 0, 76: 1
     }
 
     # Render impulse test

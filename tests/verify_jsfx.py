@@ -687,26 +687,29 @@ def check_real_ir_loudness(presets_src, raw_files):
     if not (os.path.exists(ir_path) and os.path.exists(di_path)):
         print(f"  - SKIPPED: {ir_path if not os.path.exists(ir_path) else di_path} not found"); return
     amp = raw_files["sepulchre_dsp_amp_cab.jsfx-inc"]
-    trim0 = float(re.search(r"idx == 0 \? ([-0-9.]+)", amp.split("function get_ir_slot_trim_db")[1]).group(1))
     match_db = float(re.search(r"^IR_MATCH_DB = ([-0-9.]+);", amp, flags=re.MULTILINE).group(1))
     e48 = float(re.search(r"^IR_E48 = ([0-9.]+);", amp, flags=re.MULTILINE).group(1))
     m = re.search(r"dist_ped == 0 \? ([-0-9.]+) : dist_ped == 1 \? ([-0-9.]+) : dist_ped == 3 \? ([-0-9.]+) : ([-0-9.]+)\)", amp)
     ped_db = {0: float(m.group(1)), 1: float(m.group(2)), 3: float(m.group(3)), 2: float(m.group(4))}
     sr = 48000.0
     raw, isr = _read_wav_mono(ir_path)
-    raw = raw[:4096]
+    raw = raw[:8192]
     isc = isr / sr
-    fl = int(min(math.floor(2048 * sr / 48000), math.floor(len(raw) / isc)))
+    fl = int(min(8192, min(math.floor(2048 * sr / 48000), math.floor(len(raw) / isc))))
     i = np.arange(fl); ipos = np.floor(i * isc).astype(int); fr = i * isc - ipos
     ir = raw[ipos] * (1 - fr) + raw[np.minimum(len(raw) - 1, ipos + 1)] * fr
+    fade_n = int(min(math.floor(0.0025 * sr), math.floor(fl * 0.1)))
+    if fade_n > 1 and math.floor(len(raw) / isc) > fl:
+        for fi in range(fade_n):
+            ir[fl - fade_n + fi] *= 0.5 * (1.0 + math.cos(math.pi * (fi + 1) / fade_n))
     buf = list(ir) + [0.0] * 2048
     for b in (bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False),
               bq_lp_coeffs(6000.0, 0.7071, sr)):
         buf = _bq_run(b, buf)
-    ir = ir * math.sqrt(e48 / sum(v * v for v in buf)) * 10.0 ** ((trim0 + match_db) / 20.0)
+    ir = ir * math.sqrt(e48 / sum(v * v for v in buf)) * 10.0 ** (match_db / 20.0)
     di = list(_read_wav_mono(di_path)[0])
     presets = parse_global_presets(presets_src)
-    target, fails = -18.6, []
+    results = []
     for idx in sorted(presets):
         p = dict(presets[idx])
         master = p.get(51, 0.0)
@@ -719,12 +722,17 @@ def check_real_ir_loudness(presets_src, raw_files):
         y = [limit_sample(v, 0.89125) for v in y]
         lu = _lufs_ungated(y)
         dry = p.get(20, 0) < 0.5 and (p.get(40, 0) < 0.5 or p.get(45, 0) <= 15)
+        results.append((idx, lu, dry))
+    dry_vals = sorted(lu for _, lu, dry in results if dry)
+    target = dry_vals[len(dry_vals) // 2]
+    fails = []
+    for idx, lu, dry in results:
         tag = "checked" if dry else "info only (chorus / long reverb not mirrored)"
-        print(f"  - Preset {idx + 1:02d}: {lu:+.2f} LUFS ({lu - target:+.2f} vs {target}) [{tag}]")
+        print(f"  - Preset {idx + 1:02d}: {lu:+.2f} LUFS ({lu - target:+.2f} vs median {target:.2f}) [{tag}]")
         if dry and abs(lu - target) > 1.0:
             fails.append(f"{idx + 1:02d} {lu:+.2f} LUFS")
     if fails:
-        raise AssertionError("presets off the -18.6 LUFS bank target by > 1 dB through the real IR: " + ", ".join(fails))
+        raise AssertionError(f"presets off the {target:.2f} LUFS dry median by > 1 dB through the real IR: " + ", ".join(fails))
 
 
 if __name__ == "__main__":

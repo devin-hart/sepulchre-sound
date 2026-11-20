@@ -53,46 +53,59 @@ function reset_amp_cab_state() (
   ir_ped_g_s = ir_ped_g_t;
 );
 
-function get_ir_filename(idx) (
-  idx == 0 ? "sepulchre_irs/01_BlackWizard_Center.wav" :
-  idx == 1 ? "sepulchre_irs/02_BlackWizard_Edge.wav" :
-  idx == 2 ? "sepulchre_irs/03_Destroyer_Center.wav" :
-  idx == 3 ? "sepulchre_irs/04_Destroyer_Edge.wav" :
-  idx == 4 ? "sepulchre_irs/05_LordOfGoats_Center.wav" :
-  idx == 5 ? "sepulchre_irs/06_LordOfGoats_Edge.wav" :
-  idx == 6 ? "sepulchre_irs/07_MysteriousSatan_Center.wav" :
-  idx == 7 ? "sepulchre_irs/08_Swordman_Center.wav" :
-  idx == 8 ? "sepulchre_irs/09_HeadKrush_Center.wav" :
-             "sepulchre_irs/10_PlagueBearer_Center.wav";
-);
-// Round 22: per-slot loudness trim (dB) = -(slot LUFS - IIR cab LUFS) from Antigravity's Round 21 render
-// (preset 01 chain). Corrects the weighted-energy match's +/-2.1 dB residual for the bundled IRs.
-function get_ir_slot_trim_db(idx) (
-  idx == 0 ? -1.33 : idx == 1 ? -2.13 : idx == 2 ? 1.42 : idx == 3 ? 0.0 : idx == 4 ? -0.11 :
-  idx == 5 ? -0.16 : idx == 6 ? 1.85 : idx == 7 ? -1.20 : idx == 8 ? -1.39 : idx == 9 ? -1.06 : 0.0;
+// Round 68 (SOUND_REFERENCES §8b): User-loadable IRs via JSFX file slider (slider53:/sepulchre_irs:...).
+// Format the display name from slider53's filename (strip path & .wav extension, cap length for UI column).
+function update_ir_disp_name() local(len, i, slash, dot, c) (
+  strcpy_fromslider(#ir_raw_name, slider53);
+  len = strlen(#ir_raw_name);
+  len == 0 ? ( strcpy(#ir_disp, "NO IR FILE"); ) : (
+    slash = -1; dot = len; i = 0;
+    loop(len,
+      c = str_getchar(#ir_raw_name, i);
+      (c == '/' || c == '\\') ? slash = i;
+      c == '.' ? dot = i;
+      i += 1;
+    );
+    dot <= slash ? dot = len;
+    strcpy_substr(#ir_disp, #ir_raw_name, slash + 1, min(20, dot - slash - 1));
+  );
 );
 
-// Called on one-shot ir_reload_req from @init / @slider / @gfx (Fixes R2-6 & R3-1)
+// Count files available in Data/sepulchre_irs/ once at @init (handles both empty-string and clamped slider53)
+function scan_ir_count() local(orig, i, done) (
+  orig = slider53; ir_file_count = 0; strcpy(#ir_prev, "");
+  i = 0; done = 0;
+  while (!done && i < 256) (
+    slider53 = i; strcpy_fromslider(#ir_scan, slider53);
+    strlen(#ir_scan) == 0 || (i > 0 && strcmp(#ir_scan, #ir_prev) == 0) ? ( done = 1; ) : (
+      strcpy(#ir_prev, #ir_scan); ir_file_count = i + 1; i += 1;
+    );
+  );
+  slider53 = orig;
+  update_ir_disp_name();
+);
+
+// Called on @init, @slider, and one-shot ir_reload_req in @block
 function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
   ir_loaded_slot = slot_idx;
   ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
-  slot_idx >= 0 ? (
-    strcpy(#ir_path, get_ir_filename(slot_idx));
-    fh = file_open(#ir_path);
-    fh > 0 ? (
+  update_ir_disp_name();
+  strlen(#ir_raw_name) > 0 && strcmp(#ir_raw_name, "none") != 0 ? (
+    fh = file_open(#ir_raw_name);
+    fh < 0 ? ( sprintf(#ir_path, "sepulchre_irs/%s", #ir_raw_name); fh = file_open(#ir_path); );
+    fh >= 0 ? (
       file_riff(fh, nch, ir_sr);
-      nch > 0 ? (
+      nch > 0 && ir_sr > 0 ? (
         avail = floor(file_avail(fh) / nch);
-        ir_raw_len = min(4096, min(avail, floor(32768 / nch)));
+        ir_raw_len = min(8192, min(avail, floor(32768 / nch)));
         ir_raw_nch = nch;
         ir_raw_srate = ir_sr;
-        file_mem(fh, ir_raw_buf, ir_raw_len * nch);
-        ir_need_refft = 1;
-      ) : ( ir_filter_len = 0; );
+        ir_raw_len > 0 ? ( file_mem(fh, ir_raw_buf, ir_raw_len * nch); ir_need_refft = 1; ) : ( ir_filter_len = 0; );
+      ) : ( ir_filter_len = 0; ir_loaded_slot = -1; );
       file_close(fh);
-    ) : ( ir_filter_len = 0; );
+    ) : ( ir_filter_len = 0; ir_loaded_slot = -1; );
   ) : (
-    ir_filter_len = 0;
+    ir_filter_len = 0; ir_loaded_slot = -1;
   );
 );
 
@@ -106,7 +119,7 @@ function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
 // same measure of IIR profile 0 at 48 kHz (tests/verify_jsfx.py). Fitted over 4 pedals x 11 test IRs: rms error 1.6 dB.
 IR_E48 = 0.283543;
 IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 dB over the LUFS match)
-function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
+function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp, fade_n) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
     isc = ir_raw_srate / srate;
     ir_filter_len = min(8192, min(floor(2048 * srate / 48000), floor(ir_raw_len / isc)));   // Round 39/67: 42.7 ms, <= 8192 taps / 64 parts
@@ -117,6 +130,12 @@ function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
       ir_blk_cur[i] = ir_raw_buf[ipos * ir_raw_nch] * (1.0 - frac) + ir_raw_buf[min(ir_raw_len - 1, ipos + 1) * ir_raw_nch] * frac;
       i += 1;
     );
+    // Round 68: raised-cosine fade-out over last 2.5 ms when IR is truncated at 42.7 ms
+    fade_n = min(floor(0.0025 * srate), floor(ir_filter_len * 0.1));
+    fade_n > 1 && floor(ir_raw_len / isc) > ir_filter_len ? (
+      i = 0;
+      loop(fade_n, ir_blk_cur[ir_filter_len - fade_n + i] *= 0.5 * (1.0 + cos($pi * (i + 1) / fade_n)); i += 1; );
+    );
     n = ir_filter_len + 2048;                        // IR + filter ring-out, scratch in ir_blk_last
     i = 0; loop(n, ir_blk_last[i] = i < ir_filter_len ? ir_blk_cur[i] : 0.0; i += 1; );
     bq_hp(bq_irw1, 90.0, 0.7071); bq_lshelf(bq_irw2, 500.0, 12.0); bq_lp(bq_irw3, 6000.0, 0.7071);
@@ -124,7 +143,7 @@ function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp) (
     bq_buf(bq_irw2, ir_blk_last, n); bq_buf(bq_irw3, ir_blk_last, n);
     e = 0.0; i = 0; loop(n, e += ir_blk_last[i] * ir_blk_last[i]; i += 1; );
     norm_g = (1.0 / CV_N) * (e > 0.0000000001 ? sqrt(IR_E48 * (48000.0 / srate) / e) : 1.0);
-    norm_g *= 10 ^ ((get_ir_slot_trim_db(ir_loaded_slot) + IR_MATCH_DB) / 20);
+    norm_g *= 10 ^ (IR_MATCH_DB / 20);
     memset(ir_fft_kern, 0, 32768);
     p = 0;
     loop(ir_parts,                                   // kernel spectra: [h(pB..pB+B-1), B zeros] -> FFT

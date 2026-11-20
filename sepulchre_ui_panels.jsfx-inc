@@ -178,14 +178,16 @@ function panel_amp(x, w) local(ix, iw, on, bw, y, m) (
 function panel_cab_out(x, w) local(ix, iw, on, k) (
   ix = x + 10; iw = w - 20; on = slider49 > 0.5;
   ui_slab_head(x, w, 6, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
-  ui_alpha = on ? 1 : UI_DIM;                              // Round 42: WAV IR only (IIR 4x12 = silent fallback)
-  k = floor(slider53 + 0.5);
+  ui_alpha = on ? 1 : UI_DIM;                              // Round 42/68: user WAV IRs (built-in 4x12 fallback)
+  !ir_counted ? ( scan_ir_count(); ir_counted = 1; );
+  k = max(0, floor(slider53 + 0.5));
   c_border(); u_rect(ix, 195, iw, 1);                         // Round 64: hairline, no box
-  ui_hit(ix, 162, 22, 34) ? set_param(53, max(0, k - 1));
-  ui_hit(ix + iw - 22, 162, 22, 34) ? set_param(53, min(9, k + 1));
+  ui_hit(ix, 162, 22, 34) && k > 0 ? set_param(53, k - 1);
+  ui_hit(ix + iw - 22, 162, 22, 34) && ir_file_count > 0 && k < ir_file_count - 1 ? set_param(53, k + 1);
   f_value(); c_fill(); u_text(ix + 6, 170, "<"); u_text_r(ix + iw - 6, 170, ">");
-  ir_filter_len > 0 ? sprintf(#ir_n, "SLOT %d / 10", k + 1) : strcpy(#ir_n, "IR MISSING: BUILT-IN 4x12");
-  f_label(); c_bone(); u_text_sp_c(ix + iw * 0.5, 173, get_ir_slot_name(k), 0.5);
+  ir_filter_len > 0 ? ( ir_file_count > 0 ? sprintf(#ir_n, "IR %d / %d", k + 1, ir_file_count) : sprintf(#ir_n, "IR %d", k + 1); )
+                    : strcpy(#ir_n, "BUILT-IN 4x12 (NO IR)");
+  f_label(); c_bone(); u_text_sp_c(ix + iw * 0.5, 173, #ir_disp, 0.5);
   f_tiny(); ir_filter_len > 0 ? c_lab() : c_ember(); u_text_sp_c(ix + iw * 0.5, 187, #ir_n, ir_filter_len > 0 ? 1.5 : 0.4);
 
   ui_alpha = 1;
