@@ -16,6 +16,7 @@ sepulchre_irs/
 # Scratch outputs, mockups & internal agent reports
 Claude outputs/
 reviews/
+REVIEW.md
 
 # Python
 __pycache__/
