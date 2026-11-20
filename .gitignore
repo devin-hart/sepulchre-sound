@@ -13,8 +13,9 @@
 *.RPP-bak
 sepulchre_irs/
 
-# Scratch outputs & mockups
+# Scratch outputs, mockups & internal agent reports
 Claude outputs/
+reviews/
 
 # Python
 __pycache__/
