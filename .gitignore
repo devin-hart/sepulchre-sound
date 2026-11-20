@@ -1,4 +1,36 @@
+# Audio, IRs, and REAPER render/project artifacts (never commit IR WAVs)
+*.wav
+*.WAV
+*.flac
+*.aif
+*.aiff
+*.mp3
+*.ogg
+*.reapeaks
+*.rpp
+*.rpp-bak
+*.RPP
+*.RPP-bak
+sepulchre_irs/
+
+# Scratch outputs & mockups
+Claude outputs/
+
+# Python
 __pycache__/
-*.pyc
-tests/render/*.wav
-tests/render/*.rpp
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
