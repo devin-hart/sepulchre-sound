@@ -36,7 +36,7 @@ function panel_input(x, w) local(ix, iw, g, y) (
   ix = x + 10; iw = w - 20; g = slider4 > 0.5;
   lay_begin(154, 5);
   slider1 = ui_hslider(1, ix, lay(30), iw, "TRIM", slider1, -12, 18, 0, 0.1, "%+.1f dB", 0);
-  slider2 = ui_hslider(2, ix, lay(30), iw, "LOW CUT", slider2, 40, 180, 140, 1, "%d Hz", 0);
+  slider2 = ui_hslider(2, ix, lay(30), iw, "LOW CUT", slider2, 40, 180, 130, 1, "%d Hz", 0);
   ui_toggle(ix, lay(24), iw, 24, g ? "NOISE GATE  ON" : "NOISE GATE  OFF", g) ? set_param(4, !g);
   ui_alpha = g ? 1 : UI_DIM;
   y = lay(30);
@@ -108,12 +108,12 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, a, y, p, n) (
       slider37 = ui_hslider(37, ix, lay(30), iw, "TONE", slider37, 0, 10, 7.5, 0.1, "%.1f", 0);
       slider38 = ui_hslider(38, ix, lay(30), iw, "LEVEL", slider38, 0, 10, 8, 0.1, "%.1f", 0);
     ) : p == 2 ? (
-      slider39 = ui_hslider(39, ix, lay(30), iw, "DIST", slider39, 0, 10, 7.5, 0.1, "%.1f", 0);
-      slider46 = ui_hslider(46, ix, lay(30), iw, "HIGH", slider46, 0, 10, 6.5, 0.1, "%+.1f dB", 4);
-      slider47 = ui_hslider(47, ix, lay(30), iw, "LOW", slider47, 0, 10, 4.5, 0.1, "%+.1f dB", 4);
+      slider39 = ui_hslider(39, ix, lay(30), iw, "DIST", slider39, 0, 10, 5.5, 0.1, "%.1f", 0);
+      slider46 = ui_hslider(46, ix, lay(30), iw, "HIGH", slider46, 0, 10, 5.8, 0.1, "%+.1f dB", 4);
+      slider47 = ui_hslider(47, ix, lay(30), iw, "LOW", slider47, 0, 10, 4.2, 0.1, "%+.1f dB", 4);
       slider48 = ui_hslider(48, ix, lay(30), iw, "MIDDLE", slider48, 0, 10, 6, 0.1, "%+.1f dB", 3);
-      slider59 = ui_hslider(59, ix, lay(30), iw, "MID FREQ", slider59, 0, 10, 4.5, 0.1, "%d Hz", -1);
-      slider61 = ui_hslider(61, ix, lay(30), iw, "LEVEL", slider61, 0, 10, 7.5, 0.1, "%.1f", 0);
+      slider59 = ui_hslider(59, ix, lay(30), iw, "MID FREQ", slider59, 0, 10, 4.8, 0.1, "%d Hz", -1);
+      slider61 = ui_hslider(61, ix, lay(30), iw, "LEVEL", slider61, 0, 10, 7.0, 0.1, "%.1f", 0);
     ) : (
       slider62 = ui_hslider(62, ix, lay(30), iw, "DISTORTION", slider62, 0, 10, 10, 0.1, "%.1f", 0);
       slider63 = ui_hslider(63, ix, lay(30), iw, "LOW", slider63, 0, 10, 10, 0.1, "%.1f", 0);
@@ -151,10 +151,10 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, a, y, p, n) (
     ui_seg(ix, y, bw, 24, "HALL", p == 0) ? set_param(41, 0);
     ui_seg(ix + bw + 3, y, bw, 24, "PLATE", p == 1) ? set_param(41, 1);
     ui_seg(ix + 2 * (bw + 3), y, bw, 24, "AMBIENT", p == 2) ? set_param(41, 2);
-    slider42 = ui_hslider(42, ix, lay(30), iw, "DECAY", slider42, 0.5, 10.0, 1.8, 0.1, "%.1f s", 0);
-    slider43 = ui_hslider(43, ix, lay(30), iw, "PRE-DELAY", slider43, 0, 60, 20, 1, "%d ms", 0);
-    slider44 = ui_hslider(44, ix, lay(30), iw, "DAMPING", slider44, 0, 100, 60, 1, "%d%%", 0);
-    slider45 = ui_hslider(45, ix, lay(30), iw, "MIX", slider45, 0, 100, 10, 1, "%d%%", 0);
+    slider42 = ui_hslider(42, ix, lay(30), iw, "DECAY", slider42, 0.5, 10.0, 1.4, 0.1, "%.1f s", 0);
+    slider43 = ui_hslider(43, ix, lay(30), iw, "PRE-DELAY", slider43, 0, 60, 14, 1, "%d ms", 0);
+    slider44 = ui_hslider(44, ix, lay(30), iw, "DAMPING", slider44, 0, 100, 62, 1, "%d%%", 0);
+    slider45 = ui_hslider(45, ix, lay(30), iw, "MIX", slider45, 0, 100, 8, 1, "%d%%", 0);
   );
   ui_alpha = 1;
 );
@@ -168,9 +168,9 @@ function panel_amp(x, w) local(ix, iw, on, bw, y, m) (
   ui_seg(ix + bw + 3, y, bw, 24, "TUBE", m == 1) ? set_param(54, 1);
   ui_seg(ix + 2 * (bw + 3), y, bw, 24, "SOLID", m == 2) ? set_param(54, 2);
   ui_alpha = on ? 1 : UI_DIM;
-  slider55 = ui_hslider(55, ix, lay(30), iw, "BASS", slider55, 0, 100, 40, 1, "%+.1f dB", 0.20);
-  slider56 = ui_hslider(56, ix, lay(30), iw, "MID", slider56, 0, 100, 50, 1, "%+.1f dB", 0.22);
-  slider57 = ui_hslider(57, ix, lay(30), iw, "TREBLE", slider57, 0, 100, 66, 1, "%+.1f dB", 0.20);
+  slider55 = ui_hslider(55, ix, lay(30), iw, "BASS", slider55, 0, 100, 46, 1, "%+.1f dB", 0.20);
+  slider56 = ui_hslider(56, ix, lay(30), iw, "MID", slider56, 0, 100, 52, 1, "%+.1f dB", 0.22);
+  slider57 = ui_hslider(57, ix, lay(30), iw, "TREBLE", slider57, 0, 100, 58, 1, "%+.1f dB", 0.20);
   ui_alpha = 1;
 );
 
@@ -192,8 +192,8 @@ function panel_cab_out(x, w) local(ix, iw, on, k) (
 
   ui_alpha = 1;
   ui_title(x + 10, 251, 7, 7);
-  slider58 = ui_hslider(58, ix, 290, iw, "AIR", slider58, 0, 100, 66, 1, "%+.1f dB", 0.24);
-  slider51 = ui_hslider(51, ix, 340, iw, "MASTER", slider51, -24, 6, -3.8, 0.1, "%+.1f dB", 0);
+  slider58 = ui_hslider(58, ix, 290, iw, "AIR", slider58, 0, 100, 56, 1, "%+.1f dB", 0.24);
+  slider51 = ui_hslider(51, ix, 340, iw, "MASTER", slider51, -24, 6, 2.3, 0.1, "%+.1f dB", 0);
   ui_meter(ix, 396, iw, "OUTPUT", meter_out_peak, -999, 0);
 );
 

@@ -220,4 +220,7 @@ function proc_input_gate() local(det_l, det_r, det, target_g) (
     );
     spl0 *= gate_gain; spl1 *= gate_gain;
   ) : ( gate_gain = 1.0; );
+  // Round 69 (SOUND_REFERENCES §7-A): industry input calibration (+12.04 dB -> 1 Vp = -12.04 dBFS), applied after
+  // INPUT meter and gate so meter target zone (-18..-6 dBFS) and gate threshold stay in raw interface dBFS.
+  spl0 *= 4.0; spl1 *= 4.0;
 );

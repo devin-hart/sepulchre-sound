@@ -389,7 +389,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
     out = []
 
     for x in signal:
-        l = bq_step(bq_in, x * (10.0 ** (sliders[1] * 0.05)))
+        l = bq_step(bq_in, x * (10.0 ** (sliders[1] * 0.05))) * 4.0   # Round 69: +12.04 dB input cal (1 Vp = -12.04 dBFS)
         if eq_on and eq_pre:
             for b in eq_f:
                 l = bq_step(b, l)
@@ -515,7 +515,7 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
     bin_8k = int(8000.0 * n / sr)
     hm10 = dict(presets[3]); hm10.update({62: 10.0, 63: 10.0, 64: 10.0})   # Round 55: HM-2 worst case, all knobs on 10
-    for p0, name, limit in ((presets[7], "RAT", -40.0), (presets[0], "DS-1", -40.0), (presets[1], "Metal Zone", -40.0), (hm10, "HM-2 (all 10)", -40.0)):
+    for p0, name, limit in ((presets[1], "RAT", -40.0), (presets[2], "DS-1", -40.0), (presets[0], "Metal Zone", -40.0), (hm10, "HM-2 (all 10)", -40.0)):
         p = dict(p0)
         p[16] = 0.0
         out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]

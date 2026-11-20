@@ -49,13 +49,13 @@ BASE_DEFAULTS = {
 }
 
 GLOBAL_PRESET_NAMES = [
-    (0, '01: Frostbitten', 'DS-1'),
-    (1, '02: Tremolo Rhythm', 'MT-2'),
-    (2, '03: Raw 4-Track', 'DS-1'),
+    (0, '01: Modern Black', 'MT-2'),
+    (1, '02: Tremolo Rhythm', 'RAT'),
+    (2, '03: Frostbitten Raw', 'DS-1'),
     (3, '04: Buzzsaw', 'HM-2'),
     (4, '05: Atmospheric Wall', 'RAT'),
     (5, '06: Depressive', 'RAT'),
-    (6, '07: Modern Black', 'MT-2'),
+    (6, '07: Raw 4-Track', 'DS-1'),
     (7, '08: Cold Lead', 'RAT'),
     (8, '09: Freezing Clean', 'Clean'),
     (9, '10: Ambient Swell', 'RAT'),

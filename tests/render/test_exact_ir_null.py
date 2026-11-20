@@ -130,9 +130,9 @@ def test_exact_ir_null_and_continuity():
         os.remove(out_impulse)
     rc.run_reaper(rpp_imp_path)
 
-    # Input signal: impulse from impulse.wav through bq_in_hp (40 Hz HPF)
+    # Input signal: impulse from impulse.wav through bq_in_hp (40 Hz HPF) + Round 69 4.0x input calibration
     x_in = np.zeros(4096)
-    x_in[0] = rc.read_wav24(impulse_wav, channel=0)[0]
+    x_in[0] = rc.read_wav24(impulse_wav, channel=0)[0] * 4.0
     in_hp = bq_hp(40.0, 0.7071, srate)
     x_filtered = apply_bq(in_hp, x_in)
 

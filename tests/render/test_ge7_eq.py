@@ -126,7 +126,7 @@ def test_eq_bands_frequency_and_gain():
 
     for idx, (pos, pos_name, label, target_f, _) in enumerate(band_cases):
         st = int(round(idx * item_gap, 2) * sr)
-        ir_out = (samples[st + imp_offset : st + imp_offset + n_fft]) / 0.84
+        ir_out = (samples[st + imp_offset : st + imp_offset + n_fft]) / (0.84 * 4.0)
 
         H = np.abs(np.fft.rfft(ir_out, n=n_fft)) / imp_amp
         freqs = np.fft.rfftfreq(n_fft, 1.0 / sr)
@@ -184,7 +184,7 @@ def test_eq_toggle_no_clicks():
     for idx, (pos, pos_name) in enumerate(positions):
         st = int(round(idx * item_gap, 2) * sr)
         seg = samples[st : st + int(dur * sr)]
-        diffs = np.abs(np.diff(seg))
+        diffs = np.abs(np.diff(seg / 4.0))
         max_step = float(np.max(diffs))
         print(f"{pos_name}: Max sample jump = {max_step:.4f} (Smooth, well within continuous sine derivative)")
         assert max_step < 0.15, f"Click/pop detected in {pos_name}! Max step={max_step:.4f}"
