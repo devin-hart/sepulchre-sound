@@ -1816,3 +1816,60 @@ H1 → H3 (one-line answers, the first needs Devin's call) → M1, M2 (small, au
 - None of this was run in REAPER. H2 and M3 depend on host behaviour.
 - The click severity for M1, M2 and M6 isn't measured.
 - verify [8/8] was skipped (no numpy).
+
+---
+
+## Round 67 Addendum — Claude: comparison with Antigravity's Round 67 audit
+
+I read Antigravity's Round 67 audit (`reviews/antigravity_reports.md`, "Round 67 — Antigravity Independent Code Audit") after writing mine. I checked its new claims against the code and found no false positives, but I'd rate a few lower. The damping numbers below were recomputed by script.
+
+### Found by both
+| Issue | Claude | Antigravity |
+| :-- | :-- | :-- |
+| Missing IR file keeps the old IR; label shows the new slot | H1 | H-2 |
+| IR file I/O on the audio thread (`ir_reload_req` → `@block`) | M4 | H-1 |
+| UI preset recall notifies the host only about slider60 | M3 | H-5 |
+| Reverb on/off steps the dry level (2 dB on preset 10) | M1 | M-1 |
+| Re-enabling the cab replays stale UPOLS audio | M2 | M-1 |
+| Double-click resets out of date (Master +3.3 dB) | M5 | M-5 |
+| Pedal switch not crossfaded | M6 | M-1 (in passing) |
+| Dead code, stale `FRESH_INSERT_DEFAULTS`, Windows fonts, stale docs | L2, L7, L8 | L-1, M-4, M-6, L-4 |
+
+### Found by Antigravity, missed by me
+- **Reverb damping depends on the sample rate (`sepulchre_dsp_fx.jsfx-inc:123`). Confirmed; the most important item I missed.**
+  - `rev_damp` is a 1-pole coefficient but is scaled linearly by `44100 / srate`.
+  - At 60% Hall damping the cutoff is 3.8 kHz at 44.1k, **4.8 kHz at 48k** and 20.2 kHz at 96k (effectively undamped).
+  - **Caution about its fix** (`d44 ^ (44100 / srate)`): it would make 48k darker than it is now, and 48k is the rate the presets were rendered and tuned at. Use today's 48k value as the reference, `rev_damp = d48 ^ (48000 / srate)` with `d48 = d44 × 44100 / 48000`. That keeps 48k unchanged and fixes the other rates.
+- **IR buffer overflow above 192 kHz, or with an IR of more than 8 channels (`sepulchre_dsp_amp_cab.jsfx-inc:84, 110`). Confirmed.**
+  - My "Checked and fine" note covered only up to 192 kHz. At 384 kHz, `ir_parts = 128` writes past `ir_fft_kern` / `ir_blk_cur`.
+  - I'd rate it **Low**, not High: it needs a 384 kHz project or a 9+ channel WAV. The fix is cheap: clamp `ir_filter_len ≤ 8192` and `ir_raw_len ≤ 32768 / nch`.
+- **Cab trim jumps instantly. Confirmed, Medium.** `ir_ped_g` steps by up to 3.1 dB in one block when Distortion is toggled (and on pedal changes), while the pedal itself crossfades over 20 ms. Fix: smooth it with `param_smooth_c`.
+- **The test enforces the I/O rule violation.** `tests/verify_jsfx.py:106` asserts `ir_reload_req ?` in `@block`, so any M4 / H-1 fix must update that test too.
+- **Smaller ones, all valid:**
+  - `eq_lvl_s` and `reverb_mix_s` aren't snapped on transport start, so renders ramp for the first 20 ms.
+  - `rev_idle < 4800` is a fixed sample count, so the idle timeout gets shorter at higher rates.
+  - PRE/POST PEDAL doesn't set `eq_dirty`.
+  - `tools/make_background.py` leaves a black bar for narrow walls (I didn't audit `tools/`).
+- **Exact `==` on `slider41` / `slider54` / `slider60` (its M-3): Plausible, I'd rate it Low.** REAPER most likely snaps stepped enum sliders to whole numbers. Rounding once with `floor(x + 0.5)` is still cheap insurance.
+
+### Found by me, missed by Antigravity
+- **H2:** REAPER user presets and undo can be overwritten by the factory bank (and slider75 by the EQ curve). This is the most damaging item on either list. Plausible; needs a REAPER test.
+- **H3:** every global preset forces `slider49 = 1`, which breaks the TRVE Cab workflow. Needs Devin's decision.
+- **L1:** RAT GBW pole uses `rd / 43` against `rd / 47` elsewhere. The Python mirror copies 43, so no test can catch it.
+- **L3–L6:** amp tone readouts leave out fixed offsets; `preset_dirty` misses host edits; CPU hot spots (Metal Zone `pow`, always-on chorus); IR resampling has no anti-alias filter.
+
+### Disagreements
+- **IR I/O (its H-1 High vs my M4 Medium).** Its fix loads in `@gfx` and sets `ir_need_refft` last. That still races `prepare_ir_fft()` if `@block` is already preparing (for example after a sample-rate change) while `@gfx` writes `ir_raw_buf`. A guard or double buffer is needed. The files are 44.1 kHz mono and 1 s long, so the dropout risk is small; decide the approach before changing code.
+- **Reverb comb index after a mode change (its M-1).** Not out of bounds: the index stays inside `comb_max` (12,288) and reads one stale sample before wrapping. Trivial.
+- **Severity of H-4 (overflow):** Low, as above.
+
+### Combined fix order (proposal)
+1. Missing-IR fallback (H1 / H-2) and the cab-on decision (H3).
+2. Reverb damping, keeping 48k as the reference.
+3. Quick clicks: reverb dry step, `ir_ped_g` smoothing, clearing the stale UPOLS state.
+4. REAPER test for H2, then the fix.
+5. Double-click defaults plus a test for them; transport-start snaps; the IR/channel clamps.
+6. IR-loading approach (M4 / H-1) plus `verify_jsfx.py:106`; then the Low items.
+
+### Not verified
+Nothing was run in REAPER. Antigravity's findings were checked by reading the code. The damping cutoffs were computed by script and the overflow sizes by hand; none of the clicks were measured.
