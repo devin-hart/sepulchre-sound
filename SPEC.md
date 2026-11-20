@@ -153,6 +153,7 @@ GE-7 presets (`slider75`): Bathory, Deathcrush, Transilvanian, Nightside, Filoso
 ## 6. Decisions Log
 | Date | Decision | Why |
 | :--- | :--- | :--- |
+| 2026-11-20 | One rolling report file per agent (`reviews/claude_reports.md`, `reviews/antigravity_reports.md`), appended each round; Claude's 42 per-round files merged into `reviews/claude_reports.md` | Devin: "combine your reports to one file rather than making a new report everytime". |
 | 2026-11-20 | Development moves to Linux (Manjaro): `AGENTS.md` paths and commands rewritten for `~/.config/REAPER`, bash and `/usr/bin/reaper` | Devin: "update our AGENTS doc to let it know we're on Linux". The removed `run_reaper_render.py` command was replaced with the `tests/render/test_*.py` scripts. |
 | 2026-10-28 | Split implementation into `sepulchre_sound.jsfx` and 6 `.jsfx-inc` files | Keeps every file under the 300-line limit along clear DSP, Amp/IR, Preset, UI primitives, and UI panel boundaries. |
 | 2026-10-28 | Deploy runtime JSFX to `%APPDATA%\REAPER\Effects\sepulchre_sound\` and curated WAV IRs to `%APPDATA%\REAPER\Data\sepulchre_irs\` | Matches REAPER's native JSFX and `/sepulchre_irs` WAV file-slider discovery paths. |
