@@ -220,6 +220,8 @@ Devin's call: **users can load their own IR files**, and the plugin should bundl
 3. Ask Shift Line (5150) and Jester Dyne (Brutal Pack) for written permission to bundle one IR, with attribution. **The email is Devin's to send.**
 4. Until a reply arrives, the README links to free downloads, which is always allowed, including overdriven.fr.
 
+**Status (Devin, 2026-11-20):** bundling and permission emails are deferred. Keep using the local Ugritone IRs for now; Devin wants to test other IRs first. That makes **user-loadable IRs the first cab task**: today only the 10 hard-coded filenames load.
+
 **User-IR design notes (for the implementing agent; verify each against the current JSFX reference):**
 - **File slider:** replace the fixed `slider53` enum with a JSFX **file slider**, `slider53:/sepulchre_irs:<default>:Cabinet IR`. REAPER then lists every file in `<REAPER resource>/Data/sepulchre_irs/`, and `file_open(slider53)` opens the selected one.
 - **No file dialog:** JSFX has none, so users copy IRs into that folder (document this in the README). The name for the UI can come from `strcpy_fromslider()`.
