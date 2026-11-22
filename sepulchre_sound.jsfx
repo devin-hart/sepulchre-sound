@@ -78,6 +78,7 @@ filename:1,sepulchre_titles.png
 import sepulchre_dsp_core.jsfx-inc
 import sepulchre_dsp_dist.jsfx-inc
 import sepulchre_dsp_fx.jsfx-inc
+import sepulchre_dsp_ir.jsfx-inc
 import sepulchre_dsp_amp_cab.jsfx-inc
 import sepulchre_presets.jsfx-inc
 import sepulchre_ui.jsfx-inc
@@ -113,9 +114,9 @@ ui_need_sync = 1;
 @block
 // Consume staged IR buffer handed off from @init/@slider/@gfx/@serialize (zero file I/O on audio thread)
 ir_stage_ready ? (
-  ir_stage_ready = 0;
   ir_raw_len = ir_stage_len; ir_raw_nch = ir_stage_nch; ir_raw_srate = ir_stage_srate;
   ir_raw_len > 0 ? ( memcpy(ir_raw_buf, ir_stage_buf, ir_raw_len * ir_raw_nch); ir_need_refft = 1; ) : ( ir_filter_len = 0; );
+  ir_stage_ready = 0;
 );
 
 (last_srate != srate || ui_need_sync) ? (
@@ -170,7 +171,7 @@ file_avail(0) < 0 ? (
     file_var(0, ir_rec_cnt);
     ir_rec_cnt = clamp(floor(ir_rec_cnt + 0.5), 0, 8);
     s_i = 0; loop(ir_rec_cnt, file_string(0, 20 + s_i); s_i += 1; );
-    ir_custom_active && strlen(#ir_custom_path) > 0 ? load_ir_custom(#ir_custom_path);
+    ir_custom_active && strlen(#ir_custom_path) > 0 ? load_ir_custom(#ir_custom_path, 0);
   );
 );
 

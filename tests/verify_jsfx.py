@@ -29,6 +29,7 @@ EXPECTED_FILES = [
     "sepulchre_dsp_core.jsfx-inc",
     "sepulchre_dsp_dist.jsfx-inc",
     "sepulchre_dsp_fx.jsfx-inc",
+    "sepulchre_dsp_ir.jsfx-inc",
     "sepulchre_dsp_amp_cab.jsfx-inc",
     "sepulchre_presets.jsfx-inc",
     "sepulchre_ui.jsfx-inc",
@@ -123,7 +124,7 @@ def check_syntax_and_r2_fixes():
 
     # Dynamically parse alloc_buf() and constant assignments from the actual JSFX source
     combined_src = "\n".join(raw_by_file[f] for f in [
-        "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc", "sepulchre_dsp_amp_cab.jsfx-inc"
+        "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc", "sepulchre_dsp_amp_cab.jsfx-inc", "sepulchre_dsp_ir.jsfx-inc"
     ])
     consts = {"mem_top": 1024}
     allocations = []
@@ -573,7 +574,7 @@ def check_ir_loudness_constant():
     # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
     # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
     print("[5/8] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
-    src = open(os.path.join(ROOT, "sepulchre_dsp_amp_cab.jsfx-inc"), "r", encoding="utf-8").read()
+    src = open(os.path.join(ROOT, "sepulchre_dsp_ir.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
         raise AssertionError("IR_E48 constant not found")
@@ -688,9 +689,10 @@ def check_real_ir_loudness(presets_src, raw_files):
     di_path = os.path.join(ROOT, "tests", "render", "di_input.wav")
     if not (os.path.exists(ir_path) and os.path.exists(di_path)):
         print(f"  - SKIPPED: {ir_path if not os.path.exists(ir_path) else di_path} not found"); return
+    ir_src = raw_files["sepulchre_dsp_ir.jsfx-inc"]
     amp = raw_files["sepulchre_dsp_amp_cab.jsfx-inc"]
-    match_db = float(re.search(r"^IR_MATCH_DB = ([-0-9.]+);", amp, flags=re.MULTILINE).group(1))
-    e48 = float(re.search(r"^IR_E48 = ([0-9.]+);", amp, flags=re.MULTILINE).group(1))
+    match_db = float(re.search(r"^IR_MATCH_DB = ([-0-9.]+);", ir_src, flags=re.MULTILINE).group(1))
+    e48 = float(re.search(r"^IR_E48 = ([0-9.]+);", ir_src, flags=re.MULTILINE).group(1))
     m = re.search(r"dist_ped == 0 \? ([-0-9.]+) : dist_ped == 1 \? ([-0-9.]+) : dist_ped == 3 \? ([-0-9.]+) : ([-0-9.]+)\)", amp)
     ped_db = {0: float(m.group(1)), 1: float(m.group(2)), 3: float(m.group(3)), 2: float(m.group(4))}
     sr = 48000.0

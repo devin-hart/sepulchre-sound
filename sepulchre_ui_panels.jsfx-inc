@@ -183,12 +183,7 @@ function ir_rec_add(path_s) local(i, found, k) (
   while (k > 0) ( strcpy(20 + k, 20 + k - 1); k -= 1; );
   strcpy(20, path_s);
 );
-function ir_basename(dst_s, src_s) local(len, i, slash, dot, c) (
-  len = strlen(src_s); slash = -1; dot = len; i = 0;
-  loop(len, c = str_getchar(src_s, i); (c == '/' || c == '\\') ? slash = i; c == '.' ? dot = i; i += 1; );
-  dot <= slash ? dot = len;
-  strcpy_substr(dst_s, src_s, slash + 1, min(32, dot - slash - 1));
-);
+function ir_basename(dst_s, src_s) ( ir_extract_name(dst_s, src_s, 32, 1); );
 function ir_show_menu(mx, my) local(i, sel) (
   strcpy(#ir_m, slider52 < 0.5 ? "!Built-in 4x12 (Zero Latency)|" : "Built-in 4x12 (Zero Latency)|");
   strcat(#ir_m, (slider52 >= 0.5 && !ir_custom_active) ? "!Folder IR (REAPER 'UI' view)" : "Folder IR (REAPER 'UI' view)");
@@ -207,8 +202,8 @@ function ir_show_menu(mx, my) local(i, sel) (
   gfx_x = u_px(mx); gfx_y = u_py(my);
   sel = gfx_showmenu(#ir_m);
   sel == 1 ? set_param(52, 0) :
-  sel == 2 ? ( ir_custom_active = 0; strcpy(#ir_loaded_name, ""); load_ir_if_changed(0); set_param(52, 1); ) :
-  sel >= 3 && (sel - 3) < ir_rec_cnt ? ( load_ir_custom(20 + (sel - 3)); set_param(52, 1); );
+  sel == 2 ? ( !ir_stage_ready ? ( ir_custom_active = 0; strcpy(#ir_loaded_name, ""); load_ir_if_changed(0); set_param(52, 1); ); ) :
+  sel >= 3 && (sel - 3) < ir_rec_cnt ? ( load_ir_custom(20 + (sel - 3), 1); set_param(52, 1); );
 );
 
 function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir, len) (
@@ -216,7 +211,7 @@ function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir, len) (
   gfx_getdropfile(0, #ir_drop) ? (
     len = strlen(#ir_drop);
     len > 4 && (stricmp(strcpy_substr(#ir_ext, #ir_drop, len - 4, 4), ".wav") == 0) ? (
-      ir_rec_add(#ir_drop); load_ir_custom(#ir_drop); set_param(52, 1);
+      ir_rec_add(#ir_drop); load_ir_custom(#ir_drop, 1); set_param(52, 1);
     );
     gfx_getdropfile(-1);
   );

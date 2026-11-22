@@ -1,10 +1,7 @@
 // sepulchre_dsp_amp_cab.jsfx-inc
-// Module 5: Amp Stage (Tube / Solid-State), WAV IR convolution (UPOLS), IIR cab fallback, Air, Master and limiter
+// Module 5: Amp Stage (Tube / Solid-State), Built-in 4x12 IIR Cab, Air, Master and -1.0 dBFS limiter.
+// WAV IR loader & UPOLS engine live in sepulchre_dsp_ir.jsfx-inc (imported right before this file).
 @init
-// Round 20: uniformly partitioned overlap-save convolution (UPOLS). Block CV_B = 128 samples (2.7 ms @ 48 kHz latency,
-// was 2048 = 43 ms), FFT CV_N = 256 complex points, up to 16 partitions (2048-tap IRs). L/R ride as real/imag of one
-// complex FFT (the kernel is real). ir_fft_kern = 16 kernel spectra; ir_blk_cur = frequency-domain delay line (FDL).
-CV_B = 128; CV_N = 256; CV_F = 512;                  // block, complex FFT size, floats per spectrum
 
 function init_amp_cab_dsp() (
   bq_amp_hp = alloc_buf(9);
@@ -19,23 +16,8 @@ function init_amp_cab_dsp() (
   bq_cab_f1 = alloc_buf(9);
   bq_cab_f2 = alloc_buf(9);
   bq_cab_f3 = alloc_buf(9);
-  bq_irw1 = alloc_buf(9); bq_irw2 = alloc_buf(9); bq_irw3 = alloc_buf(9);   // IR loudness-match weighting
+  init_ir_dsp();
 
-  // Align FFT & IR convolution buffers to 65536 boundary (EEL2 has no unary ~; ~ is binary XOR)
-  mem_top = floor((mem_top + 65535) / 65536) * 65536;
-  ir_raw_buf = alloc_buf(32768);
-  ir_fft_kern = alloc_buf(32768);
-  ir_blk_cur = alloc_buf(32768);
-  ir_blk_last = alloc_buf(32768);
-  ir_stage_buf = alloc_buf(32768);
-
-  ir_need_refft = 0;
-  ir_stage_ready = 0; ir_stage_len = 0; ir_stage_nch = 0; ir_stage_srate = 0;
-  ir_filter_len = 0;
-  ir_chunk_size = CV_B;                              // reported as pdc_delay while WAV IR runs
-  ir_bpos = 0; cv_fdl_pos = 0; ir_parts = 0;
-  // Round 20 low-latency convolution scratch (inside ir_blk_last; ir_blk_last[0..4095] = IR loudness scratch)
-  cv_frame = ir_blk_last + 8192; cv_acc = ir_blk_last + 8704; cv_tmp = ir_blk_last + 9216; cv_out = ir_blk_last + 9728;
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
   ir_ped_g_s = 1.0; ir_ped_g_t = 1.0; cab_was_on = 0; cab_ir_was_on = 0;
@@ -46,146 +28,12 @@ function reset_amp_cab_state() (
   bq_clear(bq_amp_treb); bq_clear(bq_amp_pres);
   bq_clear(bq_cab_hp); bq_clear(bq_cab_lp1); bq_clear(bq_cab_lp2);
   bq_clear(bq_cab_f1); bq_clear(bq_cab_f2); bq_clear(bq_cab_f3);
-  memset(ir_blk_cur, 0, 32768);
-  memset(ir_blk_last, 0, 32768);
-  ir_bpos = 0; cv_fdl_pos = 0;
+  reset_ir_state();
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
   ir_ped_g_s = ir_ped_g_t;
 );
 
-// Round 68/71: User-loadable IRs via file slider (slider53) OR drag-and-drop / recent menu (absolute path).
-// Format a display name from any path (strip dir & .wav extension, cap length for UI column).
-function format_ir_disp(src_s) local(len, i, slash, dot, c) (
-  len = strlen(src_s);
-  len == 0 || strcmp(src_s, "none") == 0 ? ( strcpy(#ir_disp, "BUILT-IN 4x12"); ) : (
-    slash = -1; dot = len; i = 0;
-    loop(len,
-      c = str_getchar(src_s, i);
-      (c == '/' || c == '\\') ? slash = i;
-      c == '.' ? dot = i;
-      i += 1;
-    );
-    dot <= slash ? dot = len;
-    strcpy_substr(#ir_disp, src_s, slash + 1, min(20, dot - slash - 1));
-  );
-);
-
-// Off-audio-thread WAV reader into staging buffer (hand-off to @block via ir_stage_ready avoids racing prepare_ir_fft)
-function read_ir_to_stage(path_s) local(fh, nch, ir_sr, avail, rlen) (
-  rlen = 0; nch = 0; ir_sr = 0;
-  strlen(path_s) > 0 && strcmp(path_s, "none") != 0 ? (
-    fh = file_open(path_s);
-    fh < 0 ? ( sprintf(#ir_path, "sepulchre_irs/%s", path_s); fh = file_open(#ir_path); );
-    fh >= 0 ? (
-      file_riff(fh, nch, ir_sr);
-      nch > 0 && ir_sr > 0 ? (
-        avail = floor(file_avail(fh) / nch);
-        rlen = min(8192, min(avail, floor(32768 / nch)));
-        rlen > 0 ? file_mem(fh, ir_stage_buf, rlen * nch);
-      );
-      file_close(fh);
-    );
-  );
-  ir_stage_len = rlen; ir_stage_nch = nch; ir_stage_srate = ir_sr;
-  ir_stage_ready = 1;
-);
-
-// Called in @init / @slider (strictly off audio thread). Keyed to applied filename so bad files aren't re-opened.
-function load_ir_if_changed(from_slider) (
-  strcpy_fromslider(#ir_raw_name, slider53);
-  strcmp(#ir_raw_name, #ir_loaded_name) != 0 ? (
-    strcpy(#ir_loaded_name, #ir_raw_name);
-    from_slider && ir_sliders_seen ? ir_custom_active = 0;   // user picked a folder IR in REAPER's generic UI view
-    !ir_custom_active ? (
-      format_ir_disp(#ir_raw_name);
-      read_ir_to_stage(#ir_raw_name);
-    );
-  );
-  from_slider ? ir_sliders_seen = 1;
-);
-
-// Called in @gfx (drag-and-drop / recent menu) or @serialize (project reload) for arbitrary WAV paths
-function load_ir_custom(path_s) (
-  ir_custom_active = 1;
-  strcpy(#ir_custom_path, path_s);
-  format_ir_disp(#ir_custom_path);
-  read_ir_to_stage(#ir_custom_path);
-);
-
-// Filter a mono buffer in place through biquad coeffs b[0..4] (own zeroed state; never touches live filter state)
-function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
-  s1 = 0; s2 = 0; i = 0;
-  loop(n, x = buf[i]; y = b[0] * x + s1; s1 = b[1] * x - b[3] * y + s2; s2 = b[2] * x - b[4] * y; buf[i] = y; i += 1; );
-);
-// Round 19: loudness-match every WAV IR to the IIR 4x12 cab. Weighted energy of the resampled IR (cab HPF, then
-// 90 Hz HP + 500 Hz +12 dB low shelf + 6 kHz LP ~ average distorted-guitar spectrum x K-weighting) vs IR_E48 = the
-// same measure of IIR profile 0 at 48 kHz (tests/verify_jsfx.py). Fitted over 4 pedals x 11 test IRs: rms error 1.6 dB.
-IR_E48 = 0.232396;
-IR_MATCH_DB = 3.8;   // Round 25: Devin ear-matched WAV IR to the IIR cab (+3.8 dB over the LUFS match)
-function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp, fade_n) (
-  ir_raw_len > 0 && ir_raw_srate > 0 ? (
-    isc = ir_raw_srate / srate;
-    ir_filter_len = min(8192, min(floor(2048 * srate / 48000), floor(ir_raw_len / isc)));   // Round 39/67: 42.7 ms, <= 8192 taps / 64 parts
-    ir_parts = ceil(ir_filter_len / CV_B);
-    i = 0;                                           // resample channel 0 into ir_blk_cur (FDL is cleared below)
-    loop(ir_filter_len,
-      ipos = floor(i * isc); frac = i * isc - ipos;
-      ir_blk_cur[i] = ir_raw_buf[ipos * ir_raw_nch] * (1.0 - frac) + ir_raw_buf[min(ir_raw_len - 1, ipos + 1) * ir_raw_nch] * frac;
-      i += 1;
-    );
-    // Round 68: raised-cosine fade-out over last 2.5 ms when IR is truncated at 42.7 ms
-    fade_n = min(floor(0.0025 * srate), floor(ir_filter_len * 0.1));
-    fade_n > 1 && floor(ir_raw_len / isc) > ir_filter_len ? (
-      i = 0;
-      loop(fade_n, ir_blk_cur[ir_filter_len - fade_n + i] *= 0.5 * (1.0 + cos($pi * (i + 1) / fade_n)); i += 1; );
-    );
-    n = ir_filter_len + 2048;                        // IR + filter ring-out, scratch in ir_blk_last
-    i = 0; loop(n, ir_blk_last[i] = i < ir_filter_len ? ir_blk_cur[i] : 0.0; i += 1; );
-    bq_hp(bq_irw1, 90.0, 0.7071); bq_lshelf(bq_irw2, 500.0, 12.0); bq_lp(bq_irw3, 6000.0, 0.7071);
-    bq_buf(bq_cab_hp, ir_blk_last, n); bq_buf(bq_irw1, ir_blk_last, n);
-    bq_buf(bq_irw2, ir_blk_last, n); bq_buf(bq_irw3, ir_blk_last, n);
-    e = 0.0; i = 0; loop(n, e += ir_blk_last[i] * ir_blk_last[i]; i += 1; );
-    norm_g = (1.0 / CV_N) * (e > 0.0000000001 ? sqrt(IR_E48 * (48000.0 / srate) / e) : 1.0);
-    norm_g *= 10 ^ (IR_MATCH_DB / 20);
-    memset(ir_fft_kern, 0, 32768);
-    p = 0;
-    loop(ir_parts,                                   // kernel spectra: [h(pB..pB+B-1), B zeros] -> FFT
-      kp = ir_fft_kern + p * CV_F; k = 0;
-      loop(CV_B, i = p * CV_B + k; kp[k * 2] = i < ir_filter_len ? ir_blk_cur[i] * norm_g : 0.0; k += 1; );
-      fft(kp, CV_N);
-      p += 1;
-    );
-    memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);
-    ir_bpos = 0; cv_fdl_pos = 0; ir_chunk_size = CV_B;
-  ) : (
-    ir_filter_len = 0;
-  );
-  ir_need_refft = 0;
-);
-// One UPOLS block: FFT the 2B input frame into the FDL, sum FDL x kernel products, IFFT, keep the last B samples
-function conv_block() local(p, src, i) (
-  src = ir_blk_cur + cv_fdl_pos * CV_F;
-  memcpy(src, cv_frame, CV_F); fft(src, CV_N);
-  memcpy(cv_acc, src, CV_F); convolve_c(cv_acc, ir_fft_kern, CV_N);
-  p = 1;
-  loop(ir_parts - 1,
-    memcpy(cv_tmp, ir_blk_cur + ((cv_fdl_pos - p + ir_parts) % ir_parts) * CV_F, CV_F);
-    convolve_c(cv_tmp, ir_fft_kern + p * CV_F, CV_N);
-    i = 0;
-    loop(CV_F / 8,
-      cv_acc[i] += cv_tmp[i]; cv_acc[i + 1] += cv_tmp[i + 1]; cv_acc[i + 2] += cv_tmp[i + 2]; cv_acc[i + 3] += cv_tmp[i + 3];
-      cv_acc[i + 4] += cv_tmp[i + 4]; cv_acc[i + 5] += cv_tmp[i + 5]; cv_acc[i + 6] += cv_tmp[i + 6]; cv_acc[i + 7] += cv_tmp[i + 7];
-      i += 8;
-    );
-    p += 1;
-  );
-  ifft(cv_acc, CV_N);
-  memcpy(cv_out, cv_acc + CV_B * 2, CV_B * 2);      // overlap-save: keep the last B samples
-  memcpy(cv_frame, cv_frame + CV_B * 2, CV_B * 2);  // this block becomes the next frame's first half
-  cv_fdl_pos = (cv_fdl_pos + 1) % ir_parts;
-  ir_bpos = 0;
-);
 function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   // Amp Stage (Tube JCM/5150 vs Solid-State Death/Black Metal voicing)
   bq_hp(bq_amp_hp, 75.0, 0.707);
