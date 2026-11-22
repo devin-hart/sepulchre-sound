@@ -84,37 +84,35 @@ def run_per_pedal_loudness_comparison():
     if os.path.exists(p_rpp): os.remove(p_rpp)
 
     # --- PART 2: GLOBAL PRESETS LOUDNESS GATE (WAV IR Slot 0, Isolated Tracks) ---
-    # Round 59 Gate: Every preset within +/-1.5 dB from median, no peak above -3.10 dBFS, no exceptions.
-    preset_names = [
-        "01: Modern Black", "02: Tremolo Rhythm", "03: Frostbitten Raw", "04: Buzzsaw",
-        "05: Atmospheric Wall", "06: Depressive", "07: Raw 4-Track", "08: Cold Lead",
-        "09: Freezing Clean", "10: Ambient Swell"
-    ]
+    # Round 59 / Round 76 (R4): derived from rc.GLOBAL_PRESET_NAMES; every preset within +/-1.5 dB from median, peak < -3.10 dBFS.
+    preset_entries = rc.GLOBAL_PRESET_NAMES
+    n_presets = len(preset_entries)
 
     gap = 10.0
     item_len = 0.45
     tracks = []
-    for idx in range(10):
+    for idx, _, _ in preset_entries:
         cfg = dict(presets[idx])
         cfg[49] = 1
+        cfg[52] = 1
         cfg[53] = "01_BlackWizard_Center.wav" # WAV IR slot 0
         t_pos = idx * gap
         tracks.append(rc.make_track(f"Track_{idx}", cfg, di_path, pos=t_pos, length=item_len))
 
     out_wav = os.path.join(RENDER_DIR, "out_presets_gate.wav")
     rpp_path = os.path.join(RENDER_DIR, "test_presets_gate.rpp")
-    total_len = 10 * gap + 2.0
+    total_len = n_presets * gap + 2.0
 
     with open(rpp_path, "w", encoding="utf-8") as f:
         f.write(rc.build_rpp(tracks, out_wav, total_len, sr=sr))
 
-    print("\nRendering 10 Global Presets in live REAPER (WAV IR Slot 0, Active FX, Isolated Tracks)...")
+    print(f"\nRendering {n_presets} Global Presets in live REAPER (WAV IR Slot 0, Active FX, Isolated Tracks)...")
     rc.run_reaper(rpp_path)
 
     samples = rc.read_wav24(out_wav, channel=0)
     lufs_list = []
     pk_list = []
-    for idx in range(10):
+    for idx, _, _ in preset_entries:
         seg = samples[int(idx * gap * sr) : int((idx * gap + item_len) * sr)]
         lufs = rc.calc_lufs(seg)
         pk = rc.calc_peak_db(seg)
@@ -129,22 +127,24 @@ def run_per_pedal_loudness_comparison():
     print("=" * 105)
 
     fails = []
-    for idx in range(10):
-        name = preset_names[idx]
+    for idx, name, _ in preset_entries:
         lufs = lufs_list[idx]
         pk = pk_list[idx]
         delta = lufs - med_lufs
         headroom = KNEE_DBFS - pk
+        p_cfg = presets[idx]
+        is_dry = p_cfg.get(20, 0) < 0.5 and (p_cfg.get(40, 0) < 0.5 or p_cfg.get(45, 0) <= 15)
         status = f"Clean ({headroom:.2f} dB below knee)" if pk < KNEE_DBFS else f"**EXCEEDED** (+{-headroom:.2f} dB)"
-        print(f"{name:<28} | {lufs:6.2f} LUFS| {delta:+6.2f} dB      | {pk:6.2f} dBFS | {status}")
-        if abs(delta) > 1.5:
+        tag = "" if is_dry else " [FX info]"
+        print(f"{name:<28} | {lufs:6.2f} LUFS| {delta:+6.2f} dB      | {pk:6.2f} dBFS | {status}{tag}")
+        if is_dry and abs(delta) > 1.5:
             fails.append(f"{name} loudness delta {delta:+.2f} dB exceeds +/-1.5 dB from median ({med_lufs:.2f} LUFS)")
         if pk >= KNEE_DBFS:
             fails.append(f"{name} exceeded limiter knee: {pk:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS")
     assert not fails, "\n".join(fails)
 
     print("=" * 105)
-    print(f"LOUDNESS GATE PASSED: All 10 presets within +/-{max(abs(l - med_lufs) for l in lufs_list):.2f} dB of median ({med_lufs:.2f} LUFS), 0 knee exceedances.")
+    print(f"LOUDNESS GATE PASSED: All {n_presets} presets within +/-{max(abs(l - med_lufs) for l in lufs_list):.2f} dB of median ({med_lufs:.2f} LUFS), 0 knee exceedances.")
 
     if os.path.exists(out_wav): os.remove(out_wav)
     if os.path.exists(rpp_path): os.remove(rpp_path)

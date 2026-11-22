@@ -16,7 +16,7 @@ function soft_tanh(x) local(x2) (
 );
 
 // Linear below -3.1 dBFS (0.70), C1 cubic knee to exact ceiling L (-1.0 dBFS = 0.89125). Round 30: knee raised from
-// -6 dBFS so WAV IR mode (peaks about -7..-4 dBFS since the +3.8 dB ear-match) passes untouched.
+// -6 dBFS so hot cabinet peaks (-7..-4 dBFS) pass cleanly untouched below the limiter.
 function limit_sample(x, L) local(k, ax, t, d, s) (
   k = 0.7; ax = abs(x);
   ax <= k ? x : (
@@ -142,12 +142,6 @@ function proc_eq() local(l, r) (
 
 function init_core_dsp() (
   bq_in_hp = alloc_buf(9); bq_gate_det = alloc_buf(9);
-  bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9); bq_dist_tb = alloc_buf(9);
-  bq_dist_p1 = alloc_buf(9); bq_dist_p2 = alloc_buf(9); bq_dist_p3 = alloc_buf(9);
-  bq_dist_p4 = alloc_buf(9); bq_dist_p5 = alloc_buf(9); bq_dist_p6 = alloc_buf(9);
-  // 8th-order (4-stage) steep oversampling filters for up and down conversion
-  bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
-  bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
   bq_eq1 = alloc_buf(9); bq_eq2 = alloc_buf(9); bq_eq3 = alloc_buf(9); bq_eq4 = alloc_buf(9);   // GE-7 bands
   bq_eq5 = alloc_buf(9); bq_eq6 = alloc_buf(9); bq_eq7 = alloc_buf(9);
   sl_snap = alloc_buf(80);

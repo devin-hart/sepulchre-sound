@@ -11,13 +11,20 @@
 //                Low 88 Hz / High 920 + 1200 Hz gyrators (run at 8x) -> EQ op-amp rails (clips at High 10) -> Level
 // Round 11: every gyrator EQ uses gyro_peak() = constant pole/zero Q. RBJ bq_peak's Q is NOT the pole Q: at +30 dB
 // its pole Q is Q*5.6, which made the old MT-2 pre-hump ring at ~1 kHz (the reported 'whistle').
-// Uses biquads allocated in init_core_dsp(): bq_os_up1..4 / bq_os_dn1..4 (8x resampling), bq_dist_tb (MT-2 hump @ 8x),
-// bq_dist_gyr1 / bq_dist_gyr2 / bq_dist_post (HM-2 Color Mix coefficients @ 8x), bq_dist_p1..p6 (base-rate post EQ).
+// Round 76 (R3): distortion & 8x oversampling biquads allocated in init_dist_dsp() below.
 @init
 
 DIST_OS = 8;
 MT_MK = 0.54; HM_MK = 1.6;   // Level make-up, calibrated by tests/verify_jsfx.py (presets -10..-8 dBFS)
-dist_is_mono = 1; dist_r_stale = 0;
+dist_is_mono = 1; dist_r_stale = 0; dist_os_sr = 0;
+
+function init_dist_dsp() (
+  bq_dist_gyr1 = alloc_buf(9); bq_dist_gyr2 = alloc_buf(9); bq_dist_post = alloc_buf(9); bq_dist_tb = alloc_buf(9);
+  bq_dist_p1 = alloc_buf(9); bq_dist_p2 = alloc_buf(9); bq_dist_p3 = alloc_buf(9);
+  bq_dist_p4 = alloc_buf(9); bq_dist_p5 = alloc_buf(9); bq_dist_p6 = alloc_buf(9);
+  bq_os_up1 = alloc_buf(9); bq_os_up2 = alloc_buf(9); bq_os_up3 = alloc_buf(9); bq_os_up4 = alloc_buf(9);
+  bq_os_dn1 = alloc_buf(9); bq_os_dn2 = alloc_buf(9); bq_os_dn3 = alloc_buf(9); bq_os_dn4 = alloc_buf(9);
+);
 function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
 function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
@@ -32,11 +39,14 @@ function gyro_peak_sr(b, f, qg, db, sr) ( bq_peak_sr(b, f, qg / 10 ^ (abs(db) / 
 function gyro_peak(b, f, qg, db) ( gyro_peak_sr(b, f, qg, db, srate); );
 
 function update_dist_coeffs() local(os_sr, os_fc, rd, t) (
-  os_sr = srate * DIST_OS; os_fc = min(16500.0, srate * 0.36);
-  bq_lp_sr(bq_os_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_up2, os_fc, 0.6013, os_sr);
-  bq_lp_sr(bq_os_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_up4, os_fc, 2.5629, os_sr);
-  bq_lp_sr(bq_os_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_dn2, os_fc, 0.6013, os_sr);
-  bq_lp_sr(bq_os_dn3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_dn4, os_fc, 2.5629, os_sr);
+  os_sr = srate * DIST_OS;
+  dist_os_sr != os_sr ? (
+    dist_os_sr = os_sr; os_fc = min(16500.0, srate * 0.36);
+    bq_lp_sr(bq_os_up1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_up2, os_fc, 0.6013, os_sr);
+    bq_lp_sr(bq_os_up3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_up4, os_fc, 2.5629, os_sr);
+    bq_lp_sr(bq_os_dn1, os_fc, 0.5098, os_sr); bq_lp_sr(bq_os_dn2, os_fc, 0.6013, os_sr);
+    bq_lp_sr(bq_os_dn3, os_fc, 0.9000, os_sr); bq_lp_sr(bq_os_dn4, os_fc, 2.5629, os_sr);
+  );
   bq_unity(bq_dist_p1); bq_unity(bq_dist_p2); bq_unity(bq_dist_p3);
   bq_unity(bq_dist_p4); bq_unity(bq_dist_p5); bq_unity(bq_dist_p6);
   dist_ped = floor(slider11 + 0.5);

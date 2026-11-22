@@ -124,7 +124,8 @@ def check_syntax_and_r2_fixes():
 
     # Dynamically parse alloc_buf() and constant assignments from the actual JSFX source
     combined_src = "\n".join(raw_by_file[f] for f in [
-        "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc", "sepulchre_dsp_amp_cab.jsfx-inc", "sepulchre_dsp_ir.jsfx-inc"
+        "sepulchre_dsp_core.jsfx-inc", "sepulchre_dsp_dist.jsfx-inc", "sepulchre_dsp_fx.jsfx-inc",
+        "sepulchre_dsp_amp_cab.jsfx-inc", "sepulchre_dsp_ir.jsfx-inc"
     ])
     consts = {"mem_top": 1024}
     allocations = []
@@ -693,7 +694,6 @@ def check_real_ir_loudness(presets_src, raw_files):
         print(f"  - SKIPPED: {ir_path if not os.path.exists(ir_path) else di_path} not found"); return
     ir_src = raw_files["sepulchre_dsp_ir.jsfx-inc"]
     amp = raw_files["sepulchre_dsp_amp_cab.jsfx-inc"]
-    match_db = float(re.search(r"^IR_MATCH_DB = ([-0-9.]+);", ir_src, flags=re.MULTILINE).group(1))
     e48 = float(re.search(r"^IR_E48 = ([0-9.]+);", ir_src, flags=re.MULTILINE).group(1))
     m = re.search(r"dist_ped == 0 \? ([-0-9.]+) : dist_ped == 1 \? ([-0-9.]+) : dist_ped == 3 \? ([-0-9.]+) : ([-0-9.]+)\)", amp)
     ped_db = {0: float(m.group(1)), 1: float(m.group(2)), 3: float(m.group(3)), 2: float(m.group(4))}
@@ -712,7 +712,7 @@ def check_real_ir_loudness(presets_src, raw_files):
     for b in (bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(180.0, 0.7071, sr), bq_lp_coeffs(4200.0, 0.7071, sr),
               bq_peak_coeffs(900.0, 0.8, 3.0, sr)):
         buf = _bq_run(b, buf)
-    ir = ir * math.sqrt(e48 / sum(v * v for v in buf)) * 10.0 ** (match_db / 20.0)
+    ir = ir * math.sqrt(e48 / sum(v * v for v in buf))
     di = list(_read_wav_mono(di_path)[0])
     presets = parse_global_presets(presets_src)
     results = []

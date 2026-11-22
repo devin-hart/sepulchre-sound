@@ -102,7 +102,7 @@ These are historical facts, which is not the same as what the plugin models. The
 - **The damping coefficient is scaled wrongly with sample rate** (Antigravity R67 H-3; keep 48 kHz as the reference when fixing). See §7-D.
 
 ## 5. Ear-tuned values: do not "fix" without Devin
-- `IR_MATCH_DB = 3.8`: WAV IR ear-matched to the IIR cab (R25).
+- ~~`IR_MATCH_DB = 3.8`~~: retired in Round 73 (spectral cab loudness matching matched Built-in 4x12 and WAV IRs to `0.00 dB`, approved by Devin in Round 74; constant removed in Round 76 R1).
 - The preset Master levels: calibrated to −18.6 LUFS from Antigravity's R57 REAPER render ([measured]). The bank was accepted by ear.
 - Amp OFF ×0.84 (R35) and the chorus ×0.78: [measured], but tied to the above.
 - Pedal choice per preset and every preset's character: Devin's call (R56).

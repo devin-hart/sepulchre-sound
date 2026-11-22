@@ -10,6 +10,19 @@ function sync_all_DSP() (
   update_eq_coeffs();
 );
 
+// Round 76 (P4): per-module dirty flags so tweaking one module (e.g. reverb) doesn't redesign unrelated filters.
+function mark_slider_dirty(id) (
+  id <= 4 ? dirty_core = 1 :
+  (id == 20 || (id >= 40 && id <= 45) || id == 77 || id == 78) ? dirty_fx = 1 :
+  (id >= 65 && id <= 76) ? dirty_eq = 1 :
+  (id >= 49 && id <= 58) ? dirty_amp_cab = 1 :
+  (id == 10 || id == 11) ? ( dirty_dist = 1; dirty_amp_cab = 1; ) :
+  (id == 9 || (id >= 26 && id <= 29) || (id >= 37 && id <= 39) || (id >= 46 && id <= 48) || (id >= 59 && id <= 64)) ? dirty_dist = 1;
+);
+function mark_changed_sliders() local(i) (
+  i = 1; loop(78, abs(slider(i) - sl_snap[i]) > 0.0001 ? mark_slider_dirty(i); i += 1; );
+);
+
 // Round 67 (H2): snapshot sliders so @slider only recalls factory presets when slider60/75 changed alone
 // (avoids clobbering REAPER user presets or undo/redo when multiple sliders are restored together).
 function snap_all_sliders() local(i) (
@@ -120,5 +133,5 @@ function recall_global_preset(idx) (
   );
   eq_last_preset = floor(slider75 + 0.5); eq_dirty = 0;
   snap_all_sliders();
-  ui_need_sync = 1;
+  dirty_all = 1;
 );

@@ -16,7 +16,7 @@ function recall_eq_preset(i) local(k) (
   slider75 = i; eq_last_preset = i; eq_dirty = 0;
   k = 65; loop(9, auto_slider(k, 1); k += 1; ); auto_slider(75, 1);
   snap_all_sliders();
-  ui_need_sync = 1;
+  dirty_eq = 1;
 );
 
 // Column layout: spread items over the body height, gap clamped to 12..30
@@ -66,7 +66,7 @@ function ui_vslider(id, x, y, h, label, val, min_v, max_v, dflt_v, step_v) local
                         ui_drag_start_y = ui_my; ui_drag_start_v = new_val; )
                     : ( new_val = max_v - clamp((ui_my - y) / h, 0, 1) * (max_v - min_v); );
     new_val = clamp(floor(new_val / step_v + 0.5) * step_v, min_v, max_v);
-    new_val != val ? ( slider(id) = new_val; sl_snap[id] = new_val; auto_slider(id, 0); ui_need_sync = 1; preset_dirty = 1; );
+    new_val != val ? ( slider(id) = new_val; sl_snap[id] = new_val; auto_slider(id, 0); mark_slider_dirty(id); preset_dirty = 1; );
   );
   new_val != val ? eq_dirty = 1;                       // a fader moved: EQ preset name gets a '*'
   (ui_drag_id == id || mouse_in(x - 6, y - 4, 13, h + 8)) ? ( ui_vs_hot = id; ui_vs_val = new_val; ui_vs_lab = label; );

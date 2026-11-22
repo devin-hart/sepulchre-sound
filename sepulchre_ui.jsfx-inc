@@ -126,7 +126,7 @@ function auto_slider(id, end_touch) (
 );
 function set_param(id, v) (
   slider(id) = v; sl_snap[id] = v; auto_slider(id, 1);
-  ui_need_sync = 1; preset_dirty = 1;
+  mark_slider_dirty(id); preset_dirty = 1;
 );
 // ---------- Widgets ----------
 // Round 64: flat, minimal controls. Choice button = text only; selected = bone text + bone underline,
@@ -190,7 +190,7 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
     ) : ( new_val = min_v + clamp((ui_mx - x) / w, 0, 1) * (max_v - min_v); );
     step_v > 0 ? new_val = floor(new_val / step_v + 0.5) * step_v;
     new_val = clamp(new_val, min_v, max_v);
-    new_val != val ? ( slider(id) = new_val; sl_snap[id] = new_val; auto_slider(id, 0); ui_need_sync = 1; preset_dirty = 1; );
+    new_val != val ? ( slider(id) = new_val; sl_snap[id] = new_val; auto_slider(id, 0); mark_slider_dirty(id); preset_dirty = 1; );
   );
 
   norm = clamp((new_val - min_v) / (max_v - min_v), 0, 1);

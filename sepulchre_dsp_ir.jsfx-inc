@@ -104,7 +104,6 @@ function bq_buf(b, buf, n) local(i, x, y, s1, s2) (
 );
 
 IR_E48 = 0.132771;   // Round 73: guitar+K spectral weighted energy matching Built-in 4x12 (cab_comp_lin=0.7510)
-IR_MATCH_DB = 0.0;   // Round 73: zeroed differential so Built-in 4x12 and all WAV IRs match by measured loudness
 function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp, fade_n) (
   ir_raw_len > 0 && ir_raw_srate > 0 ? (
     isc = ir_raw_srate / srate;
@@ -128,7 +127,6 @@ function prepare_ir_fft() local(isc, i, ipos, frac, n, e, norm_g, p, k, kp, fade
     bq_buf(bq_irw2, ir_blk_last, n); bq_buf(bq_irw3, ir_blk_last, n);
     e = 0.0; i = 0; loop(n, e += ir_blk_last[i] * ir_blk_last[i]; i += 1; );
     norm_g = (1.0 / CV_N) * (e > 0.0000000001 ? sqrt(IR_E48 * (48000.0 / srate) / e) : 1.0);
-    norm_g *= 10 ^ (IR_MATCH_DB / 20);
     memset(ir_fft_kern, 0, 32768);
     p = 0;
     loop(ir_parts,

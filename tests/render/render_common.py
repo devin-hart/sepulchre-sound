@@ -22,20 +22,50 @@ def get_declared_sliders(jsfx_path=None):
 
 VALID_SLIDERS = get_declared_sliders()
 
-# Round 56: Plugin fresh-insert slider defaults now correspond to Preset 01 (Frostbitten).
-FRESH_INSERT_DEFAULTS = {
-    1: 0.0, 2: 140.0, 3: -50.0, 4: 1,
-    76: 1,
-    10: 1, 11: 1, 26: 8.0, 27: 3.5, 28: 6.7,
-    29: 10.0, 37: 7.5, 38: 8.0,
-    39: 7.5, 46: 6.5, 47: 4.5, 48: 6.0, 59: 4.5, 61: 7.5,
-    62: 10.0, 63: 10.0, 64: 10.0, 9: 4.4,
-    20: 0, 77: 4.5, 78: 4.0,
-    40: 1, 41: 0, 42: 1.8, 43: 20.0, 44: 60.0, 45: 10.0,
-    65: 1, 66: -9.0, 67: -2.0, 68: 0.0, 69: 12.0, 70: -2.0, 71: 9.0, 72: -3.5, 73: -0.5, 75: 3,
-    49: 1, 51: -3.8, 53: "01_BlackWizard_Center.wav", 54: 2, 55: 40.0, 56: 50.0, 57: 66.0, 58: 66.0,
-    60: 0,
-}
+def load_slider_defaults(jsfx_path=None):
+    if jsfx_path is None:
+        jsfx_path = os.path.join(REPO_DIR, "sepulchre_sound.jsfx")
+    with open(jsfx_path, "r", encoding="utf-8") as f:
+        src = f.read()
+    out = {}
+    for m in re.finditer(r"^slider(\d+):([^<\r\n]+)", src, re.MULTILINE):
+        sid = int(m.group(1))
+        val = m.group(2).strip()
+        if val.startswith("/"):
+            parts = val.split(":")
+            out[sid] = parts[1] if len(parts) > 1 else "none"
+        else:
+            fval = float(val)
+            out[sid] = int(fval) if fval.is_integer() and "." not in val else fval
+    return out
+
+
+def load_global_preset_names(presets_path=None):
+    if presets_path is None:
+        presets_path = os.path.join(REPO_DIR, "sepulchre_presets.jsfx-inc")
+    with open(presets_path, "r", encoding="utf-8") as f:
+        src = f.read()
+    m_fn = re.search(r"function get_global_preset_name\([^)]*\)\s*\((.*?)\n\);", src, re.S)
+    names = re.findall(r'"([^"]+)"', m_fn.group(1)) if m_fn else []
+    ped_map = {0: "RAT", 1: "DS-1", 2: "MT-2", 3: "HM-2"}
+    out = []
+    chunks = re.split(r"idx == (\d+) \? \(", src)
+    ped_by_idx = {}
+    for k in range(1, len(chunks), 2):
+        idx = int(chunks[k]); body = chunks[k + 1]
+        m10 = re.search(r"slider10\s*=\s*([0-9.]+)", body)
+        m11 = re.search(r"slider11\s*=\s*([0-9.]+)", body)
+        if m10 and float(m10.group(1)) < 0.5:
+            ped_by_idx[idx] = "Clean"
+        elif m11:
+            ped_by_idx[idx] = ped_map.get(int(float(m11.group(1)) + 0.5), "?")
+    for i, nm in enumerate(names):
+        out.append((i, nm.title(), ped_by_idx.get(i, "?")))
+    return out
+
+
+# Round 76 (R4): derived directly from sepulchre_sound.jsfx and sepulchre_presets.jsfx-inc
+FRESH_INSERT_DEFAULTS = load_slider_defaults()
 
 # Base slider defaults for clean/bypass conditions
 BASE_DEFAULTS = {
@@ -48,18 +78,7 @@ BASE_DEFAULTS = {
     76: 1
 }
 
-GLOBAL_PRESET_NAMES = [
-    (0, '01: Modern Black', 'MT-2'),
-    (1, '02: Tremolo Rhythm', 'RAT'),
-    (2, '03: Frostbitten Raw', 'DS-1'),
-    (3, '04: Buzzsaw', 'HM-2'),
-    (4, '05: Atmospheric Wall', 'RAT'),
-    (5, '06: Depressive', 'RAT'),
-    (6, '07: Raw 4-Track', 'DS-1'),
-    (7, '08: Cold Lead', 'RAT'),
-    (8, '09: Freezing Clean', 'Clean'),
-    (9, '10: Ambient Swell', 'RAT'),
-]
+GLOBAL_PRESET_NAMES = load_global_preset_names()
 
 # Pedal slider definitions at factory defaults
 PEDAL_DEFAULTS = {

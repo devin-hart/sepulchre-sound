@@ -89,6 +89,7 @@ ext_noinit = 1;
 !dsp_initialized ? (
   mem_top = 1024;
   init_core_dsp();
+  init_dist_dsp();
   init_fx_dsp();
   init_amp_cab_dsp();
   dsp_initialized = 1;
@@ -108,8 +109,8 @@ eq_p != eq_last_preset ? ( !other_sliders_changed(75) ? recall_eq_preset(eq_p) :
 gp_p = floor(slider60 + 0.5);
 gp_p != gp_last ? ( !other_sliders_changed(60) ? recall_global_preset(gp_p) : ( gp_last = gp_p; ); );
 load_ir_if_changed(1);
+mark_changed_sliders();
 snap_all_sliders();
-ui_need_sync = 1;
 
 @block
 // Consume staged IR buffer handed off from @init/@slider/@gfx/@serialize (zero file I/O on audio thread)
@@ -119,11 +120,17 @@ ir_stage_ready ? (
   ir_stage_ready = 0;
 );
 
-(last_srate != srate || ui_need_sync) ? (
+(last_srate != srate || dirty_all) ? (
   last_srate != srate && ir_raw_len > 0 ? ir_need_refft = 1;   // re-resample the IR at the new rate
   last_srate = srate;
-  ui_need_sync = 0;
+  dirty_all = 0; dirty_core = 0; dirty_dist = 0; dirty_eq = 0; dirty_fx = 0; dirty_amp_cab = 0;
   sync_all_DSP();
+) : (
+  dirty_core    ? ( dirty_core = 0;    update_core_coeffs(); );
+  dirty_dist    ? ( dirty_dist = 0;    update_dist_coeffs(); );
+  dirty_eq      ? ( dirty_eq = 0;      update_eq_coeffs(); );
+  dirty_fx      ? ( dirty_fx = 0;      update_fx_coeffs(); );
+  dirty_amp_cab ? ( dirty_amp_cab = 0; update_amp_cab_coeffs(); );
 );
 
 // Clear stale tails when transport starts playback or rendering
