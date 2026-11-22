@@ -35,18 +35,17 @@ def bq_lp(freq, q, sr):
     a2 = 1 - alpha
     return np.array([b0/a0, b1/a0, b2/a0, a1/a0, a2/a0])
 
-def bq_ls(freq, gain_db, sr):
+def bq_peak(freq, q, gain_db, sr):
     A = 10.0 ** (gain_db / 40.0)
     w0 = 2 * math.pi * freq / sr
+    alpha = math.sin(w0) / (2 * q)
     cosw0 = math.cos(w0)
-    sinw0 = math.sin(w0)
-    alpha = sinw0 / 2.0 * math.sqrt(2.0)
-    b0 = A * ((A + 1) - (A - 1) * cosw0 + 2 * math.sqrt(A) * alpha)
-    b1 = 2 * A * ((A - 1) - (A + 1) * cosw0)
-    b2 = A * ((A + 1) - (A - 1) * cosw0 - 2 * math.sqrt(A) * alpha)
-    a0 = (A + 1) + (A - 1) * cosw0 + 2 * math.sqrt(A) * alpha
-    a1 = -2 * ((A - 1) + (A + 1) * cosw0)
-    a2 = (A + 1) + (A - 1) * cosw0 - 2 * math.sqrt(A) * alpha
+    b0 = 1 + alpha * A
+    b1 = -2 * cosw0
+    b2 = 1 - alpha * A
+    a0 = 1 + alpha / A
+    a1 = -2 * cosw0
+    a2 = 1 - alpha / A
     return np.array([b0/a0, b1/a0, b2/a0, a1/a0, a2/a0])
 
 def apply_bq(b, x):
@@ -91,9 +90,9 @@ def test_exact_ir_null_and_continuity():
     scratch = np.zeros(n)
     scratch[:ir_len] = resampled_ir
     cab_hp = bq_hp(85.0, 0.7071, srate)
-    irw1 = bq_hp(90.0, 0.7071, srate)
-    irw2 = bq_ls(500.0, 12.0, srate)
-    irw3 = bq_lp(6000.0, 0.7071, srate)
+    irw1 = bq_hp(180.0, 0.7071, srate)
+    irw2 = bq_lp(4200.0, 0.7071, srate)
+    irw3 = bq_peak(900.0, 0.8, 3.0, srate)
 
     scratch = apply_bq(cab_hp, scratch)
     scratch = apply_bq(irw1, scratch)
@@ -101,11 +100,8 @@ def test_exact_ir_null_and_continuity():
     scratch = apply_bq(irw3, scratch)
 
     e = np.sum(scratch ** 2)
-    IR_E48 = 0.232396
+    IR_E48 = 0.132771
     norm_g = math.sqrt(IR_E48 * (48000.0 / srate) / e) if e > 1e-10 else 1.0
-
-    # Round 68: generic IR_E48 + ear-match offset (+3.8 dB); per-slot trim table removed for user-loadable IRs
-    norm_g *= 10.0 ** (3.8 / 20.0)
 
     # Base clean track settings for IR test (valid sliders only)
     base_clean = {

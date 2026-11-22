@@ -384,7 +384,8 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
     bq_cab_hp = bq_hp_coeffs(85.0, 0.7071, sr)
     bq_cab_lp1 = bq_lp_coeffs(5800.0, 0.7071, sr)
     cf1, cf2, cf3 = bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -9.0, sr), bq_peak_coeffs(3100.0, 1.35, 5.5, sr)
-    clp2, cab_comp = bq_lp_coeffs(5200.0, 0.90, sr), 0.72
+    clp2, cab_comp = bq_lp_coeffs(5200.0, 0.90, sr), 0.7510
+    ir_ped_g = 1.0 if sliders.get(10, 0) < 0.5 else 10.0 ** (({0: -0.8, 1: 3.1, 3: -0.6}.get(int(sliders.get(11, 0) + 0.5), 0.0)) / 20.0)
 
     master_lin = 10.0 ** (sliders[51] * 0.05)
     dc_r = math.exp(-2.0 * math.pi * 10.0 / sr)
@@ -441,7 +442,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
             l *= 0.84  # Round 35: Amp OFF level match
 
         if ref_cab or sliders.get(49, 0) > 0.5:
-            l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp
+            l = bq_step(bq_cab_lp1, bq_step(clp2, bq_step(cf3, bq_step(cf2, bq_step(cf1, bq_step(bq_cab_hp, l)))))) * cab_comp * ir_ped_g
 
         l = limit_sample(bq_step(bq_amp_p, l) * master_lin, 0.89125)
         out.append(l)
@@ -582,11 +583,11 @@ def check_ir_loudness_constant():
     hp = bq_hp_coeffs(85.0, 0.7071, sr)
     chain = [hp, bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -9.0, sr), bq_peak_coeffs(3100.0, 1.35, 5.5, sr),
              bq_lp_coeffs(5200.0, 0.90, sr), bq_lp_coeffs(5800.0, 0.7071, sr)]
-    weight = [bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False), bq_lp_coeffs(6000.0, 0.7071, sr)]
+    weight = [bq_hp_coeffs(180.0, 0.7071, sr), bq_lp_coeffs(4200.0, 0.7071, sr), bq_peak_coeffs(900.0, 0.8, 3.0, sr)]
     x = [1.0] + [0.0] * 4094
     for b in chain:
         b = list(b); x = [bq_step(b, v) for v in x]
-    x = [v * 0.72 for v in x[:2047]] + [0.0] * 2048
+    x = [v * 0.7510 for v in x[:2047]] + [0.0] * 2048
     for b in weight:
         b = list(b); x = [bq_step(b, v) for v in x]
     e = sum(v * v for v in x)
@@ -707,8 +708,8 @@ def check_real_ir_loudness(presets_src, raw_files):
         for fi in range(fade_n):
             ir[fl - fade_n + fi] *= 0.5 * (1.0 + math.cos(math.pi * (fi + 1) / fade_n))
     buf = list(ir) + [0.0] * 2048
-    for b in (bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(90.0, 0.7071, sr), bq_shelf_coeffs(500.0, 12.0, sr, False),
-              bq_lp_coeffs(6000.0, 0.7071, sr)):
+    for b in (bq_hp_coeffs(85.0, 0.7071, sr), bq_hp_coeffs(180.0, 0.7071, sr), bq_lp_coeffs(4200.0, 0.7071, sr),
+              bq_peak_coeffs(900.0, 0.8, 3.0, sr)):
         buf = _bq_run(b, buf)
     ir = ir * math.sqrt(e48 / sum(v * v for v in buf)) * 10.0 ** (match_db / 20.0)
     di = list(_read_wav_mono(di_path)[0])

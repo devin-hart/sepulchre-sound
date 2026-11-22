@@ -55,7 +55,7 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   bq_peak(bq_cab_f2, 850.0, 0.80, -9.0);
   bq_peak(bq_cab_f3, 3100.0, 1.35, 5.5);
   bq_lp(bq_cab_lp2, 5200.0, 0.90);
-  cab_comp_lin = 0.72;
+  cab_comp_lin = 0.7510;   // Round 73: loudness-matched to IR_E48 = 0.132771 (shared weighting with WAV IRs)
 
   master_out_t = db2lin(slider51);
   // Round 29: per-pedal WAV IR trim (dB). With IR_MATCH_DB = 3.8 (Devin's ear-match on the Metal Zone), Antigravity's
@@ -105,7 +105,7 @@ function proc_cab_out() local(l, r, bp2, use_ir) (
       cab_ir_was_on = 1;
       bp2 = ir_bpos * 2;
       cv_frame[CV_B * 2 + bp2] = l; cv_frame[CV_B * 2 + bp2 + 1] = r;   // L/R in, as real/imag
-      l = cv_out[bp2] * ir_ped_g_s; r = cv_out[bp2 + 1] * ir_ped_g_s;    // previous block's output (latency CV_B)
+      l = cv_out[bp2]; r = cv_out[bp2 + 1];                             // previous block's output (latency CV_B)
       ir_bpos += 1;
       ir_bpos >= CV_B ? conv_block();
       l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);
@@ -119,6 +119,7 @@ function proc_cab_out() local(l, r, bp2, use_ir) (
       l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
       l *= cab_comp_lin; r *= cab_comp_lin;
     );
+    l *= ir_ped_g_s; r *= ir_ped_g_s;   // Round 73: shared per-pedal balance for both IR File and Built-in 4x12
   ) : ( cab_was_on ? ( cab_was_on = 0; cab_ir_was_on = 0; memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);
     ir_bpos = 0; cv_fdl_pos = 0; bq_clear(bq_cab_hp); bq_clear(bq_cab_lp1); bq_clear(bq_cab_lp2);
     bq_clear(bq_cab_f1); bq_clear(bq_cab_f2); bq_clear(bq_cab_f3); ); );
