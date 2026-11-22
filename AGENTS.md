@@ -36,6 +36,7 @@
 
 ## 4. Code Map
 - `AGENTS.md`: Operating rules, stack, deployment/test commands, and file index for coding agents and reviewers.
+- Open tasks for Gemini (Claude, 2026-11-21) are in `reviews/claude_reports.md`, Round 71, "Tasks for Gemini" (local only, git-ignored): broken IR selector (arrows can't drive a file slider; `slider53` hidden), built-in cab not selectable once IRs exist, in-plugin IR picking design, test tidying, and how to verify in headless REAPER renders. Claude reviews each change.
 - `SOUND_REFERENCES.md`: Sound targets and provenance: historical black metal rigs, the source and reliability of each module's numbers, ear-tuned values, Devin's listening history, research findings and open questions (Round 67).
 - `SPEC.md`: Full technical architecture, DSP equations/parameters, gain-staging spec, preset table, roadmap, and decision log.
 - `REVIEW.md` & `reviews/`: Inter-agent architectural, DSP, and UI audit log between Claude and Antigravity. `reviews/claude_reports.md` and `reviews/antigravity_reports.md` hold each agent's rolling standalone round reports (the per-round files were merged into them in Round 67).
