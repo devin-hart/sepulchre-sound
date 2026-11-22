@@ -32,7 +32,10 @@ Sepulchre Sound ships with a built-in V30/Sheffield 4x12 cabinet model (zero lat
    - **Linux:** `~/.config/REAPER/Data/sepulchre_irs/`
    - **Windows:** `%APPDATA%\REAPER\Data\sepulchre_irs\`
    - **macOS:** `~/Library/Application Support/REAPER/Data/sepulchre_irs/`
-2. Drop any `.wav` cabinet IR files into that folder, set **VII CABINET** to **IR FILE**, and choose the IR from the **Cabinet IR** dropdown in REAPER's generic **UI** view (click the **UI** button in the top-right of the FX window). Switch **VII CABINET** to **BUILT-IN** anytime for the zero-latency built-in 4x12, or toggle the cabinet power lamp off to use an external IR loader.
+2. **Two ways to load IRs:**
+   - **Drag-and-drop (quickest):** Drag any `.wav` IR file from your file manager onto the plugin window. Click the IR name in **VII CABINET** to open the popup menu (Built-in 4x12, Folder IR, and up to 8 recently dropped IRs; saved automatically with your REAPER project).
+   - **Folder browser:** Drop `.wav` files into `Data/sepulchre_irs/`, set **VII CABINET** to **IR FILE**, and choose any IR from the **Cabinet IR** dropdown in REAPER's generic **UI** view (click the **UI** button in the top-right of the FX window).
+   - Switch **VII CABINET** to **BUILT-IN** anytime for the zero-latency built-in 4x12, or toggle the cabinet power lamp off to use an external IR loader.
 
 ### Free Third-Party IR Packs
 No commercial IRs are bundled in this repository. Good free starting points:

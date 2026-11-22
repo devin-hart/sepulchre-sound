@@ -175,7 +175,51 @@ function panel_amp(x, w) local(ix, iw, on, bw, y, m) (
 );
 
 // ---------- VII: Cabinet + VIII: Output (fixed rows; OUTPUT band is baked at y 246..280) ----------
-function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir) (
+// Round 71 (Task 3): MRU recent-IR list in string slots 20..27 (persisted via @serialize)
+function ir_rec_add(path_s) local(i, found, k) (
+  found = -1; i = 0;
+  loop(ir_rec_cnt, strcmp(20 + i, path_s) == 0 ? found = i; i += 1; );
+  found < 0 ? ( k = min(ir_rec_cnt, 7); ir_rec_cnt = min(ir_rec_cnt + 1, 8); ) : ( k = found; );
+  while (k > 0) ( strcpy(20 + k, 20 + k - 1); k -= 1; );
+  strcpy(20, path_s);
+);
+function ir_basename(dst_s, src_s) local(len, i, slash, dot, c) (
+  len = strlen(src_s); slash = -1; dot = len; i = 0;
+  loop(len, c = str_getchar(src_s, i); (c == '/' || c == '\\') ? slash = i; c == '.' ? dot = i; i += 1; );
+  dot <= slash ? dot = len;
+  strcpy_substr(dst_s, src_s, slash + 1, min(32, dot - slash - 1));
+);
+function ir_show_menu(mx, my) local(i, sel) (
+  strcpy(#ir_m, slider52 < 0.5 ? "!Built-in 4x12 (Zero Latency)|" : "Built-in 4x12 (Zero Latency)|");
+  strcat(#ir_m, (slider52 >= 0.5 && !ir_custom_active) ? "!Folder IR (REAPER 'UI' view)" : "Folder IR (REAPER 'UI' view)");
+  ir_rec_cnt > 0 ? (
+    strcat(#ir_m, "|");
+    i = 0;
+    loop(ir_rec_cnt,
+      ir_basename(#ir_bn, 20 + i);
+      strcat(#ir_m, "|");
+      (slider52 >= 0.5 && ir_custom_active && strcmp(#ir_custom_path, 20 + i) == 0) ? strcat(#ir_m, "!");
+      strcat(#ir_m, #ir_bn);
+      i += 1;
+    );
+  );
+  strcat(#ir_m, "||#Drop any .wav onto plugin to load");
+  gfx_x = u_px(mx); gfx_y = u_py(my);
+  sel = gfx_showmenu(#ir_m);
+  sel == 1 ? set_param(52, 0) :
+  sel == 2 ? ( ir_custom_active = 0; strcpy(#ir_loaded_name, ""); load_ir_if_changed(0); set_param(52, 1); ) :
+  sel >= 3 && (sel - 3) < ir_rec_cnt ? ( load_ir_custom(20 + (sel - 3)); set_param(52, 1); );
+);
+
+function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir, len) (
+  // Poll drag-and-drop WAV anywhere on the plugin window
+  gfx_getdropfile(0, #ir_drop) ? (
+    len = strlen(#ir_drop);
+    len > 4 && (stricmp(strcpy_substr(#ir_ext, #ir_drop, len - 4, 4), ".wav") == 0) ? (
+      ir_rec_add(#ir_drop); load_ir_custom(#ir_drop); set_param(52, 1);
+    );
+    gfx_getdropfile(-1);
+  );
   ix = x + 10; iw = w - 20; on = slider49 > 0.5;
   ui_slab_head(x, w, 6, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
   ui_alpha = on ? 1 : UI_DIM;                              // Round 71: Built-in 4x12 / IR File toggle (slider52)
@@ -183,10 +227,11 @@ function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir) (
   ui_seg(ix, 160, bw, 22, "BUILT-IN", !use_ir) ? set_param(52, 0);
   ui_seg(ix + bw + 3, 160, bw, 22, "IR FILE", use_ir) ? set_param(52, 1);
   c_border(); u_rect(ix, 224, iw, 1);
+  ui_hit(ix, 188, iw, 36) ? ir_show_menu(ix, 224);
   f_label(); c_bone();
   u_text_sp_c(ix + iw * 0.5, 200, !use_ir ? "BUILT-IN 4x12" : (ir_filter_len > 0 ? #ir_disp : "NO IR LOADED"), 0.5);
   f_tiny(); (!use_ir || ir_filter_len > 0) ? c_lab() : c_ember();
-  u_text_sp_c(ix + iw * 0.5, 215, !use_ir ? "ZERO LATENCY (IIR)" : (ir_filter_len > 0 ? "SELECT IR: REAPER 'UI' VIEW" : "FALLBACK: BUILT-IN 4x12"), 0.4);
+  u_text_sp_c(ix + iw * 0.5, 215, !use_ir ? "ZERO LATENCY  /  CLICK MENU" : (ir_filter_len > 0 ? "CLICK MENU  /  DROP .WAV" : "FALLBACK: 4x12  /  DROP .WAV"), 0.4);
 
   ui_alpha = 1;
   ui_title(x + 10, 251, 7, 7);

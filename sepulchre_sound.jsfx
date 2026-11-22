@@ -95,7 +95,7 @@ ext_noinit = 1;
   strcpy(#ir_loaded_name, "__init__");
   eq_last_preset = floor(slider75 + 0.5);   // saved fader values win over the preset table on project load
   gp_last = floor(slider60 + 0.5);          // same for the global preset (R2-1: never recall on load)
-  load_ir_if_changed();
+  load_ir_if_changed(0);
   snap_all_sliders();
 );
 sync_all_DSP();
@@ -106,11 +106,18 @@ eq_p = floor(slider75 + 0.5);
 eq_p != eq_last_preset ? ( !other_sliders_changed(75) ? recall_eq_preset(eq_p) : ( eq_last_preset = eq_p; ); );
 gp_p = floor(slider60 + 0.5);
 gp_p != gp_last ? ( !other_sliders_changed(60) ? recall_global_preset(gp_p) : ( gp_last = gp_p; ); );
-load_ir_if_changed();
+load_ir_if_changed(1);
 snap_all_sliders();
 ui_need_sync = 1;
 
 @block
+// Consume staged IR buffer handed off from @init/@slider/@gfx/@serialize (zero file I/O on audio thread)
+ir_stage_ready ? (
+  ir_stage_ready = 0;
+  ir_raw_len = ir_stage_len; ir_raw_nch = ir_stage_nch; ir_raw_srate = ir_stage_srate;
+  ir_raw_len > 0 ? ( memcpy(ir_raw_buf, ir_stage_buf, ir_raw_len * ir_raw_nch); ir_need_refft = 1; ) : ( ir_filter_len = 0; );
+);
+
 (last_srate != srate || ui_need_sync) ? (
   last_srate != srate && ir_raw_len > 0 ? ir_need_refft = 1;   // re-resample the IR at the new rate
   last_srate = srate;
@@ -148,9 +155,24 @@ proc_reverb();
 proc_cab_out();
 
 @serialize
-// Round 55: keep the "edited" asterisks across project save / reload
+// Round 55/71: persist "edited" marks, custom dropped IR path, and recent-IR list across project save / reload
 file_var(0, preset_dirty);
 file_var(0, eq_dirty);
+file_avail(0) < 0 ? (
+  file_var(0, ir_custom_active);
+  file_string(0, #ir_custom_path);
+  file_var(0, ir_rec_cnt);
+  s_i = 0; loop(min(8, max(0, ir_rec_cnt)), file_string(0, 20 + s_i); s_i += 1; );
+) : (
+  file_avail(0) > 0 ? (
+    file_var(0, ir_custom_active);
+    file_string(0, #ir_custom_path);
+    file_var(0, ir_rec_cnt);
+    ir_rec_cnt = clamp(floor(ir_rec_cnt + 0.5), 0, 8);
+    s_i = 0; loop(ir_rec_cnt, file_string(0, 20 + s_i); s_i += 1; );
+    ir_custom_active && strlen(#ir_custom_path) > 0 ? load_ir_custom(#ir_custom_path);
+  );
+);
 
 @gfx 1204 500
 // "Crypt" UI: baked background + title sprites, live widgets (sepulchre_ui.jsfx-inc / sepulchre_ui_panels.jsfx-inc)

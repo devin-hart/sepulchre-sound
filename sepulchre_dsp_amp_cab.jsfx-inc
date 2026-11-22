@@ -27,8 +27,10 @@ function init_amp_cab_dsp() (
   ir_fft_kern = alloc_buf(32768);
   ir_blk_cur = alloc_buf(32768);
   ir_blk_last = alloc_buf(32768);
+  ir_stage_buf = alloc_buf(32768);
 
   ir_need_refft = 0;
+  ir_stage_ready = 0; ir_stage_len = 0; ir_stage_nch = 0; ir_stage_srate = 0;
   ir_filter_len = 0;
   ir_chunk_size = CV_B;                              // reported as pdc_delay while WAV IR runs
   ir_bpos = 0; cv_fdl_pos = 0; ir_parts = 0;
@@ -52,49 +54,63 @@ function reset_amp_cab_state() (
   ir_ped_g_s = ir_ped_g_t;
 );
 
-// Round 68/71: User-loadable IRs via unhidden JSFX file slider (slider53:/sepulchre_irs:none:Cabinet IR).
-// Format the display name from #ir_raw_name (strip path & .wav extension, cap length for UI column).
-function update_ir_disp_name() local(len, i, slash, dot, c) (
-  len = strlen(#ir_raw_name);
-  len == 0 || strcmp(#ir_raw_name, "none") == 0 ? ( strcpy(#ir_disp, "BUILT-IN 4x12"); ) : (
+// Round 68/71: User-loadable IRs via file slider (slider53) OR drag-and-drop / recent menu (absolute path).
+// Format a display name from any path (strip dir & .wav extension, cap length for UI column).
+function format_ir_disp(src_s) local(len, i, slash, dot, c) (
+  len = strlen(src_s);
+  len == 0 || strcmp(src_s, "none") == 0 ? ( strcpy(#ir_disp, "BUILT-IN 4x12"); ) : (
     slash = -1; dot = len; i = 0;
     loop(len,
-      c = str_getchar(#ir_raw_name, i);
+      c = str_getchar(src_s, i);
       (c == '/' || c == '\\') ? slash = i;
       c == '.' ? dot = i;
       i += 1;
     );
     dot <= slash ? dot = len;
-    strcpy_substr(#ir_disp, #ir_raw_name, slash + 1, min(20, dot - slash - 1));
+    strcpy_substr(#ir_disp, src_s, slash + 1, min(20, dot - slash - 1));
   );
 );
 
-// Round 71 (Task 1): Called strictly off the audio thread (@init / @slider). Keyed to applied filename
-// (#ir_loaded_name) so a missing or bad file is never re-opened on unrelated slider edits.
-function load_ir_if_changed() local(fh, nch, ir_sr, avail) (
+// Off-audio-thread WAV reader into staging buffer (hand-off to @block via ir_stage_ready avoids racing prepare_ir_fft)
+function read_ir_to_stage(path_s) local(fh, nch, ir_sr, avail, rlen) (
+  rlen = 0; nch = 0; ir_sr = 0;
+  strlen(path_s) > 0 && strcmp(path_s, "none") != 0 ? (
+    fh = file_open(path_s);
+    fh < 0 ? ( sprintf(#ir_path, "sepulchre_irs/%s", path_s); fh = file_open(#ir_path); );
+    fh >= 0 ? (
+      file_riff(fh, nch, ir_sr);
+      nch > 0 && ir_sr > 0 ? (
+        avail = floor(file_avail(fh) / nch);
+        rlen = min(8192, min(avail, floor(32768 / nch)));
+        rlen > 0 ? file_mem(fh, ir_stage_buf, rlen * nch);
+      );
+      file_close(fh);
+    );
+  );
+  ir_stage_len = rlen; ir_stage_nch = nch; ir_stage_srate = ir_sr;
+  ir_stage_ready = 1;
+);
+
+// Called in @init / @slider (strictly off audio thread). Keyed to applied filename so bad files aren't re-opened.
+function load_ir_if_changed(from_slider) (
   strcpy_fromslider(#ir_raw_name, slider53);
   strcmp(#ir_raw_name, #ir_loaded_name) != 0 ? (
     strcpy(#ir_loaded_name, #ir_raw_name);
-    update_ir_disp_name();
-    ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
-    strlen(#ir_raw_name) > 0 && strcmp(#ir_raw_name, "none") != 0 ? (
-      fh = file_open(#ir_raw_name);
-      fh < 0 ? ( sprintf(#ir_path, "sepulchre_irs/%s", #ir_raw_name); fh = file_open(#ir_path); );
-      fh >= 0 ? (
-        file_riff(fh, nch, ir_sr);
-        nch > 0 && ir_sr > 0 ? (
-          avail = floor(file_avail(fh) / nch);
-          ir_raw_len = min(8192, min(avail, floor(32768 / nch)));
-          ir_raw_nch = nch;
-          ir_raw_srate = ir_sr;
-          ir_raw_len > 0 ? ( file_mem(fh, ir_raw_buf, ir_raw_len * nch); ir_need_refft = 1; ) : ( ir_filter_len = 0; );
-        ) : ( ir_filter_len = 0; );
-        file_close(fh);
-      ) : ( ir_filter_len = 0; );
-    ) : (
-      ir_filter_len = 0;
+    from_slider && ir_sliders_seen ? ir_custom_active = 0;   // user picked a folder IR in REAPER's generic UI view
+    !ir_custom_active ? (
+      format_ir_disp(#ir_raw_name);
+      read_ir_to_stage(#ir_raw_name);
     );
   );
+  from_slider ? ir_sliders_seen = 1;
+);
+
+// Called in @gfx (drag-and-drop / recent menu) or @serialize (project reload) for arbitrary WAV paths
+function load_ir_custom(path_s) (
+  ir_custom_active = 1;
+  strcpy(#ir_custom_path, path_s);
+  format_ir_disp(#ir_custom_path);
+  read_ir_to_stage(#ir_custom_path);
 );
 
 // Filter a mono buffer in place through biquad coeffs b[0..4] (own zeroed state; never touches live filter state)
