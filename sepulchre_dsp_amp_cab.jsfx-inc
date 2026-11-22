@@ -28,7 +28,6 @@ function init_amp_cab_dsp() (
   ir_blk_cur = alloc_buf(32768);
   ir_blk_last = alloc_buf(32768);
 
-  ir_loaded_slot = -1;
   ir_need_refft = 0;
   ir_filter_len = 0;
   ir_chunk_size = CV_B;                              // reported as pdc_delay while WAV IR runs
@@ -53,12 +52,11 @@ function reset_amp_cab_state() (
   ir_ped_g_s = ir_ped_g_t;
 );
 
-// Round 68 (SOUND_REFERENCES §8b): User-loadable IRs via JSFX file slider (slider53:/sepulchre_irs:...).
-// Format the display name from slider53's filename (strip path & .wav extension, cap length for UI column).
+// Round 68/71: User-loadable IRs via unhidden JSFX file slider (slider53:/sepulchre_irs:none:Cabinet IR).
+// Format the display name from #ir_raw_name (strip path & .wav extension, cap length for UI column).
 function update_ir_disp_name() local(len, i, slash, dot, c) (
-  strcpy_fromslider(#ir_raw_name, slider53);
   len = strlen(#ir_raw_name);
-  len == 0 ? ( strcpy(#ir_disp, "NO IR FILE"); ) : (
+  len == 0 || strcmp(#ir_raw_name, "none") == 0 ? ( strcpy(#ir_disp, "BUILT-IN 4x12"); ) : (
     slash = -1; dot = len; i = 0;
     loop(len,
       c = str_getchar(#ir_raw_name, i);
@@ -71,41 +69,31 @@ function update_ir_disp_name() local(len, i, slash, dot, c) (
   );
 );
 
-// Count files available in Data/sepulchre_irs/ once at @init (handles both empty-string and clamped slider53)
-function scan_ir_count() local(orig, i, done) (
-  orig = slider53; ir_file_count = 0; strcpy(#ir_prev, "");
-  i = 0; done = 0;
-  while (!done && i < 256) (
-    slider53 = i; strcpy_fromslider(#ir_scan, slider53);
-    strlen(#ir_scan) == 0 || (i > 0 && strcmp(#ir_scan, #ir_prev) == 0) ? ( done = 1; ) : (
-      strcpy(#ir_prev, #ir_scan); ir_file_count = i + 1; i += 1;
+// Round 71 (Task 1): Called strictly off the audio thread (@init / @slider). Keyed to applied filename
+// (#ir_loaded_name) so a missing or bad file is never re-opened on unrelated slider edits.
+function load_ir_if_changed() local(fh, nch, ir_sr, avail) (
+  strcpy_fromslider(#ir_raw_name, slider53);
+  strcmp(#ir_raw_name, #ir_loaded_name) != 0 ? (
+    strcpy(#ir_loaded_name, #ir_raw_name);
+    update_ir_disp_name();
+    ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
+    strlen(#ir_raw_name) > 0 && strcmp(#ir_raw_name, "none") != 0 ? (
+      fh = file_open(#ir_raw_name);
+      fh < 0 ? ( sprintf(#ir_path, "sepulchre_irs/%s", #ir_raw_name); fh = file_open(#ir_path); );
+      fh >= 0 ? (
+        file_riff(fh, nch, ir_sr);
+        nch > 0 && ir_sr > 0 ? (
+          avail = floor(file_avail(fh) / nch);
+          ir_raw_len = min(8192, min(avail, floor(32768 / nch)));
+          ir_raw_nch = nch;
+          ir_raw_srate = ir_sr;
+          ir_raw_len > 0 ? ( file_mem(fh, ir_raw_buf, ir_raw_len * nch); ir_need_refft = 1; ) : ( ir_filter_len = 0; );
+        ) : ( ir_filter_len = 0; );
+        file_close(fh);
+      ) : ( ir_filter_len = 0; );
+    ) : (
+      ir_filter_len = 0;
     );
-  );
-  slider53 = orig;
-  update_ir_disp_name();
-);
-
-// Called on @init, @slider, and one-shot ir_reload_req in @block
-function load_ir_slot(slot_idx) local(fh, nch, ir_sr, avail) (
-  ir_loaded_slot = slot_idx;
-  ir_raw_len = 0; ir_raw_nch = 0; ir_raw_srate = 0;
-  update_ir_disp_name();
-  strlen(#ir_raw_name) > 0 && strcmp(#ir_raw_name, "none") != 0 ? (
-    fh = file_open(#ir_raw_name);
-    fh < 0 ? ( sprintf(#ir_path, "sepulchre_irs/%s", #ir_raw_name); fh = file_open(#ir_path); );
-    fh >= 0 ? (
-      file_riff(fh, nch, ir_sr);
-      nch > 0 && ir_sr > 0 ? (
-        avail = floor(file_avail(fh) / nch);
-        ir_raw_len = min(8192, min(avail, floor(32768 / nch)));
-        ir_raw_nch = nch;
-        ir_raw_srate = ir_sr;
-        ir_raw_len > 0 ? ( file_mem(fh, ir_raw_buf, ir_raw_len * nch); ir_need_refft = 1; ) : ( ir_filter_len = 0; );
-      ) : ( ir_filter_len = 0; ir_loaded_slot = -1; );
-      file_close(fh);
-    ) : ( ir_filter_len = 0; ir_loaded_slot = -1; );
-  ) : (
-    ir_filter_len = 0; ir_loaded_slot = -1;
   );
 );
 

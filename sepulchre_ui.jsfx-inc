@@ -126,7 +126,6 @@ function auto_slider(id, end_touch) (
 function set_param(id, v) (
   slider(id) = v; sl_snap[id] = v; auto_slider(id, 1);
   ui_need_sync = 1; preset_dirty = 1;
-  id == 53 ? ir_reload_req = 1;
 );
 // ---------- Widgets ----------
 // Round 64: flat, minimal controls. Choice button = text only; selected = bone text + bone underline,

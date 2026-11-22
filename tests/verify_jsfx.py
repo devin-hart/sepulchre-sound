@@ -101,11 +101,13 @@ def check_syntax_and_r2_fixes():
     main_c = cleaned_by_file["sepulchre_sound.jsfx"]
     init_sec = main_c.split("@init")[1].split("@slider")[0]
     block_sec = main_c.split("@block")[1].split("@sample")[0]
+    sample_sec = main_c.split("@sample")[1].split("@serialize")[0]
     assert "recall_global_preset" not in init_sec, "R2-1 regression: recall_global_preset called in @init!"
     assert "pdc_delay = ir_chunk_size" in block_sec, "R2-3 regression: pdc_delay not set in @block!"
-    assert "ir_reload_req ?" in block_sec, "R3-1 regression: ir_reload_req handler missing in @block!"
-    assert "load_ir_slot" not in cleaned_by_file["sepulchre_dsp_amp_cab.jsfx-inc"].split("update_amp_cab_coeffs")[1], \
-        "R2-6 regression: load_ir_slot called inside update_amp_cab_coeffs!"
+    assert "load_ir" not in block_sec and "file_open" not in block_sec, "R71 regression: IR file I/O in @block!"
+    assert "load_ir" not in sample_sec and "file_open" not in sample_sec, "R71 regression: IR file I/O in @sample!"
+    assert "load_ir" not in cleaned_by_file["sepulchre_dsp_amp_cab.jsfx-inc"].split("update_amp_cab_coeffs")[1], \
+        "R2-6 regression: IR file load called inside update_amp_cab_coeffs!"
     assert "slider_automate(2 ^ (id - 1), end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
         "R2-5 regression: bitmask slider_automate missing in sepulchre_ui.jsfx-inc!"
     assert "slider_automate(slider51, end_touch)" in cleaned_by_file["sepulchre_ui.jsfx-inc"], \
