@@ -60,6 +60,7 @@ slider75:0<0,8,1{Custom,Bathory,Deathcrush,Transilvanian Hunger,Nightside Eclips
 // Amp, Cabinet (WAV IR) & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable
 slider51:2.3<-24.0,6.0,0.1>-Master Output (dB)
+slider52:1<0,1,1{Built-in 4x12,IR File}>-Cabinet Source
 slider53:/sepulchre_irs:none:Cabinet IR
 slider54:1<0,2,1{Off,Tube Head,Solid-State}>-Amp Stage Mode
 slider55:46<0,100,1>-Amp Bass (%)
@@ -130,7 +131,7 @@ last_play_state = play_state;
 ir_need_refft ? prepare_ir_fft();
 
 // Report overlap-add convolution latency to REAPER PDC when WAV IR is active (Fixes R2-3)
-(slider49 > 0.5 && ir_filter_len > 0) ? (
+(slider49 > 0.5 && slider52 > 0.5 && ir_filter_len > 0) ? (
   pdc_bot_ch = 0; pdc_top_ch = 2; pdc_delay = ir_chunk_size;
 ) : (
   pdc_delay = 0;

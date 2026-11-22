@@ -106,7 +106,8 @@ function auto_slider(id, end_touch) (
   id == 42 ? slider_automate(slider42, end_touch) : id == 43 ? slider_automate(slider43, end_touch) :
   id == 44 ? slider_automate(slider44, end_touch) : id == 45 ? slider_automate(slider45, end_touch) :
   id == 49 ? slider_automate(slider49, end_touch) :
-  id == 51 ? slider_automate(slider51, end_touch) : id == 53 ? slider_automate(slider53, end_touch) :
+  id == 51 ? slider_automate(slider51, end_touch) : id == 52 ? slider_automate(slider52, end_touch) :
+  id == 53 ? slider_automate(slider53, end_touch) :
   id == 54 ? slider_automate(slider54, end_touch) : id == 55 ? slider_automate(slider55, end_touch) :
   id == 56 ? slider_automate(slider56, end_touch) : id == 57 ? slider_automate(slider57, end_touch) :
   id == 58 ? slider_automate(slider58, end_touch) : id == 60 ? slider_automate(slider60, end_touch) :

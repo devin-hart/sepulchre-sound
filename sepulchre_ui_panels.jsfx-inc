@@ -175,14 +175,18 @@ function panel_amp(x, w) local(ix, iw, on, bw, y, m) (
 );
 
 // ---------- VII: Cabinet + VIII: Output (fixed rows; OUTPUT band is baked at y 246..280) ----------
-function panel_cab_out(x, w) local(ix, iw, on) (
+function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir) (
   ix = x + 10; iw = w - 20; on = slider49 > 0.5;
   ui_slab_head(x, w, 6, 6, on ? 1 : UI_DIM, 1, on) ? set_param(49, !on);
-  ui_alpha = on ? 1 : UI_DIM;                              // Round 71: IR picked via REAPER 'UI' view (file slider)
-  c_border(); u_rect(ix, 195, iw, 1);                         // Round 64: hairline, no box
-  f_label(); c_bone(); u_text_sp_c(ix + iw * 0.5, 173, ir_filter_len > 0 ? #ir_disp : "BUILT-IN 4x12", 0.5);
-  f_tiny(); ir_filter_len > 0 ? c_lab() : c_ember();
-  u_text_sp_c(ix + iw * 0.5, 187, "SELECT IR: REAPER 'UI' VIEW", 0.4);
+  ui_alpha = on ? 1 : UI_DIM;                              // Round 71: Built-in 4x12 / IR File toggle (slider52)
+  bw = (iw - 3) / 2; use_ir = slider52 > 0.5;
+  ui_seg(ix, 160, bw, 22, "BUILT-IN", !use_ir) ? set_param(52, 0);
+  ui_seg(ix + bw + 3, 160, bw, 22, "IR FILE", use_ir) ? set_param(52, 1);
+  c_border(); u_rect(ix, 224, iw, 1);
+  f_label(); c_bone();
+  u_text_sp_c(ix + iw * 0.5, 200, !use_ir ? "BUILT-IN 4x12" : (ir_filter_len > 0 ? #ir_disp : "NO IR LOADED"), 0.5);
+  f_tiny(); (!use_ir || ir_filter_len > 0) ? c_lab() : c_ember();
+  u_text_sp_c(ix + iw * 0.5, 215, !use_ir ? "ZERO LATENCY (IIR)" : (ir_filter_len > 0 ? "SELECT IR: REAPER 'UI' VIEW" : "FALLBACK: BUILT-IN 4x12"), 0.4);
 
   ui_alpha = 1;
   ui_title(x + 10, 251, 7, 7);

@@ -36,7 +36,7 @@ function init_amp_cab_dsp() (
   cv_frame = ir_blk_last + 8192; cv_acc = ir_blk_last + 8704; cv_tmp = ir_blk_last + 9216; cv_out = ir_blk_last + 9728;
   amp_dc_x1_l = 0.0; amp_dc_y1_l = 0.0;
   amp_dc_x1_r = 0.0; amp_dc_y1_r = 0.0;
-  ir_ped_g_s = 1.0; ir_ped_g_t = 1.0; cab_was_on = 0;
+  ir_ped_g_s = 1.0; ir_ped_g_t = 1.0; cab_was_on = 0; cab_ir_was_on = 0;
 );
 
 function reset_amp_cab_state() (
@@ -230,13 +230,15 @@ function proc_amp() local(l, r, dc_l, dc_r_out, am) (
   spl0 = l; spl1 = r;
 );
 
-// Cabinet (WAV IR; IIR 4x12 only if no IR file loaded) -> Air -> Master -> -1 dBFS limiter
-function proc_cab_out() local(l, r, bp2) (
+// Cabinet (WAV IR when slider52=1 and IR loaded; Built-in 4x12 IIR otherwise) -> Air -> Master -> -1 dBFS limiter
+function proc_cab_out() local(l, r, bp2, use_ir) (
   l = spl0; r = spl1;
   ir_ped_g_s = param_smooth_c * ir_ped_g_s + (1.0 - param_smooth_c) * ir_ped_g_t;
   slider49 > 0.5 ? (
     cab_was_on = 1;
-    ir_filter_len > 0 ? (
+    use_ir = slider52 > 0.5 && ir_filter_len > 0;
+    use_ir ? (
+      cab_ir_was_on = 1;
       bp2 = ir_bpos * 2;
       cv_frame[CV_B * 2 + bp2] = l; cv_frame[CV_B * 2 + bp2 + 1] = r;   // L/R in, as real/imag
       l = cv_out[bp2] * ir_ped_g_s; r = cv_out[bp2 + 1] * ir_ped_g_s;    // previous block's output (latency CV_B)
@@ -244,6 +246,7 @@ function proc_cab_out() local(l, r, bp2) (
       ir_bpos >= CV_B ? conv_block();
       l = bq_proc_l(bq_cab_hp, l); r = bq_proc_r(bq_cab_hp, r);
     ) : (
+      cab_ir_was_on ? ( cab_ir_was_on = 0; memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768); ir_bpos = 0; cv_fdl_pos = 0; );
       l = bq_proc_l(bq_cab_hp, l);  r = bq_proc_r(bq_cab_hp, r);
       l = bq_proc_l(bq_cab_f1, l);  r = bq_proc_r(bq_cab_f1, r);
       l = bq_proc_l(bq_cab_f2, l);  r = bq_proc_r(bq_cab_f2, r);
@@ -252,7 +255,7 @@ function proc_cab_out() local(l, r, bp2) (
       l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
       l *= cab_comp_lin; r *= cab_comp_lin;
     );
-  ) : ( cab_was_on ? ( cab_was_on = 0; memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);
+  ) : ( cab_was_on ? ( cab_was_on = 0; cab_ir_was_on = 0; memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);
     ir_bpos = 0; cv_fdl_pos = 0; bq_clear(bq_cab_hp); bq_clear(bq_cab_lp1); bq_clear(bq_cab_lp2);
     bq_clear(bq_cab_f1); bq_clear(bq_cab_f2); bq_clear(bq_cab_f3); ); );
 
