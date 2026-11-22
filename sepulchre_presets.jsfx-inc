@@ -29,7 +29,7 @@ function other_sliders_changed(skip_id) local(i, chg) (
 // and run ~2-3 dB louder than flat on the IIR cab.
 function get_eq_preset_name(i) (
   i == 1 ? "BATHORY" : i == 2 ? "DEATHCRUSH" : i == 3 ? "TRANSILVANIAN" : i == 4 ? "NIGHTSIDE" :
-  i == 5 ? "FILOSOFEM" : i == 6 ? "IN SORTE" : i == 7 ? "EVANGELION" : i == 8 ? "SPECTRE" : "CUSTOM";
+  i == 5 ? "FILOSOFEM" : i == 6 ? "DIABOLI" : i == 7 ? "EVANGELION" : i == 8 ? "SPECTRE" : "CUSTOM";
 );
 EQ_COUNT = 8;   // Round 58: 7 record curves + Spectre (years dropped from the names)
 // Spectre (Round 58) is a pre-pedal tightening push, not a record curve: everything else loads after the pedal
