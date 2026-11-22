@@ -518,8 +518,9 @@ def check_pre_cab_aliasing_all_bins(presets_src):
     sig = [0.25 * math.sin(2.0 * math.pi * f0 * (i / sr)) for i in range(n + 4096)]
     harmonic_bins = {bin_f0 * k for k in range(1, (n // 2) // bin_f0 + 1)}
     bin_8k = int(8000.0 * n / sr)
-    hm10 = dict(presets[3]); hm10.update({62: 10.0, 63: 10.0, 64: 10.0})   # Round 55: HM-2 worst case, all knobs on 10
-    for p0, name, limit in ((presets[1], "RAT", -40.0), (presets[2], "DS-1", -40.0), (presets[0], "Metal Zone", -40.0), (hm10, "HM-2 (all 10)", -40.0)):
+    by_ped = {int(p.get(11, 0) + 0.5): p for p in presets.values() if p.get(10, 0) > 0.5}
+    hm10 = dict(by_ped[3]); hm10.update({62: 10.0, 63: 10.0, 64: 10.0})   # Round 55: HM-2 worst case, all knobs on 10
+    for p0, name, limit in ((by_ped[0], "RAT", -40.0), (by_ped[1], "DS-1", -40.0), (by_ped[2], "Metal Zone", -40.0), (hm10, "HM-2 (all 10)", -40.0)):
         p = dict(p0)
         p[16] = 0.0
         out = simulate_chain(p, sig, sr, include_amp_cab=False)[4096:]
@@ -609,7 +610,7 @@ def check_distortion_gain_curve(presets_src):
     rms = {}
     for lvl in (-12.0, -36.0):
         g = 10.0 ** (lvl / 20.0) / pk
-        out = simulate_chain(presets[1], [x * g for x in note], sr, include_amp_cab=False)[int(0.05 * sr):]
+        out = simulate_chain(presets[0], [x * g for x in note], sr, include_amp_cab=False)[int(0.05 * sr):]
         rms[lvl] = 10.0 * math.log10(sum(x * x for x in out) / len(out))
         print(f"  - Input {lvl:+.0f} dBFS -> distortion output RMS {rms[lvl]:+.1f} dB")
     drop = rms[-12.0] - rms[-36.0]

@@ -1,5 +1,5 @@
 // sepulchre_presets.jsfx-inc
-// Global presets (Round 55: 10, all black metal), sync_all_DSP, record EQ table and name tables
+// Global presets (Round 76: 6, all black metal), sync_all_DSP, record EQ table and name tables
 @init
 
 function sync_all_DSP() (
@@ -53,17 +53,13 @@ function gp_eq(i) ( eq_preset_vals(i); slider65 = 1; slider76 = eq_preset_pos(i)
 
 function get_global_preset_name(idx) (
   idx == 0 ? "01: MODERN BLACK" :
-  idx == 1 ? "02: TREMOLO RHYTHM" :
-  idx == 2 ? "03: FROSTBITTEN RAW" :
-  idx == 3 ? "04: BUZZSAW" :
-  idx == 4 ? "05: ATMOSPHERIC WALL" :
-  idx == 5 ? "06: DEPRESSIVE" :
-  idx == 6 ? "07: RAW 4-TRACK" :
-  idx == 7 ? "08: COLD LEAD" :
-  idx == 8 ? "09: FREEZING CLEAN" :
-             "10: AMBIENT SWELL";
+  idx == 1 ? "02: BUZZSAW" :
+  idx == 2 ? "03: ATMOSPHERIC WALL" :
+  idx == 3 ? "04: RAW 4-TRACK" :
+  idx == 4 ? "05: COLD LEAD" :
+             "06: FREEZING CLEAN";
 );
-GP_COUNT = 10;
+GP_COUNT = 6;
 
 // Round 69 (SOUND_REFERENCES §2b, §7-A): Clarity re-voiced bank calibrated for 1 Vp = -12.04 dBFS input calibration
 // (less stacked gain, tight pre-pedal low cut, fizz trimmed, Preset 01 = clear modern black metal default).
@@ -83,23 +79,7 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 1; slider42 = 1.4; slider43 = 14; slider44 = 62; slider45 = 8;
     slider54 = 1; slider55 = 46; slider56 = 52; slider57 = 58; slider58 = 56; slider51 = 2.3;
   );
-  idx == 1 ? ( // 02 Tremolo Rhythm: fast-picking RAT clarity, tight pre-EQ, defined mids
-    slider1 = 0.0; slider2 = 135; slider3 = -48; slider4 = 1;
-    slider10 = 1; slider11 = 0; slider26 = 5.8; slider27 = 3.8; slider28 = 6.5;
-    slider65 = 1; slider76 = 0; slider66 = -3.0; slider67 = -1.0; slider68 = 1.0; slider69 = 2.5; slider70 = 2.0; slider71 = 1.0; slider72 = 0.0;
-    slider20 = 0; slider77 = 4.5; slider78 = 4.0;
-    slider40 = 1; slider41 = 0; slider42 = 1.8; slider43 = 18; slider44 = 64; slider45 = 10;
-    slider54 = 1; slider55 = 45; slider56 = 54; slider57 = 60; slider58 = 58; slider51 = -2.1;
-  );
-  idx == 2 ? ( // 03 Frostbitten Raw (Early BM showcase): icy DS-1 + solid-state + Transilvanian post curve
-    slider1 = 0.0; slider2 = 150; slider3 = -50; slider4 = 1;
-    slider10 = 1; slider11 = 1; slider29 = 7.5; slider37 = 6.8; slider38 = 7.8;
-    gp_eq(3);
-    slider20 = 0; slider77 = 4.5; slider78 = 4.0;
-    slider40 = 1; slider41 = 0; slider42 = 1.8; slider43 = 20; slider44 = 60; slider45 = 10;
-    slider54 = 2; slider55 = 40; slider56 = 50; slider57 = 62; slider58 = 62; slider51 = -2.0;
-  );
-  idx == 3 ? ( // 04 Buzzsaw (Early BM / Chainsaw showcase): HM-2 with tight pre-EQ mid push
+  idx == 1 ? ( // 02 Buzzsaw (Early BM / Chainsaw showcase): HM-2 with tight pre-EQ mid push
     slider1 = 0.0; slider2 = 125; slider3 = -50; slider4 = 1;
     slider10 = 1; slider11 = 3; slider62 = 7.0; slider63 = 5.5; slider64 = 7.5; slider9 = 6.2;
     slider65 = 1; slider76 = 0; slider66 = -6.0; slider67 = -3.0; slider68 = 3.0; slider69 = 6.0; slider70 = 4.0; slider71 = 1.0; slider72 = 0.0;
@@ -107,7 +87,7 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 0; slider42 = 2.0; slider43 = 20; slider44 = 60; slider45 = 12;
     slider54 = 1; slider55 = 44; slider56 = 54; slider57 = 56; slider58 = 58; slider51 = -0.3;
   );
-  idx == 4 ? ( // 05 Atmospheric Wall: wide shimmering RAT + CE-2 + long FDN hall
+  idx == 2 ? ( // 03 Atmospheric Wall: wide shimmering RAT + CE-2 + long FDN hall
     slider1 = 0.0; slider2 = 110; slider3 = -54; slider4 = 1;
     slider10 = 1; slider11 = 0; slider26 = 5.5; slider27 = 4.2; slider28 = 6.6;
     slider65 = 1; slider76 = 1; slider66 = -2.0; slider67 = -1.0; slider68 = 0.0; slider69 = 2.0; slider70 = 3.0; slider71 = 2.0; slider72 = 1.0;
@@ -115,14 +95,7 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 0; slider42 = 5.2; slider43 = 28; slider44 = 58; slider45 = 28;
     slider54 = 1; slider55 = 52; slider56 = 50; slider57 = 56; slider58 = 56; slider51 = -1.1;
   );
-  idx == 5 ? ( // 06 Depressive: darker, melancholic RAT + CE-2 + long FDN ambient reverb
-    slider1 = 0.0; slider2 = 100; slider3 = -56; slider4 = 1;
-    slider10 = 1; slider11 = 0; slider26 = 5.0; slider27 = 5.8; slider28 = 7.0;
-    slider20 = 1; slider77 = 2.5; slider78 = 6.0;
-    slider40 = 1; slider41 = 2; slider42 = 6.2; slider43 = 38; slider44 = 70; slider45 = 32;
-    slider54 = 1; slider55 = 56; slider56 = 48; slider57 = 50; slider58 = 50; slider51 = -4.4;
-  );
-  idx == 6 ? ( // 07 Raw 4-Track: lo-fi underground demo DS-1 + solid-state combo, dry
+  idx == 3 ? ( // 04 Raw 4-Track: lo-fi underground demo DS-1 + solid-state combo, dry
     slider1 = 0.0; slider2 = 145; slider3 = -50; slider4 = 1;
     slider10 = 1; slider11 = 1; slider29 = 6.8; slider37 = 6.5; slider38 = 8.0;
     slider65 = 1; slider76 = 0; slider66 = -3.0; slider67 = -2.0; slider68 = 0.0; slider69 = 3.0; slider70 = 2.0; slider71 = 3.0; slider72 = 2.0;
@@ -130,7 +103,7 @@ function recall_global_preset(idx) (
     slider40 = 0; slider41 = 0; slider42 = 1.5; slider43 = 10; slider44 = 70; slider45 = 0;
     slider54 = 2; slider55 = 42; slider56 = 58; slider57 = 64; slider58 = 64; slider51 = -0.2;
   );
-  idx == 7 ? ( // 08 Cold Lead: focused singing RAT + CE-2 + FDN plate
+  idx == 4 ? ( // 05 Cold Lead: focused singing RAT + CE-2 + FDN plate
     slider1 = 0.0; slider2 = 115; slider3 = -52; slider4 = 1;
     slider10 = 1; slider11 = 0; slider26 = 6.2; slider27 = 3.4; slider28 = 6.6;
     slider65 = 1; slider76 = 0; slider66 = -2.0; slider67 = -1.0; slider68 = 1.0; slider69 = 3.5; slider70 = 2.5; slider71 = 1.5; slider72 = 1.0;
@@ -138,20 +111,12 @@ function recall_global_preset(idx) (
     slider40 = 1; slider41 = 1; slider42 = 2.8; slider43 = 22; slider44 = 48; slider45 = 22;
     slider54 = 1; slider55 = 48; slider56 = 56; slider57 = 60; slider58 = 60; slider51 = -4.9;
   );
-  idx == 8 ? ( // 09 Freezing Clean: clean tube arpeggio (Trim -5 dB offsets +12 dB input cal), CE-2 + FDN hall
+  idx == 5 ? ( // 06 Freezing Clean: clean tube arpeggio (Trim -5 dB offsets +12 dB input cal), CE-2 + FDN hall
     slider1 = -5.0; slider2 = 80; slider3 = -62; slider4 = 1;
     slider10 = 0; slider11 = 0;
     slider20 = 1; slider77 = 4.8; slider78 = 6.5;
     slider40 = 1; slider41 = 0; slider42 = 4.0; slider43 = 24; slider44 = 42; slider45 = 32;
     slider54 = 1; slider55 = 52; slider56 = 50; slider57 = 62; slider58 = 60; slider51 = 1.0;
-  );
-  idx == 9 ? ( // 10 Ambient Swell: huge cavernous RAT + CE-2 + 7.5 s FDN ambient wash
-    slider1 = 0.0; slider2 = 105; slider3 = -54; slider4 = 1;
-    slider10 = 1; slider11 = 0; slider26 = 5.2; slider27 = 4.4; slider28 = 7.2;
-    slider65 = 1; slider76 = 0; slider66 = -1.0; slider67 = -1.0; slider68 = 0.5; slider69 = 2.0; slider70 = 1.0; slider71 = 1.0; slider72 = 1.0;
-    slider20 = 1; slider77 = 4.0; slider78 = 6.2;
-    slider40 = 1; slider41 = 2; slider42 = 7.5; slider43 = 38; slider44 = 55; slider45 = 44;
-    slider54 = 1; slider55 = 50; slider56 = 54; slider57 = 56; slider58 = 58; slider51 = -1.4;
   );
   eq_last_preset = floor(slider75 + 0.5); eq_dirty = 0;
   snap_all_sliders();

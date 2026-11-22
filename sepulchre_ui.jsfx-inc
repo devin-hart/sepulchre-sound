@@ -228,7 +228,7 @@ function ui_meter(x, y, w, label, peak_lin, thr_db, target) local(db, by, tx) (
 // ---------- Global preset selector ----------
 // Round 55: < > step buttons left of the bar (each h x h), then the dropdown bar
 function draw_preset_dropdown_bar(x, y, w, h) local(n) (
-  ui_alpha = 1; n = floor(slider60 + 0.5);
+  ui_alpha = 1; n = clamp(floor(slider60 + 0.5), 0, GP_COUNT - 1);
   f_small(); c_lab(); u_text_sp(x, y - 16, "PRESET", 2);
   ui_seg(x, y, h, h, "<", 0) ? ( recall_global_preset(n > 0 ? n - 1 : GP_COUNT - 1); auto_slider(60, 1); sliderchange(-1); ui_dropdown_open = 0; );
   ui_seg(x + h + 3, y, h, h, ">", 0) ? ( recall_global_preset(n < GP_COUNT - 1 ? n + 1 : 0); auto_slider(60, 1); sliderchange(-1); ui_dropdown_open = 0; );

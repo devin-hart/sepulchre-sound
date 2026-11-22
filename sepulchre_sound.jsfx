@@ -68,8 +68,8 @@ slider56:52<0,100,1>-Amp Mid (%)
 slider57:58<0,100,1>-Amp Treble (%)
 slider58:56<0,100,1>-Amp Presence / Air (%)
 
-// Global Template State (Round 69: clarity-voiced 10-preset bank; slider defaults = preset 01 Modern Black)
-slider60:0<0,9,1{Modern Black,Tremolo Rhythm,Frostbitten Raw,Buzzsaw,Atmospheric Wall,Depressive,Raw 4-Track,Cold Lead,Freezing Clean,Ambient Swell}>-Global Preset
+// Global Template State (Round 76: 6-preset bank; slider defaults = preset 01 Modern Black)
+slider60:0<0,5,1{Modern Black,Buzzsaw,Atmospheric Wall,Raw 4-Track,Cold Lead,Freezing Clean}>-Global Preset
 
 // UI artwork (must sit next to this file; deploy copies *.jpg / *.png too)
 filename:0,sepulchre_bg.jpg
