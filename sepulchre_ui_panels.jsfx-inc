@@ -125,7 +125,7 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, a, y, p, n) (
     slider77 = ui_hslider(77, ix, lay(30), iw, "RATE", slider77, 0, 10, 4.5, 0.1, "%.1f", 0);
     slider78 = ui_hslider(78, ix, lay(30), iw, "DEPTH", slider78, 0, 10, 4, 0.1, "%.1f", 0);
   ) : mod_id == 4 ? (                                   // GE-7: seven band faders + level
-    ui_vs_hot = 0; n = floor(slider75 + 0.5);                // Round 34: record EQ presets, < > to step
+    ui_vs_hot = 0; n = clamp(floor(slider75 + 0.5), 0, EQ_COUNT); // Round 34/78: record EQ presets, < > to step
     c_border(); u_rect(ix, UI_BODY_Y + 19, iw, 1);              // Round 64: hairline, no box
     ui_hit(ix, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n > 0 ? n - 1 : EQ_COUNT);
     ui_hit(ix + iw - 20, UI_BODY_Y - 4, 20, 24) ? recall_eq_preset(n < EQ_COUNT ? n + 1 : 0);

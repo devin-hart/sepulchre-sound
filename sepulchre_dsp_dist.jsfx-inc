@@ -197,7 +197,7 @@ function reset_dist_state() (
 );
 
 // Round 39: on/off crossfades over ~20 ms (was a hard switch: click). Fully bypassed = idle + state cleared.
-// Round 76 (P1): mono fast path when spl0 == spl1 (copies L -> R state on first stereo sample).
+// Round 76 (P1): one-way mono fast path when spl0 == spl1 (syncs L -> R on first stereo sample; stays stereo until reset).
 function proc_distortion() local(k, xl, xr, l, r, gk, dl, dr) (
   dist_ped != dist_ped_last ? ( dist_ped_last = dist_ped; reset_dist_state(); );
   dist_mk_s = param_smooth_c * dist_mk_s + (1.0 - param_smooth_c) * dist_mk_t;

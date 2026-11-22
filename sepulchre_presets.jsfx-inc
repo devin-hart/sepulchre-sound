@@ -41,28 +41,24 @@ function other_sliders_changed(skip_id) local(i, chg) (
 // Round 39 re-centred it on the default WAV IR cab (Antigravity R37: mean of Tube/Off deltas), so presets ~= flat there
 // and run ~2-3 dB louder than flat on the IIR cab.
 function get_eq_preset_name(i) (
-  i == 1 ? "BATHORY" : i == 2 ? "DEATHCRUSH" : i == 3 ? "TRANSILVANIAN" : i == 4 ? "NIGHTSIDE" :
-  i == 5 ? "FILOSOFEM" : i == 6 ? "DIABOLI" : i == 7 ? "EVANGELION" : i == 8 ? "SPECTRE" : "CUSTOM";
+  i == 1 ? "DEATHCRUSH" : i == 2 ? "TRANSILVANIAN" : i == 3 ? "NIGHTSIDE" :
+  i == 4 ? "FILOSOFEM" : i == 5 ? "DIABOLI" : i == 6 ? "SPECTRE" : "CUSTOM";
 );
-EQ_COUNT = 8;   // Round 58: 7 record curves + Spectre (years dropped from the names)
+EQ_COUNT = 6;   // Round 78: 5 record curves + Spectre (Bathory & Evangelion removed)
 // Spectre (Round 58) is a pre-pedal tightening push, not a record curve: everything else loads after the pedal
-function eq_preset_pos(i) ( i == 8 ? 0 : 1; );
+function eq_preset_pos(i) ( i == 6 ? 0 : 1; );
 function eq_set8(a, b, c, d, e, f, g, h) (
   slider66 = a; slider67 = b; slider68 = c; slider69 = d; slider70 = e; slider71 = f; slider72 = g; slider73 = h;
 );
 function eq_preset_vals(i) (
-  i == 1 ? eq_set8(-2.5, -12.5, -6, -2.5, 12.5, 9, 3, -3.5) :      // Bathory - Bathory (1984)
-  i == 2 ? eq_set8(5, -2, -1, 5.5, -7, 12, -3, -1.5) :          // Mayhem - Deathcrush (1987)
-  i == 3 ? eq_set8(-9, -2, 0, 12, -2, 9, -3.5, -0.5) :            // Darkthrone - Transilvanian Hunger (1994)
-  i == 4 ? eq_set8(3, 7, -5, -4, 5.5, 7.5, -2, -4.5) :            // Emperor - In the Nightside Eclipse (1994)
-  i == 5 ? eq_set8(3.5, 4, -5, 9.5, 12.5, 3.5, 14, -6) :        // Burzum - Filosofem (1996)
-  i == 6 ? eq_set8(0, -3.5, -1.5, 3.5, 6, 3.5, 3, 0.5) :         // Dimmu Borgir - In Sorte Diaboli (2007)
-  i == 7 ? eq_set8(4, 0, -1, 8, 10, 1, 9.5, -3.5) :              // Behemoth - Evangelion (2009)
-  i == 8 ? eq_set8(-9, -5, 8, 14, 12, 4, 0, 0);                   // Spectre: Glenn Fricker's JOYO JF-11 6-band (+/-18 dB) read
+  i == 1 ? eq_set8(5, -2, -1, 5.5, -7, 12, -3, -1.5) :            // Mayhem - Deathcrush (1987)
+  i == 2 ? eq_set8(-9, -2, 0, 12, -2, 9, -3.5, -0.5) :            // Darkthrone - Transilvanian Hunger (1994)
+  i == 3 ? eq_set8(3, 7, -5, -4, 5.5, 7.5, -2, -4.5) :            // Emperor - In the Nightside Eclipse (1994)
+  i == 4 ? eq_set8(3.5, 4, -5, 9.5, 12.5, 3.5, 14, -6) :          // Burzum - Filosofem (1996)
+  i == 5 ? eq_set8(0, -3.5, -1.5, 3.5, 6, 3.5, 3, 0.5) :          // Dimmu Borgir - In Sorte Diaboli (2007)
+  i == 6 ? eq_set8(-9, -5, 8, 14, 12, 4, 0, 0);                   // Spectre: Glenn Fricker's JOYO JF-11 6-band (+/-18 dB) read
                                                                   //   off Devin's photo, +/-2 dB; no 6.4k band, no level
 );
-// Preset curve into the GE-7 (record curves after the pedal, Spectre before it)
-function gp_eq(i) ( eq_preset_vals(i); slider65 = 1; slider76 = eq_preset_pos(i); slider75 = i; );
 
 function get_global_preset_name(idx) (
   idx == 0 ? "01: MODERN BLACK" :

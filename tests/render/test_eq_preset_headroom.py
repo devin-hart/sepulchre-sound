@@ -13,14 +13,12 @@ import render_common as rc
 KNEE_DBFS = 20.0 * math.log10(0.70) # -3.10 dBFS
 
 EQ_PRESETS = [
-    # id, name, 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (Round 39 re-centred, Round 58 names without years)
-    (1, "Bathory", -2.5, -12.5, -6.0, -2.5, 12.5, 9.0, 3.0, -3.5),
-    (2, "Deathcrush", 5.0, -2.0, -1.0, 5.5, -7.0, 12.0, -3.0, -1.5),
-    (3, "Transilvanian", -9.0, -2.0, 0.0, 12.0, -2.0, 9.0, -3.5, -0.5),
-    (4, "Nightside", 3.0, 7.0, -5.0, -4.0, 5.5, 7.5, -2.0, -4.5),
-    (5, "Filosofem", 3.5, 4.0, -5.0, 9.5, 12.5, 3.5, 14.0, -6.0),
-    (6, "Diaboli", 0.0, -3.5, -1.5, 3.5, 6.0, 3.5, 3.0, 0.5),
-    (7, "Evangelion", 4.0, 0.0, -1.0, 8.0, 10.0, 1.0, 9.5, -3.5),
+    # id, name, 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (Round 39 re-centred, Round 78: 5 record curves + Spectre #6)
+    (1, "Deathcrush", 5.0, -2.0, -1.0, 5.5, -7.0, 12.0, -3.0, -1.5),
+    (2, "Transilvanian", -9.0, -2.0, 0.0, 12.0, -2.0, 9.0, -3.5, -0.5),
+    (3, "Nightside", 3.0, 7.0, -5.0, -4.0, 5.5, 7.5, -2.0, -4.5),
+    (4, "Filosofem", 3.5, 4.0, -5.0, 9.5, 12.5, 3.5, 14.0, -6.0),
+    (5, "Diaboli", 0.0, -3.5, -1.5, 3.5, 6.0, 3.5, 3.0, 0.5),
 ]
 
 SPECTRE_CURVE = (-9.0, -5.0, 8.0, 14.0, 12.0, 4.0, 0.0, 0.0)
@@ -119,13 +117,11 @@ def run_eq_preset_headroom():
             status = f"Clean ({headroom:.2f} dB below knee)"
 
             album_info = {
-                1: "Bathory (1984)",
-                2: "Deathcrush (1987)",
-                3: "Transilvanian Hunger ('94)",
-                4: "In the Nightside ('94)",
-                5: "Filosofem (1996)",
-                6: "In Sorte Diaboli ('07)",
-                7: "Evangelion (2009)",
+                1: "Deathcrush (1987)",
+                2: "Transilvanian Hunger ('94)",
+                3: "In the Nightside ('94)",
+                4: "Filosofem (1996)",
+                5: "In Sorte Diaboli ('07)",
             }.get(p_id, "")
 
             print(f"{p_id}: {name:<19} | {album_info:<24} | {lufs:6.2f} LUFS| {delta_lufs:+6.2f} dB     | {pk:6.2f} dBFS | {status}")
@@ -141,15 +137,15 @@ def run_eq_preset_headroom():
     if os.path.exists(out_wav): os.remove(out_wav)
     if os.path.exists(rpp_path): os.remove(rpp_path)
 
-    # Pass 3 (Round 58/59): Spectre #8 (Pre-Pedal) across all 4 pedals
+    # Pass 3 (Round 58/78): Spectre #6 (Pre-Pedal) across all 4 pedals
     print("\n" + "=" * 105)
-    print("--- PASS 3: SPECTRE #8 EQ PRESET (Pre-Pedal, slider76=0) ACROSS 4 PEDALS ---")
+    print("--- PASS 3: SPECTRE #6 EQ PRESET (Pre-Pedal, slider76=0) ACROSS 4 PEDALS ---")
     print(f"{'Pedal':<16} | {'EQ Off LUFS':<14} | {'Spectre LUFS':<14} | {'Delta LUFS':<12} | {'Spectre Peak':<14} | Limiter Status")
     print("=" * 105)
 
     pedals = ["RAT", "DS-1", "Metal Zone", "HM-2"]
     spectre_eq = {
-        65: 1, 75: 8, 76: 0,
+        65: 1, 75: 6, 76: 0,
         66: -9.0, 67: -5.0, 68: 8.0, 69: 14.0, 70: 12.0, 71: 4.0, 72: 0.0, 73: 0.0
     }
 
