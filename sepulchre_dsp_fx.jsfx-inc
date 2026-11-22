@@ -49,7 +49,7 @@ function init_fx_dsp() (
   bq_chorus_lp = alloc_buf(9);                      // CE-2 reconstruction filter (2nd-order part)
   bq_chorus_aa = alloc_buf(9);                      // CE-2 anti-alias filter (2nd-order part)
 
-  // Reverb buffers: Pre-delay + 4 stereo-spread combs + 2 series allpasses
+  // Reverb buffers: Pre-delay + 4x4 Hadamard FDN delay lines + 2 series input diffusers
   rev_pre_len = 16384;
   rev_pre_l = alloc_buf(rev_pre_len);
   rev_pre_r = alloc_buf(rev_pre_len);

@@ -725,16 +725,15 @@ def check_real_ir_loudness(presets_src, raw_files):
         lu = _lufs_ungated(y)
         dry = p.get(20, 0) < 0.5 and (p.get(40, 0) < 0.5 or p.get(45, 0) <= 15)
         results.append((idx, lu, dry))
-    dry_vals = sorted(lu for _, lu, dry in results if dry)
-    target = dry_vals[len(dry_vals) // 2]
+    target = -18.25   # Round 71 (Task 4): fixed loudness anchor (prevents silent bank-level drift)
     fails = []
     for idx, lu, dry in results:
         tag = "checked" if dry else "info only (chorus / long reverb not mirrored)"
-        print(f"  - Preset {idx + 1:02d}: {lu:+.2f} LUFS ({lu - target:+.2f} vs median {target:.2f}) [{tag}]")
+        print(f"  - Preset {idx + 1:02d}: {lu:+.2f} LUFS ({lu - target:+.2f} vs {target:.2f}) [{tag}]")
         if dry and abs(lu - target) > 1.0:
             fails.append(f"{idx + 1:02d} {lu:+.2f} LUFS")
     if fails:
-        raise AssertionError(f"presets off the {target:.2f} LUFS dry median by > 1 dB through the real IR: " + ", ".join(fails))
+        raise AssertionError(f"presets off the {target:.2f} LUFS anchor by > 1 dB through the real IR: " + ", ".join(fails))
 
 
 if __name__ == "__main__":
