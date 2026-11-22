@@ -17,6 +17,7 @@
 
 DIST_OS = 8;
 MT_MK = 0.54; HM_MK = 1.6;   // Level make-up, calibrated by tests/verify_jsfx.py (presets -10..-8 dBFS)
+dist_is_mono = 1; dist_r_stale = 0;
 function c1x(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate * DIST_OS) / (srate * DIST_OS)); );   // 1-pole coeff @ 8x
 function c1b(fc) ( exp(-2 * $pi * min(fc, 0.45 * srate) / srate); );                         // 1-pole coeff @ 1x
 function a_taper(k) ( (10 ^ (2 * k) - 1) / 99; );                                            // audio (A) taper 0..1
@@ -143,6 +144,36 @@ function ds_tone_f(x) instance(ly, hx, hy) (
   ((1 - ds_tone) * ly + ds_tone * hy) * 0.25;                      // passive tone stack loss (-12 dB)
 );
 
+function bq_copy_lr(b) ( b[7] = b[5]; b[8] = b[6]; );
+
+// Round 76 (P1): sync all L distortion state to R on first stereo sample after mono fast path.
+// Kept right next to reset_dist_state() so both stay complete when pedals change.
+function sync_dist_l_to_r() (
+  dist_ped == 0 ? (
+    pdR.hx60 = pdL.hx60; pdR.hy60 = pdL.hy60; pdR.hx15 = pdL.hx15; pdR.hy15 = pdL.hy15;
+    pdR.lA = pdL.lA; pdR.lB = pdL.lB; pdR.pv = pdL.pv;
+    tfR.y = tfL.y;
+  ) : dist_ped == 1 ? (
+    pdR.hx = pdL.hx; pdR.hy = pdL.hy; pdR.hx2 = pdL.hx2; pdR.hy2 = pdL.hy2;
+    pdR.l7 = pdL.l7; pdR.l72 = pdL.l72;
+    tfR.ly = tfL.ly; tfR.hx = tfL.hx; tfR.hy = tfL.hy;
+  ) : dist_ped == 2 ? (
+    pdR.hx = pdL.hx; pdR.hy = pdL.hy; pdR.z1 = pdL.z1; pdR.z2 = pdL.z2;
+    pdR.l72 = pdL.l72; pdR.l68 = pdL.l68; pdR.hx48 = pdL.hx48; pdR.hy48 = pdL.hy48; pdR.lc = pdL.lc;
+    tfR.y = tfL.y;
+  ) : (
+    pdR.hx = pdL.hx; pdR.hy = pdL.hy; pdR.hx7 = pdL.hx7; pdR.hy7 = pdL.hy7;
+    pdR.lt = pdL.lt; pdR.l16 = pdL.l16;
+    pdR.a1 = pdL.a1; pdR.a2 = pdL.a2; pdR.b1 = pdL.b1; pdR.b2 = pdL.b2; pdR.c1 = pdL.c1; pdR.c2 = pdL.c2;
+  );
+  bq_copy_lr(bq_os_up1); bq_copy_lr(bq_os_up2); bq_copy_lr(bq_os_up3); bq_copy_lr(bq_os_up4);
+  bq_copy_lr(bq_os_dn1); bq_copy_lr(bq_os_dn2); bq_copy_lr(bq_os_dn3); bq_copy_lr(bq_os_dn4);
+  bq_copy_lr(bq_dist_p1); bq_copy_lr(bq_dist_p2); bq_copy_lr(bq_dist_p3);
+  bq_copy_lr(bq_dist_p4); bq_copy_lr(bq_dist_p5); bq_copy_lr(bq_dist_p6);
+  dc_x1_r = dc_x1_l; dc_y1_r = dc_y1_l;
+  dist_r_stale = 0;
+);
+
 function reset_dist_state() (
   pdL.rat_reset(); pdR.rat_reset(); pdL.ds_reset(); pdR.ds_reset();
   pdL.mt_reset(); pdR.mt_reset(); pdL.hm_reset(); pdR.hm_reset();
@@ -152,42 +183,68 @@ function reset_dist_state() (
   bq_clear(bq_dist_p1); bq_clear(bq_dist_p2); bq_clear(bq_dist_p3);
   bq_clear(bq_dist_p4); bq_clear(bq_dist_p5); bq_clear(bq_dist_p6);
   dist_mk_s = dist_mk_t;
+  dist_is_mono = 1; dist_r_stale = 0;
 );
 
 // Round 39: on/off crossfades over ~20 ms (was a hard switch: click). Fully bypassed = idle + state cleared.
+// Round 76 (P1): mono fast path when spl0 == spl1 (copies L -> R state on first stereo sample).
 function proc_distortion() local(k, xl, xr, l, r, gk, dl, dr) (
   dist_ped != dist_ped_last ? ( dist_ped_last = dist_ped; reset_dist_state(); );
   dist_mk_s = param_smooth_c * dist_mk_s + (1.0 - param_smooth_c) * dist_mk_t;
   dist_mix_s = param_smooth_c * dist_mix_s + (1.0 - param_smooth_c) * (slider10 > 0.5 ? 1.0 : 0.0);
   dist_mix_s > 0.0001 ? (
     l = spl0; r = spl1; dl = l; dr = r;
-    k = 0;
-    loop(DIST_OS,
-      xl = (k == 0) ? (l * DIST_OS) : 0.0;
-      xr = (k == 0) ? (r * DIST_OS) : 0.0;
-      xl = bq_proc_l(bq_os_up4, bq_proc_l(bq_os_up3, bq_proc_l(bq_os_up2, bq_proc_l(bq_os_up1, xl))));
-      xr = bq_proc_r(bq_os_up4, bq_proc_r(bq_os_up3, bq_proc_r(bq_os_up2, bq_proc_r(bq_os_up1, xr))));
-      dist_ped == 0 ? ( xl = pdL.rat_os(xl); xr = pdR.rat_os(xr); )
-      : dist_ped == 1 ? ( xl = pdL.ds_os(xl); xr = pdR.ds_os(xr); )
-      : dist_ped == 2 ? ( xl = pdL.mt_os(xl); xr = pdR.mt_os(xr); )
-      : ( xl = pdL.hm_os(xl); xr = pdR.hm_os(xr); );
-      xl = bq_proc_l(bq_os_dn4, bq_proc_l(bq_os_dn3, bq_proc_l(bq_os_dn2, bq_proc_l(bq_os_dn1, xl))));
-      xr = bq_proc_r(bq_os_dn4, bq_proc_r(bq_os_dn3, bq_proc_r(bq_os_dn2, bq_proc_r(bq_os_dn1, xr))));
-      k += 1;
+    (dist_is_mono && l == r) ? (
+      k = 0;
+      loop(DIST_OS,
+        xl = (k == 0) ? (l * DIST_OS) : 0.0;
+        xl = bq_proc_l(bq_os_up4, bq_proc_l(bq_os_up3, bq_proc_l(bq_os_up2, bq_proc_l(bq_os_up1, xl))));
+        dist_ped == 0 ? ( xl = pdL.rat_os(xl); )
+        : dist_ped == 1 ? ( xl = pdL.ds_os(xl); )
+        : dist_ped == 2 ? ( xl = pdL.mt_os(xl); )
+        : ( xl = pdL.hm_os(xl); );
+        xl = bq_proc_l(bq_os_dn4, bq_proc_l(bq_os_dn3, bq_proc_l(bq_os_dn2, bq_proc_l(bq_os_dn1, xl))));
+        k += 1;
+      );
+      l = xl;
+      dist_ped == 0 ? ( l = tfL.rat_filt(l); );
+      dist_ped == 1 ? ( l = tfL.ds_tone_f(l); );
+      dist_ped == 2 ? ( l = tfL.mt_filt(l); );
+      l = bq_proc_l(bq_dist_p1, l); l = bq_proc_l(bq_dist_p2, l); l = bq_proc_l(bq_dist_p3, l);
+      l = bq_proc_l(bq_dist_p4, l); l = bq_proc_l(bq_dist_p5, l); l = bq_proc_l(bq_dist_p6, l);
+      dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
+      r = l; dist_r_stale = 1;
+    ) : (
+      dist_is_mono = 0;
+      dist_r_stale ? sync_dist_l_to_r();
+      k = 0;
+      loop(DIST_OS,
+        xl = (k == 0) ? (l * DIST_OS) : 0.0;
+        xr = (k == 0) ? (r * DIST_OS) : 0.0;
+        xl = bq_proc_l(bq_os_up4, bq_proc_l(bq_os_up3, bq_proc_l(bq_os_up2, bq_proc_l(bq_os_up1, xl))));
+        xr = bq_proc_r(bq_os_up4, bq_proc_r(bq_os_up3, bq_proc_r(bq_os_up2, bq_proc_r(bq_os_up1, xr))));
+        dist_ped == 0 ? ( xl = pdL.rat_os(xl); xr = pdR.rat_os(xr); )
+        : dist_ped == 1 ? ( xl = pdL.ds_os(xl); xr = pdR.ds_os(xr); )
+        : dist_ped == 2 ? ( xl = pdL.mt_os(xl); xr = pdR.mt_os(xr); )
+        : ( xl = pdL.hm_os(xl); xr = pdR.hm_os(xr); );
+        xl = bq_proc_l(bq_os_dn4, bq_proc_l(bq_os_dn3, bq_proc_l(bq_os_dn2, bq_proc_l(bq_os_dn1, xl))));
+        xr = bq_proc_r(bq_os_dn4, bq_proc_r(bq_os_dn3, bq_proc_r(bq_os_dn2, bq_proc_r(bq_os_dn1, xr))));
+        k += 1;
+      );
+      l = xl; r = xr;
+      dist_ped == 0 ? ( l = tfL.rat_filt(l); r = tfR.rat_filt(r); );
+      dist_ped == 1 ? ( l = tfL.ds_tone_f(l); r = tfR.ds_tone_f(r); );
+      dist_ped == 2 ? ( l = tfL.mt_filt(l); r = tfR.mt_filt(r); );
+      l = bq_proc_l(bq_dist_p1, l); r = bq_proc_r(bq_dist_p1, r);
+      l = bq_proc_l(bq_dist_p2, l); r = bq_proc_r(bq_dist_p2, r);
+      l = bq_proc_l(bq_dist_p3, l); r = bq_proc_r(bq_dist_p3, r);
+      l = bq_proc_l(bq_dist_p4, l); r = bq_proc_r(bq_dist_p4, r);
+      l = bq_proc_l(bq_dist_p5, l); r = bq_proc_r(bq_dist_p5, r);
+      l = bq_proc_l(bq_dist_p6, l); r = bq_proc_r(bq_dist_p6, r);
+      // DC blocker (asymmetric stages), then pedal Level and post-gate keyed from the input gate
+      dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
+      dc_ro = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_ro; r = dc_ro;
     );
-    l = xl; r = xr;
-    dist_ped == 0 ? ( l = tfL.rat_filt(l); r = tfR.rat_filt(r); );
-    dist_ped == 1 ? ( l = tfL.ds_tone_f(l); r = tfR.ds_tone_f(r); );
-    dist_ped == 2 ? ( l = tfL.mt_filt(l); r = tfR.mt_filt(r); );
-    l = bq_proc_l(bq_dist_p1, l); r = bq_proc_r(bq_dist_p1, r);
-    l = bq_proc_l(bq_dist_p2, l); r = bq_proc_r(bq_dist_p2, r);
-    l = bq_proc_l(bq_dist_p3, l); r = bq_proc_r(bq_dist_p3, r);
-    l = bq_proc_l(bq_dist_p4, l); r = bq_proc_r(bq_dist_p4, r);
-    l = bq_proc_l(bq_dist_p5, l); r = bq_proc_r(bq_dist_p5, r);
-    l = bq_proc_l(bq_dist_p6, l); r = bq_proc_r(bq_dist_p6, r);
-    // DC blocker (asymmetric stages), then pedal Level and post-gate keyed from the input gate
-    dc_l = l - dc_x1_l + dc_r * dc_y1_l; dc_x1_l = l; dc_y1_l = dc_l; l = dc_l;
-    dc_ro = r - dc_x1_r + dc_r * dc_y1_r; dc_x1_r = r; dc_y1_r = dc_ro; r = dc_ro;
     gk = slider4 > 0.5 ? gate_gain : 1.0;
     spl0 = dl + dist_mix_s * (l * dist_mk_s * gk - dl);
     spl1 = dr + dist_mix_s * (r * dist_mk_s * gk - dr);
