@@ -13,7 +13,7 @@ import render_common as rc
 KNEE_DBFS = 20.0 * math.log10(0.70) # -3.10 dBFS
 
 EQ_PRESETS = [
-    # id, name, 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (Round 39 re-centred, Round 78: 5 record curves + Spectre #6)
+    # id, name, 100, 200, 400, 800, 1.6k, 3.2k, 6.4k, Level (Round 39 re-centred, Round 78/94: 5 record curves + TS BOOST #6)
     (1, "Deathcrush", 5.0, -2.0, -1.0, 5.5, -7.0, 12.0, -3.0, -1.5),
     (2, "Transilvanian", -9.0, -2.0, 0.0, 12.0, -2.0, 9.0, -3.5, -0.5),
     (3, "Nightside", 3.0, 7.0, -5.0, -4.0, 5.5, 7.5, -2.0, -4.5),
@@ -21,7 +21,7 @@ EQ_PRESETS = [
     (5, "Diaboli", 0.0, -3.5, -1.5, 3.5, 6.0, 3.5, 3.0, 0.5),
 ]
 
-SPECTRE_CURVE = (-9.0, -5.0, 8.0, 14.0, 12.0, 4.0, 0.0, 0.0)
+TS_BOOST_CURVE = (-8.0, -3.0, 2.0, 6.0, 3.0, 0.0, -3.0, 8.0)  # Round 94: slot #6 is now TS BOOST (was Spectre)
 
 def run_eq_preset_headroom():
     sr = 48000
@@ -137,16 +137,16 @@ def run_eq_preset_headroom():
     if os.path.exists(out_wav): os.remove(out_wav)
     if os.path.exists(rpp_path): os.remove(rpp_path)
 
-    # Pass 3 (Round 58/78): Spectre #6 (Pre-Pedal) across all 4 pedals
+    # Pass 3 (Round 58/78/94): TS BOOST #6 (Pre-Pedal) across all 4 pedals
     print("\n" + "=" * 105)
-    print("--- PASS 3: SPECTRE #6 EQ PRESET (Pre-Pedal, slider76=0) ACROSS 4 PEDALS ---")
-    print(f"{'Pedal':<16} | {'EQ Off LUFS':<14} | {'Spectre LUFS':<14} | {'Delta LUFS':<12} | {'Spectre Peak':<14} | Limiter Status")
+    print("--- PASS 3: TS BOOST #6 EQ PRESET (Pre-Pedal, slider76=0) ACROSS 4 PEDALS ---")
+    print(f"{'Pedal':<16} | {'EQ Off LUFS':<14} | {'TS Boost LUFS':<14} | {'Delta LUFS':<12} | {'TS Boost Peak':<14} | Limiter Status")
     print("=" * 105)
 
     pedals = ["RAT", "DS-1", "Metal Zone", "HM-2"]
     spectre_eq = {
         65: 1, 75: 6, 76: 0,
-        66: -9.0, 67: -5.0, 68: 8.0, 69: 14.0, 70: 12.0, 71: 4.0, 72: 0.0, 73: 0.0
+        **{66 + k: v for k, v in enumerate(TS_BOOST_CURVE)}
     }
 
     spectre_tracks = []
@@ -154,7 +154,7 @@ def run_eq_preset_headroom():
         cfg_off = {**base, **rc.PEDAL_DEFAULTS[p], 65: 0}
         spectre_tracks.append(rc.make_track(f"{p}_Off", cfg_off, di_path, pos=2 * i * item_gap, length=item_len))
         cfg_on = {**base, **rc.PEDAL_DEFAULTS[p], **spectre_eq}
-        spectre_tracks.append(rc.make_track(f"{p}_Spectre", cfg_on, di_path, pos=(2 * i + 1) * item_gap, length=item_len))
+        spectre_tracks.append(rc.make_track(f"{p}_TSBoost", cfg_on, di_path, pos=(2 * i + 1) * item_gap, length=item_len))
 
     sp_wav = os.path.join(RENDER_DIR, "out_spectre_headroom.wav")
     sp_rpp = os.path.join(RENDER_DIR, "test_spectre_headroom.rpp")
@@ -174,7 +174,7 @@ def run_eq_preset_headroom():
         lufs_on = rc.calc_lufs(seg_on)
         pk_on = rc.calc_peak_db(seg_on)
         delta = lufs_on - lufs_off
-        assert pk_on < KNEE_DBFS, f"Spectre + {p} exceeded limiter knee: {pk_on:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
+        assert pk_on < KNEE_DBFS, f"TS Boost + {p} exceeded limiter knee: {pk_on:.2f} dBFS >= {KNEE_DBFS:.2f} dBFS"
         headroom = KNEE_DBFS - pk_on
         status = f"Clean ({headroom:.2f} dB below knee)"
         print(f"{p:<16} | {lufs_off:6.2f} LUFS     | {lufs_on:6.2f} LUFS     | {delta:+6.2f} dB     | {pk_on:6.2f} dBFS     | {status}")

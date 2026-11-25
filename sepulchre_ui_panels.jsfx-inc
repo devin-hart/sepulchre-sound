@@ -9,7 +9,7 @@ UI_DIM = 0.28;
 UI_BODY_Y = 158;     // first control row (slab top 106 + 40 header + 12 padding)
 
 // Load an EQ preset (values: eq_preset_vals in sepulchre_presets.jsfx-inc). Turns the EQ on; record curves go after the
-// pedal, where their Level was loudness-matched (Round 39); Spectre goes before it (eq_preset_pos, Round 58).
+// pedal, where their Level was loudness-matched (Round 39); TS BOOST goes before it (eq_preset_pos, Round 58/94).
 function recall_eq_preset(i) local(k) (
   eq_preset_vals(i);                                           // table in sepulchre_presets.jsfx-inc
   i > 0 ? ( slider65 = 1; slider76 = eq_preset_pos(i); auto_slider(76, 1); );

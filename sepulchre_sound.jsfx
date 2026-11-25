@@ -55,7 +55,7 @@ slider70:2<-15,15,0.5>-EQ 1.6 kHz (dB)
 slider71:1<-15,15,0.5>-EQ 3.2 kHz (dB)
 slider72:-1<-15,15,0.5>-EQ 6.4 kHz (dB)
 slider73:0<-15,15,0.5>-EQ Level (dB)
-slider75:0<0,6,1{Custom,Deathcrush,Transilvanian Hunger,Nightside Eclipse,Filosofem,Diaboli,Spectre}>-EQ Preset
+slider75:0<0,6,1{Custom,Deathcrush,Transilvanian Hunger,Nightside Eclipse,Filosofem,Diaboli,TS Boost}>-EQ Preset
 
 // Amp, Cabinet (WAV IR) & Master
 slider49:1<0,1,1{Bypass,On}>-Cabinet Enable

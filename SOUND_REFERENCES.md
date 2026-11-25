@@ -80,7 +80,7 @@ These are historical facts, which is not the same as what the plugin models. The
 - The band settings were read off Devin's photos of "GE-7 settings for record X" images, to about ±1.5 dB. **[fan]**
 - No interview says any of these records used a GE-7, so treat the curves as tone sketches, not reconstructions.
 - Their Level values are [measured] (loudness-matched, Round 39).
-- Spectre comes from Glenn Fricker's JOYO JF-11 settings (a 6-band EQ, not a GE-7). [fan]
+- **TS BOOST** (slot 6, pre-pedal; Round 94, replaced Spectre at Devin's request: "it kind of sounds like shit"): a Tube-Screamer-style push, −8 / −3 / +2 / +6 / +3 / 0 / −3, Level +8. Generic TS voicing (bass cut, ~800 Hz hump, level into the pedal), not a measured circuit. Through the four pedals its output is +0.1..+1.0 LUFS vs EQ off (synthetic `di_input.wav`), so the boost mostly becomes drive, not volume.
 
 ### Amp (`sepulchre_dsp_amp_cab.jsfx-inc`, `proc_amp_stage`)
 - **Not a model of any real amp.** One static soft-clip curve (Tube: asymmetric `soft_tanh`; Solid: clip blend).

@@ -42,10 +42,10 @@ function other_sliders_changed(skip_id) local(i, chg) (
 // and run ~2-3 dB louder than flat on the IIR cab.
 function get_eq_preset_name(i) (
   i == 1 ? "DEATHCRUSH" : i == 2 ? "TRANSILVANIAN" : i == 3 ? "NIGHTSIDE" :
-  i == 4 ? "FILOSOFEM" : i == 5 ? "DIABOLI" : i == 6 ? "SPECTRE" : "CUSTOM";
+  i == 4 ? "FILOSOFEM" : i == 5 ? "DIABOLI" : i == 6 ? "TS BOOST" : "CUSTOM";
 );
-EQ_COUNT = 6;   // Round 78: 5 record curves + Spectre (Bathory & Evangelion removed)
-// Spectre (Round 58) is a pre-pedal tightening push, not a record curve: everything else loads after the pedal
+EQ_COUNT = 6;   // Round 78: 5 record curves + one pre-pedal boost (Bathory & Evangelion removed)
+// TS BOOST (Round 94, replaced Spectre) is a pre-pedal Tube-Screamer-style push, not a record curve: everything else loads after the pedal
 function eq_preset_pos(i) ( i == 6 ? 0 : 1; );
 function eq_set8(a, b, c, d, e, f, g, h) (
   slider66 = a; slider67 = b; slider68 = c; slider69 = d; slider70 = e; slider71 = f; slider72 = g; slider73 = h;
@@ -56,8 +56,8 @@ function eq_preset_vals(i) (
   i == 3 ? eq_set8(3, 7, -5, -4, 5.5, 7.5, -2, -4.5) :            // Emperor - In the Nightside Eclipse (1994)
   i == 4 ? eq_set8(3.5, 4, -5, 9.5, 12.5, 3.5, 14, -6) :          // Burzum - Filosofem (1996)
   i == 5 ? eq_set8(0, -3.5, -1.5, 3.5, 6, 3.5, 3, 0.5) :          // Dimmu Borgir - In Sorte Diaboli (2007)
-  i == 6 ? eq_set8(-9, -5, 8, 14, 12, 4, 0, 0);                   // Spectre: Glenn Fricker's JOYO JF-11 6-band (+/-18 dB) read
-                                                                  //   off Devin's photo, +/-2 dB; no 6.4k band, no level
+  i == 6 ? eq_set8(-8, -3, 2, 6, 3, 0, -3, 8);                    // TS BOOST (Round 94): Tube-Screamer-style bass cut + ~800 Hz
+                                                                  //   mid hump + level push into the pedal (replaced Spectre, Devin)
 );
 
 function get_global_preset_name(idx) (
