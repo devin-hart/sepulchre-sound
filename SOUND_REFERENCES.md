@@ -87,10 +87,10 @@ These are historical facts, which is not the same as what the plugin models. The
 - Followed by a 75 Hz HPF, a 10 Hz DC blocker, and RBJ shelves and peaks (Bass 125 Hz, Mid 520/620 Hz, Treble 2.4 kHz, Air 3.8 kHz).
 - No preamp stage structure, no interactive tone stack, no power amp, no speaker load. See §7-B.
 
-### Cab (`sepulchre_dsp_amp_cab.jsfx-inc`)
-- WAV IR UPOLS (128-sample latency). The bundled IRs are Ugritone Old School Black Metal: 44.1 kHz, mono, 1 s. **They may not be redistributed.**
-- IR loudness match: `IR_E48` [measured]; per-slot trims [measured, Round 21]; `IR_MATCH_DB = 3.8` **[ear]**; per-pedal trims [measured, relative to the ear-match].
-- The IIR 4x12 is a fallback only.
+### Cab (`sepulchre_dsp_amp_cab.jsfx-inc` & `sepulchre_dsp_ir.jsfx-inc`)
+- **WAV IR UPOLS** (128-sample latency): user-loadable `.wav` IRs via `slider53` folder browser (`Data/sepulchre_irs/`) or drag-and-drop (`@serialize` MRU). No commercial IRs ship in the repo (Devin's local `Data/sepulchre_irs/` includes Ugritone Old School Black Metal, which may not be redistributed).
+- **Loudness matching:** broadband guitar+K weighting (`HP 180 Hz -> LP 4200 Hz -> Peak 900 Hz +3 dB`) normalized to `IR_E48 = 0.132771` **[measured]** (Round 73; per-slot trims dropped in Round 68; `IR_MATCH_DB` retired in Round 73/76); shared per-pedal cab trims `ir_ped_g_t` **[measured]** apply to both WAV IR and Built-in 4x12.
+- **Built-in 4x12 IIR cab** (selectable zero-latency option via `slider52`, also fallback when no IR is loaded): Round 88 Candidate A (`f2 = 850 Hz -3.0 dB`, `f3 = 3100 Hz +4.5 dB`, `lp2 = 4950 Hz Q 0.85`, `lp1 = 5550 Hz`, `cab_comp_lin = 0.7028`) **[measured]**. Chosen on research (mids present, top fizz down) + R83 IR measurement; level-matched A/B by ear (Devin) heard no clear difference, so tagged **[measured]** (not **[ear]**) so a later ear test on multi-riff double-tracked DI takes can still revise it.
 
 ### Chorus (`sepulchre_dsp_fx.jsfx-inc`)
 - Boss CE-2 per ElectroSmash [circuit]: triangle LFO, BBD with 3rd-order anti-alias filters, 50/50 mix.

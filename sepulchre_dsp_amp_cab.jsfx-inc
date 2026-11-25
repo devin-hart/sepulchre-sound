@@ -53,15 +53,15 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   bq_hshelf(bq_amp_treb, 2400.0, treb_db);
   bq_peak(bq_amp_pres, 3800.0, 1.25, pres_db);
 
-  // Built-in 4x12 cab (Round 69: V30/Sheffield response — tight 115 Hz cab thump, 850 Hz cone scoop, 3.1 kHz bite,
-  // steep 5.2/5.8 kHz speaker roll-off; also the loudness reference behind IR_E48).
+  // Built-in 4x12 cab (Round 88 Candidate A: milder 850 Hz cut -3 dB, smoother 4.95/5.55 kHz roll-off;
+  // bq_cab_hp stays 85 Hz so the WAV IR path is untouched; loudness-matched to IR_E48 = 0.132771).
   bq_hp(bq_cab_hp, 85.0, 0.7071);
-  bq_lp(bq_cab_lp1, 5800.0, 0.7071);
+  bq_lp(bq_cab_lp1, 5550.0, 0.7071);
   bq_peak(bq_cab_f1, 115.0, 1.35, 6.5);
-  bq_peak(bq_cab_f2, 850.0, 0.80, -9.0);
-  bq_peak(bq_cab_f3, 3100.0, 1.35, 5.5);
-  bq_lp(bq_cab_lp2, 5200.0, 0.90);
-  cab_comp_lin = 0.7510;   // Round 73: loudness-matched to IR_E48 = 0.132771 (shared weighting with WAV IRs)
+  bq_peak(bq_cab_f2, 850.0, 0.80, -3.0);
+  bq_peak(bq_cab_f3, 3100.0, 1.35, 4.5);
+  bq_lp(bq_cab_lp2, 4950.0, 0.85);
+  cab_comp_lin = 0.7028;   // Round 88 Candidate A: IR_E48 match (IR_E48 = 0.132771 unchanged)
 
   master_out_t = db2lin(slider51);
   // Round 29 / Round 73: per-pedal cab trims (dB), now shared by both WAV IR and Built-in 4x12 (IR_MATCH_DB retired).

@@ -381,11 +381,11 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
     bq_amp_t = bq_shelf_coeffs(2400.0, (sliders[57] - 50.0) * 0.20 + 1.5, sr, True)
     bq_amp_p = bq_peak_coeffs(3800.0, 1.25, (sliders[58] - 50.0) * 0.24, sr)
 
-    # Built-in IIR 4x12 cab (Round 69: V30/Sheffield response; also the loudness reference behind IR_E48)
+    # Built-in IIR 4x12 cab (Round 88 Candidate A: milder 850 Hz cut & smoother top; loudness-matched to IR_E48)
     bq_cab_hp = bq_hp_coeffs(85.0, 0.7071, sr)
-    bq_cab_lp1 = bq_lp_coeffs(5800.0, 0.7071, sr)
-    cf1, cf2, cf3 = bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -9.0, sr), bq_peak_coeffs(3100.0, 1.35, 5.5, sr)
-    clp2, cab_comp = bq_lp_coeffs(5200.0, 0.90, sr), 0.7510
+    bq_cab_lp1 = bq_lp_coeffs(5550.0, 0.7071, sr)
+    cf1, cf2, cf3 = bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -3.0, sr), bq_peak_coeffs(3100.0, 1.35, 4.5, sr)
+    clp2, cab_comp = bq_lp_coeffs(4950.0, 0.85, sr), 0.7028
     ir_ped_g = 1.0 if sliders.get(10, 0) < 0.5 else 10.0 ** (({0: -0.8, 1: 3.1, 3: -0.6}.get(int(sliders.get(11, 0) + 0.5), 0.0)) / 20.0)
 
     master_lin = 10.0 ** (sliders[51] * 0.05)
@@ -574,22 +574,22 @@ def check_no_resonant_filters():
 
 
 def check_ir_loudness_constant():
-    # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
-    # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
-    print("[5/9] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    # Round 19 / Round 73 / Round 88 guard: IR_E48 in sepulchre_dsp_ir.jsfx-inc must equal the weighted energy of
+    # the Built-in 4x12 IIR cab (Candidate A, cab_comp_lin = 0.7028) measured through the shared IR weighting filters.
+    print("[5/9] Checking WAV IR loudness-match constant IR_E48 against Built-in 4x12 IIR cab...")
     src = open(os.path.join(ROOT, "sepulchre_dsp_ir.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
         raise AssertionError("IR_E48 constant not found")
     sr = 48000.0
     hp = bq_hp_coeffs(85.0, 0.7071, sr)
-    chain = [hp, bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -9.0, sr), bq_peak_coeffs(3100.0, 1.35, 5.5, sr),
-             bq_lp_coeffs(5200.0, 0.90, sr), bq_lp_coeffs(5800.0, 0.7071, sr)]
+    chain = [hp, bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -3.0, sr), bq_peak_coeffs(3100.0, 1.35, 4.5, sr),
+             bq_lp_coeffs(4950.0, 0.85, sr), bq_lp_coeffs(5550.0, 0.7071, sr)]
     weight = [bq_hp_coeffs(180.0, 0.7071, sr), bq_lp_coeffs(4200.0, 0.7071, sr), bq_peak_coeffs(900.0, 0.8, 3.0, sr)]
     x = [1.0] + [0.0] * 4094
     for b in chain:
         b = list(b); x = [bq_step(b, v) for v in x]
-    x = [v * 0.7510 for v in x[:2047]] + [0.0] * 2048
+    x = [v * 0.7028 for v in x[:2047]] + [0.0] * 2048
     for b in weight:
         b = list(b); x = [bq_step(b, v) for v in x]
     e = sum(v * v for v in x)
