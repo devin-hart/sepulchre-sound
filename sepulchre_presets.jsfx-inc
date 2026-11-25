@@ -81,7 +81,7 @@ function recall_global_preset(idx) (
   slider65 = 0; slider76 = 1; slider75 = 0; slider66 = 0; slider67 = 0; slider68 = 0; slider69 = 0; slider70 = 0; slider71 = 0; slider72 = 0; slider73 = 0;
 
   idx == 0 ? ( // 01 Modern Black (Default): clear, articulate modern BM distortion, tight pre-cut, trimmed fizz
-    slider1 = 0.0; slider2 = 130; slider3 = -50; slider4 = 1;
+    slider1 = 0.0; slider2 = 130; slider3 = -60; slider4 = 1;
     slider10 = 1; slider11 = 2; slider39 = 5.5; slider46 = 5.8; slider47 = 4.2; slider48 = 6.0; slider59 = 4.8; slider61 = 7.0;
     slider65 = 1; slider76 = 0; slider66 = -3.0; slider67 = -2.0; slider68 = 1.0; slider69 = 3.0; slider70 = 2.0; slider71 = 1.0; slider72 = -1.0;
     slider20 = 0; slider77 = 4.5; slider78 = 4.0;
@@ -89,7 +89,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 46; slider56 = 52; slider57 = 58; slider58 = 56; slider51 = 2.3;
   );
   idx == 1 ? ( // 02 Buzzsaw (Early BM / Chainsaw showcase): HM-2 with tight pre-EQ mid push
-    slider1 = 0.0; slider2 = 125; slider3 = -50; slider4 = 1;
+    slider1 = 0.0; slider2 = 125; slider3 = -60; slider4 = 1;
     slider10 = 1; slider11 = 3; slider62 = 7.0; slider63 = 5.5; slider64 = 7.5; slider9 = 6.2;
     slider65 = 1; slider76 = 0; slider66 = -6.0; slider67 = -3.0; slider68 = 3.0; slider69 = 6.0; slider70 = 4.0; slider71 = 1.0; slider72 = 0.0;
     slider20 = 0; slider77 = 4.5; slider78 = 5.0;
@@ -97,7 +97,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 44; slider56 = 54; slider57 = 56; slider58 = 58; slider51 = -0.3;
   );
   idx == 2 ? ( // 03 Atmospheric Wall: wide shimmering RAT + CE-2 + long FDN hall
-    slider1 = 0.0; slider2 = 110; slider3 = -54; slider4 = 1;
+    slider1 = 0.0; slider2 = 110; slider3 = -60; slider4 = 1;
     slider10 = 1; slider11 = 0; slider26 = 5.5; slider27 = 4.2; slider28 = 6.6;
     slider65 = 1; slider76 = 1; slider66 = -2.0; slider67 = -1.0; slider68 = 0.0; slider69 = 2.0; slider70 = 3.0; slider71 = 2.0; slider72 = 1.0;
     slider20 = 1; slider77 = 3.5; slider78 = 5.5;
@@ -105,7 +105,7 @@ function recall_global_preset(idx) (
     slider54 = 1; slider55 = 52; slider56 = 50; slider57 = 56; slider58 = 56; slider51 = -1.1;
   );
   idx == 3 ? ( // 04 Raw 4-Track: lo-fi underground demo DS-1 + solid-state combo, dry
-    slider1 = 0.0; slider2 = 145; slider3 = -50; slider4 = 1;
+    slider1 = 0.0; slider2 = 145; slider3 = -60; slider4 = 1;
     slider10 = 1; slider11 = 1; slider29 = 6.8; slider37 = 6.5; slider38 = 8.0;
     slider65 = 1; slider76 = 0; slider66 = -3.0; slider67 = -2.0; slider68 = 0.0; slider69 = 3.0; slider70 = 2.0; slider71 = 3.0; slider72 = 2.0;
     slider20 = 0; slider77 = 4.5; slider78 = 4.0;
@@ -113,7 +113,7 @@ function recall_global_preset(idx) (
     slider54 = 2; slider55 = 42; slider56 = 58; slider57 = 64; slider58 = 64; slider51 = -0.2;
   );
   idx == 4 ? ( // 05 Cold Lead: focused singing RAT + CE-2 + FDN plate
-    slider1 = 0.0; slider2 = 115; slider3 = -52; slider4 = 1;
+    slider1 = 0.0; slider2 = 115; slider3 = -60; slider4 = 1;
     slider10 = 1; slider11 = 0; slider26 = 6.2; slider27 = 3.4; slider28 = 6.6;
     slider65 = 1; slider76 = 0; slider66 = -2.0; slider67 = -1.0; slider68 = 1.0; slider69 = 3.5; slider70 = 2.5; slider71 = 1.5; slider72 = 1.0;
     slider20 = 1; slider77 = 3.8; slider78 = 5.2;

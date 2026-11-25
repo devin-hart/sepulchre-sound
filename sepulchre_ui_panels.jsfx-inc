@@ -40,7 +40,7 @@ function panel_input(x, w) local(ix, iw, g, y) (
   ui_toggle(ix, lay(24), iw, 24, g ? "NOISE GATE  ON" : "NOISE GATE  OFF", g) ? set_param(4, !g);
   ui_alpha = g ? 1 : UI_DIM;
   y = lay(30);
-  slider3 = ui_hslider(3, ix, y, iw, "THRESHOLD", slider3, -80, -30, -50, 0.5, "%.1f dB", 0);
+  slider3 = ui_hslider(3, ix, y, iw, "THRESHOLD", slider3, -80, -30, -60, 0.5, "%.1f dB", 0);
   f_label(); gate_gain > 0.5 ? c_thumb() : c_ember();                 // gate state LED after the label
   gfx_circle(ui_ox + (ix + u_tw_sp("THRESHOLD", 1.6) + 9) * ui_S, ui_oy + (y + 7) * ui_S, 2.5 * ui_S, 1, 1);   // Round 63: round gate lamp
   ui_alpha = 1;
