@@ -125,7 +125,7 @@ def main():
             c30 = interp_crossing(SINE_LEVELS_DB, thd_table[m], 30.0)
             print(f"  {m:<5}: 1% @ {c1:<10} | 10% @ {c10:<10} | 30% @ {c30:<10}")
 
-        # 2. DI renders: di_input.wav & decay_low_e.wav at Trim 0, +6, +12, +18 dB
+        # 2. Test-clip renders: di_input.wav (synthetic 3-sine chord 82/164/247 Hz) & decay_low_e.wav at Trim 0..+18 dB
         di_files = [
             ("di_input.wav", os.path.join(rc.RENDER_DIR, "di_input.wav"), 0.50),
             ("decay_low_e.wav", os.path.join(rc.RENDER_DIR, "decay_low_e.wav"), 1.60),

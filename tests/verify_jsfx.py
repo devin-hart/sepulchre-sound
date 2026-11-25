@@ -385,7 +385,7 @@ def simulate_chain(sliders_in, signal, sr=48000.0, include_amp_cab=True, ref_cab
     bq_cab_hp = bq_hp_coeffs(85.0, 0.7071, sr)
     bq_cab_lp1 = bq_lp_coeffs(5550.0, 0.7071, sr)
     cf1, cf2, cf3 = bq_peak_coeffs(115.0, 1.35, 6.5, sr), bq_peak_coeffs(850.0, 0.80, -3.0, sr), bq_peak_coeffs(3100.0, 1.35, 4.5, sr)
-    clp2, cab_comp = bq_lp_coeffs(4950.0, 0.85, sr), 0.7028
+    clp2, cab_comp = bq_lp_coeffs(4950.0, 0.85, sr), 0.7028 * (10.0 ** (1.0 / 20.0))  # cab_comp_lin * db2lin(CAB_TRIM_DB=1.0)
     ir_ped_g = 1.0 if sliders.get(10, 0) < 0.5 else 10.0 ** (({0: -0.8, 1: 3.1, 3: -0.6}.get(int(sliders.get(11, 0) + 0.5), 0.0)) / 20.0)
 
     master_lin = 10.0 ** (sliders[51] * 0.05)

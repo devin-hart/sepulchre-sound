@@ -62,6 +62,8 @@ function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   bq_peak(bq_cab_f3, 3100.0, 1.35, 4.5);
   bq_lp(bq_cab_lp2, 4950.0, 0.85);
   cab_comp_lin = 0.7028;   // Round 88 Candidate A: IR_E48 match (IR_E48 = 0.132771 unchanged)
+  CAB_TRIM_DB = 1.0;       // Round 90 Task 13: measured Built-in vs IR01 trim (broadband riff, all 4 pedals <= 0.21 dB)
+  cab_out_lin = cab_comp_lin * db2lin(CAB_TRIM_DB);
 
   master_out_t = db2lin(slider51);
   // Round 29 / Round 73: per-pedal cab trims (dB), now shared by both WAV IR and Built-in 4x12 (IR_MATCH_DB retired).
@@ -121,7 +123,7 @@ function proc_cab_out() local(l, r, bp2, use_ir) (
       l = bq_proc_l(bq_cab_f3, l);  r = bq_proc_r(bq_cab_f3, r);
       l = bq_proc_l(bq_cab_lp2, l); r = bq_proc_r(bq_cab_lp2, r);
       l = bq_proc_l(bq_cab_lp1, l); r = bq_proc_r(bq_cab_lp1, r);
-      l *= cab_comp_lin; r *= cab_comp_lin;
+      l *= cab_out_lin; r *= cab_out_lin;
     );
     l *= ir_ped_g_s; r *= ir_ped_g_s;   // Round 73: shared per-pedal balance for both IR File and Built-in 4x12
   ) : ( cab_was_on ? ( cab_was_on = 0; cab_ir_was_on = 0; memset(ir_blk_cur, 0, 32768); memset(ir_blk_last, 0, 32768);

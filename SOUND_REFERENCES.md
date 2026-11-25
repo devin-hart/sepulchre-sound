@@ -90,7 +90,7 @@ These are historical facts, which is not the same as what the plugin models. The
 ### Cab (`sepulchre_dsp_amp_cab.jsfx-inc` & `sepulchre_dsp_ir.jsfx-inc`)
 - **WAV IR UPOLS** (128-sample latency): user-loadable `.wav` IRs via `slider53` folder browser (`Data/sepulchre_irs/`) or drag-and-drop (`@serialize` MRU). No commercial IRs ship in the repo (Devin's local `Data/sepulchre_irs/` includes Ugritone Old School Black Metal, which may not be redistributed).
 - **Loudness matching:** broadband guitar+K weighting (`HP 180 Hz -> LP 4200 Hz -> Peak 900 Hz +3 dB`) normalized to `IR_E48 = 0.132771` **[measured]** (Round 73; per-slot trims dropped in Round 68; `IR_MATCH_DB` retired in Round 73/76); shared per-pedal cab trims `ir_ped_g_t` **[measured]** apply to both WAV IR and Built-in 4x12.
-- **Built-in 4x12 IIR cab** (selectable zero-latency option via `slider52`, also fallback when no IR is loaded): Round 88 Candidate A (`f2 = 850 Hz -3.0 dB`, `f3 = 3100 Hz +4.5 dB`, `lp2 = 4950 Hz Q 0.85`, `lp1 = 5550 Hz`, `cab_comp_lin = 0.7028`) **[measured]**. Chosen on research (mids present, top fizz down) + R83 IR measurement; level-matched A/B by ear (Devin) heard no clear difference, so tagged **[measured]** (not **[ear]**) so a later ear test on multi-riff double-tracked DI takes can still revise it.
+- **Built-in 4x12 IIR cab** (selectable zero-latency option via `slider52`, also fallback when no IR is loaded): Round 88 Candidate A (`f2 = 850 Hz -3.0 dB`, `f3 = 3100 Hz +4.5 dB`, `lp2 = 4950 Hz Q 0.85`, `lp1 = 5550 Hz`, `cab_comp_lin = 0.7028` + Round 90 `CAB_TRIM_DB = +1.0 dB` measured against `01_BlackWizard_Center.wav` on a broadband multi-note riff) **[measured]**. Chosen on research (mids present, top fizz down) + R83 IR measurement; level-matched A/B by ear (Devin) heard no clear difference, so tagged **[measured]** (not **[ear]**) so a later ear test on multi-riff double-tracked DI takes can still revise it.
 
 ### Chorus (`sepulchre_dsp_fx.jsfx-inc`)
 - Boss CE-2 per ElectroSmash [circuit]: triangle LFO, BBD with 3rd-order anti-alias filters, 50/50 mix.
@@ -137,7 +137,7 @@ Ranked by expected impact on out-of-the-box sound. Each has an experiment that s
   - Neural's plugins are built around that reference, so "interface gain 0, plugin input 0" behaves like plugging into the real amp.
   - NAM stores the same information as `input_level_dbu` metadata.
 - **Real guitar levels** (Elliott Sound Products, measured on a scope): humbucker bridge chords about **0.85 V peak** (average 0.62 V peak). Single coils 0.25–0.45 V peak. Expect about +6 dB more when picking hard.
-- **Our test DI:** `tests/render/di_input.wav` peaks at **−12.5 dBFS**, which the plugin treats as **0.24 V**. On a Scarlett at minimum gain, the same signal is about **1.06 V**, a normal hot humbucker.
+- **Our test clip:** `tests/render/di_input.wav` is a **synthetic 0.45 s three-sine chord (82/164/247 Hz)** peaking at **−12.5 dBFS**, which the plugin treats as **0.24 V** (not a real recorded guitar DI). On a Scarlett at minimum gain, the same signal is about **1.06 V**, a normal hot humbucker.
   - So every pedal model is driven about **12.5 dB below** what the real pedal would get from the same guitar.
   - The INPUT meter's target zone (−18..−6 dBFS) tells the player to keep it there.
 - **Why it matters:** these are nonlinear models with real thresholds (diodes at 0.6–0.7 V, rails at ±4 V, the HM-2's 0.3 V Ge coring dead band). At a quarter of the voltage:
@@ -165,7 +165,7 @@ Ranked by expected impact on out-of-the-box sound. Each has an experiment that s
 - **Experiment:** prototype it in the Python mirror first. A/B it on Devin's DI against the current amp with the levels matched.
 
 ### C. The test and calibration material is too thin (high impact on preset quality, cheap)
-- Every preset loudness and every "does it sound right" decision rests on one **0.5 s** clip (`di_input.wav`) and synthetic tones.
+- Every preset loudness and every "does it sound right" decision rests on `di_input.wav` (**a synthetic 0.45 s three-sine chord at 82/164/247 Hz**, not a recorded guitar DI) and synthetic tones. Because it has no energy above 400 Hz, it is a poor signal for judging cabinet brightness/fizz differences (3–8 kHz).
 - Black metal is mostly sustained **tremolo-picked** notes and open chords, played double-tracked.
 - **Needed:** Devin's own DI takes through his interface at a known gain, covering:
   - tremolo-picked single notes on the low strings;
