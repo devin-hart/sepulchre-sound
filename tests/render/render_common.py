@@ -12,6 +12,7 @@ RENDER_DIR = os.path.join(REPO_DIR, "tests", "render")
 REAPER_EXE = os.environ.get("REAPER_EXE", "D:/Reaper/reaper.exe" if sys.platform == "win32" else "/usr/bin/reaper")
 APPDATA_DIR = os.environ.get("APPDATA", os.path.expanduser("~\\AppData\\Roaming") if sys.platform == "win32" else os.path.expanduser("~/.config"))
 IR_DIR = os.environ.get("SEPULCHRE_IR_DIR", os.path.join(APPDATA_DIR, "REAPER", "Data", "sepulchre_irs"))
+DI_DIR = os.environ.get("SEPULCHRE_DI_DIR", "")
 
 def get_declared_sliders(jsfx_path=None):
     if jsfx_path is None:
@@ -88,7 +89,7 @@ PEDAL_DEFAULTS = {
     "HM-2": {11: 3, 62: 10.0, 63: 10.0, 64: 10.0, 9: 4.4},
 }
 
-def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
+def make_track(name, s_dict, wav_file, pos=0.0, length=0.45, pan=0.0, fx_path="sepulchre_sound/sepulchre_sound.jsfx"):
     invalid = [k for k in s_dict.keys() if k not in VALID_SLIDERS]
     if invalid:
         raise ValueError(f"Stale/undeclared slider ID(s) passed to make_track: {invalid}")
@@ -103,7 +104,7 @@ def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
     clean_wav = wav_file.replace("\\", "/")
     return f"""  <TRACK
     NAME "{name}"
-    VOLPAN 1 0 -1 -1 1
+    VOLPAN 1 {pan} -1 -1 1
     MUTESOLO 0 0 0
     IPHASE 0
     NCHAN 2
@@ -114,7 +115,7 @@ def make_track(name, s_dict, wav_file, pos=0.0, length=0.45):
       LASTSEL 0
       DOCKED 0
       BYPASS 0 0 0
-      <JS sepulchre_sound/sepulchre_sound.jsfx ""
+      <JS {fx_path} ""
         {s_line}
       >
       WAK 0 0
@@ -212,3 +213,40 @@ def calc_lufs(sig):
 def calc_peak_db(sig):
     pk = np.max(np.abs(sig))
     return 20.0 * math.log10(max(1e-12, pk))
+
+
+def wav_duration(path):
+    with wave.open(path, "rb") as wf:
+        return wf.getnframes() / float(wf.getframerate())
+
+
+def find_external_di_pairs(di_dir=None):
+    """Discover optional user/third-party DI take pairs in SEPULCHRE_DI_DIR (*_L/*_R or *_1/*_2.wav).
+    Returns a list of (stem, path_l, path_r); returns [] cleanly if the env var / directory is unset."""
+    d = di_dir if di_dir is not None else os.environ.get("SEPULCHRE_DI_DIR", DI_DIR)
+    if not d or not os.path.isdir(d):
+        return []
+    wavs = sorted(f for f in os.listdir(d) if f.lower().endswith(".wav"))
+    wav_set = set(wavs)
+    pairs = []
+    for f in wavs:
+        for suf_l, suf_r in (("_L.wav", "_R.wav"), ("_l.wav", "_r.wav"), ("_1.wav", "_2.wav")):
+            if f.endswith(suf_l):
+                partner = f[:-len(suf_l)] + suf_r
+                if partner in wav_set:
+                    pairs.append((f[:-len(suf_l)], os.path.join(d, f), os.path.join(d, partner)))
+    return pairs
+
+
+def render_double_tracked_pair(name, s_dict, wav_l, wav_r, out_wav, length=None, sr=48000,
+                               fx_path="sepulchre_sound/sepulchre_sound.jsfx", rpp_path=None):
+    """Render two guitar takes through identical settings (or a (s_left, s_right) tuple) panned hard L/R."""
+    s_l, s_r = s_dict if isinstance(s_dict, tuple) else (s_dict, s_dict)
+    dur = length if length is not None else min(wav_duration(wav_l), wav_duration(wav_r))
+    trk_l = make_track(f"{name}_L", s_l, wav_l, pos=0.0, length=dur, pan=-1.0, fx_path=fx_path)
+    trk_r = make_track(f"{name}_R", s_r, wav_r, pos=0.0, length=dur, pan=1.0, fx_path=fx_path)
+    rpp = rpp_path or (out_wav + ".rpp")
+    with open(rpp, "w", encoding="utf-8") as f:
+        f.write(build_rpp([trk_l, trk_r], out_wav, dur + 0.15, sr=sr))
+    run_reaper(rpp)
+    return read_wav24(out_wav, 0), read_wav24(out_wav, 1)
