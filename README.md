@@ -49,9 +49,16 @@ No commercial IRs are bundled in this repository. Good free starting points:
 
 The distortion pedals are calibrated to the `1 V peak ≈ -12 dBFS` interface convention (matching Focusrite Scarlett / UAD Apollo Hi-Z inputs at minimum gain). Set your interface gain or **I INPUT TRIM** so hard picking peaks inside the **−18 to −6 dBFS** target zone on the INPUT meter.
 
+## Getting the Black Metal Sound
+
+- **Double-tracking:** Record the riff twice and insert a Sepulchre Sound instance on each take, panned hard L/R, using a different pedal or cabinet IR on each side. Classic records get their width from two contrasting rigs rather than one tone duplicated.
+- **Delay:** For a cavernous, drenched atmosphere, place a delay plugin *after* Sepulchre Sound in your FX chain. Delay is intentionally omitted from the plugin to keep the signal chain focused.
+- **Clarity on open chords:** Raise **LOW CUT** (`40–180 Hz` in **I INPUT**) and switch **III EQUALIZER** to **PRE PEDAL** to trim sub-bass before the clipping stage. Starving the pedal of low-end energy prevents intermodulation from smearing minor and dissonant chords.
+- **Gain:** Use less pedal **DIST** / **DISTORTION** than you think — moderate gain sounds heavier and clearer once double-tracked, keeping fast tremolo pick attack audible instead of collapsing into white noise.
+
 ## Verification
 
 ```bash
 python3 tests/verify_jsfx.py
 ```
-Requires Python 3 (`numpy` optional; enables real-IR loudness check `[8/8]` and live REAPER render tests in `tests/render/`).
+Requires Python 3 (`numpy` optional; enables real-IR loudness check `[9/9]` and live REAPER render tests in `tests/render/`).
