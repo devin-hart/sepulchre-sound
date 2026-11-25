@@ -40,8 +40,10 @@ Sepulchre Sound ships with a built-in V30/Sheffield 4x12 cabinet model (zero lat
 ### Free Third-Party IR Packs
 No commercial IRs are bundled in this repository. Good free starting points:
 - **overdriven.fr US-412 / V30:** https://overdriven.fr/overdriven/index.php/us-412-v30-home-studio-edition-free-guitar-cab-impulse-responses-download/
-- **Shift Line Guitar HD IR Pack:** https://shift-line.com/guitarhdirpack1
+- **Shift Line Guitar HD IR Pack (includes 4x12 & open-back 1x12 combos):** https://shift-line.com/guitarhdirpack1
 - **Jester Dyne Brutal Pack:** https://www.jester-dyne-productions.com/brutal-ir-pack/
+- **Soundwoofer (free community IR library, including 1x12 combos):** https://soundwoofer.com/
+- **Origin Effects IR Cab Library (includes open-back 1x12 combos):** https://origineffects.com/ir-cab-library/
 
 ## Input Gain Calibration
 
