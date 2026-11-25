@@ -209,13 +209,12 @@ Devin's call: **users can load their own IR files**, and the plugin should bundl
 
 | Candidate | Cab | Terms found | Verdict |
 | :-- | :-- | :-- | :-- |
-| Shift Line *Guitar HD IR Pack 1* | Includes a real Peavey 5150 4x12 (Sheffield 1200) in the full pack; the free pack's contents aren't listed | No license text published | **Ask first.** Contact page exists. |
+| Shift Line *Guitar HD IR Pack 1* | Paid full pack includes Peavey 5150 4x12 (Sheffield 1200) and open-back 1x12 combos (Fender Deluxe Reverb Jensen P12R, Yerasov Bluespace Greenback); free pack is 4 impulses with cab models unlisted | No license text published | **Ask first.** Contact page exists (link-only for now). |
 | Jester Dyne *Brutal Pack* | Modified Behringer BG412S, V30 / G12F-60 / DV-77, 44.1 + 48 kHz | Author: free "even for commercial use"; silent on redistribution. (darwinscat calls it CC0, but the author's page doesn't.) | **Ask first.** Strongest non-5150 candidate. |
 | overdriven.fr *US-412 / V30* | Mesa-style 4x12 V30 | Free for any use, but **software vendors may not distribute without written agreement**; link to the download instead | Not bundleable without permission |
 | Origin Effects, Forward Audio free packs, Metal Cabs (Ekholm), fnpngn repo | various (Origin includes open-back 1x12 Fender-style combos) | Commercial music use OK; no redistribution grant, or redistribution prohibited (Origin, per darwinscat); Ekholm's link is dead | Not bundleable (link-only) |
-| Shift Line *Guitar HD IR Pack 1* / *Fender Twin 73* (1x12 & 2x12 open-back) | 1x12 open-back combos (Fender Deluxe Reverb Jensen P12R, Yerasov Bluespace Greenback) + 2x12 Fender Twin 73 | Free download; no published redistribution/attribution license text | **Ask first** (link-only for now) |
 | Soundwoofer (community IR library, `soundwoofer.com`) | Community 1x12 & open-back combo IRs | Free download; no blanket commercial/redistribution license (per-uploader copyright) | Not bundleable (link-only; check per-file terms) |
-| Freesound.org (`CC0` / `CC-BY` filtered 1x12 IRs) | Community-captured 1x12 / open-back IRs | CC0 (public domain, commercial + redistribution, no attribution) or CC-BY (commercial + redistribution with attribution) | **Bundleable** only after verifying individual file's CC0/CC-BY tag and audio quality |
+| Freesound.org (`CC0` / `CC-BY` filtered 1x12 IRs) | Community-captured 1x12 / open-back IRs | CC0 (public domain, commercial + redistribution, no attribution) or CC-BY (commercial + redistribution with attribution) | **Bundleable** only after verifying individual file's CC0/CC-BY tag and audio quality (search strategy only; **no bundleable 1x12 IR found yet**) |
 
 **Recommendation:**
 1. Ship with the **built-in cab as the default**, so the plugin sounds right for everyone with no files. It needs voicing work: model it on a 4x12 V30 or Sheffield response rather than the current generic curve.
@@ -223,7 +222,7 @@ Devin's call: **users can load their own IR files**, and the plugin should bundl
 3. Ask Shift Line (5150) and Jester Dyne (Brutal Pack) for written permission to bundle one IR, with attribution. **The email is Devin's to send.**
 4. Until a reply arrives, the README links to free downloads, which is always allowed, including overdriven.fr.
 
-**Status (Devin, 2026-11-20):** bundling and permission emails are deferred. Keep using the local Ugritone IRs for now; Devin wants to test other IRs first. That makes **user-loadable IRs the first cab task**: today only the 10 hard-coded filenames load.
+**Status (2026-11-24):** user-loadable IRs shipped in Rounds 68/71; bundling and permission emails remain deferred. **11d outcome: no bundleable 1x12 IR found yet** (links only in README). Keep using the local Ugritone IRs for testing until Devin tests/clears a redistributable IR.
 
 **User-IR design notes (for the implementing agent; verify each against the current JSFX reference):**
 - **File slider:** replace the fixed `slider53` enum with a JSFX **file slider**, `slider53:/sepulchre_irs:<default>:Cabinet IR`. REAPER then lists every file in `<REAPER resource>/Data/sepulchre_irs/`, and `file_open(slider53)` opens the selected one.
