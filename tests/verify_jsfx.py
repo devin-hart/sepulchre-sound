@@ -68,7 +68,7 @@ def strip_comments_and_strings(code):
 
 
 def check_syntax_and_r2_fixes():
-    print("[1/8] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
+    print("[1/9] Checking EEL2 files (<300 lines), dynamic memory map, and Round 2 bug-fix invariants...")
     raw_by_file = {}
     cleaned_by_file = {}
     for fname in EXPECTED_FILES:
@@ -474,7 +474,7 @@ def parse_global_presets(presets_src):
 
 
 def check_presets_dc_and_levels(presets_src):
-    print("[2/8] Presets through the reference cab: peak below the -3.1 dBFS limiter knee, DC (loudness: REAPER renders)...")
+    print("[2/9] Presets through the reference cab: peak below the -3.1 dBFS limiter knee, DC (loudness: REAPER renders)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n_samples = int(0.45 * sr)
@@ -510,7 +510,7 @@ def check_presets_dc_and_levels(presets_src):
 def check_pre_cab_aliasing_all_bins(presets_src):
     # Round 9: every pedal model, at its preset settings, 8x oversampled. In-band (20 Hz - 8 kHz)
     # limit -40 dB for every pedal (Round 30: HM-2 tightened from -34 dB after its Round 23/27 rebuild measured -47 dB).
-    print("[3/8] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
+    print("[3/9] Measuring PRE-CABINET 8x oversampled aliasing per pedal (2578 Hz tone)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = 1024
@@ -552,7 +552,7 @@ def pole_q(b):
 def check_no_resonant_filters():
     # Round 11 guard: the Round 9 MT-2 pre-hump (RBJ peak, Q 1.2 @ +30 dB) had pole Q ~6.7 and rang at 1 kHz
     # ('whistle'). Every pedal filter must keep pole Q <= 3.5 at every knob extreme.
-    print("[4/8] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
+    print("[4/9] Checking pedal + GE-7 filter pole Q (no ringing resonances) across knob extremes...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     worst = 0.0
@@ -576,7 +576,7 @@ def check_no_resonant_filters():
 def check_ir_loudness_constant():
     # Round 19 guard: IR_E48 in sepulchre_dsp_amp_cab.jsfx-inc must equal the weighted energy of IIR cab profile 0
     # (cab HPF + profile 0 + 7.8 kHz LPF, x0.72), measured after the cab HPF and the IR weighting filters.
-    print("[5/8] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
+    print("[5/9] Checking WAV IR loudness-match constant IR_E48 against IIR profile 0...")
     src = open(os.path.join(ROOT, "sepulchre_dsp_ir.jsfx-inc"), "r", encoding="utf-8").read()
     m = re.search(r"^IR_E48 = ([0-9.]+);", src, flags=re.MULTILINE)
     if not m:
@@ -602,7 +602,7 @@ def check_ir_loudness_constant():
 def check_distortion_gain_curve(presets_src):
     # Round 7 guard: a high-gain stage must stay saturated as notes decay. At preset 0 settings, the
     # distortion-only output RMS for a -36 dBFS low-E note must be within 6 dB of the -12 dBFS output.
-    print("[6/8] Verifying high-gain saturation curve (distortion output vs input level)...")
+    print("[6/9] Verifying high-gain saturation curve (distortion output vs input level)...")
     presets = parse_global_presets(presets_src)
     sr = 48000.0
     n = int(0.25 * sr)
@@ -620,7 +620,7 @@ def check_distortion_gain_curve(presets_src):
 
 def check_defaults_match_preset_1(presets_src):
     # Round 55: a freshly inserted plugin must sound exactly like the preset its header shows (01, slider60 = 0)
-    print("[7/8] Checking slider defaults == preset 01 (fresh insert)...")
+    print("[7/9] Checking slider defaults == preset 01 (fresh insert)...")
     if not SLIDER_DEFAULTS:
         load_slider_defaults()
     p0 = parse_global_presets(presets_src)[0]
@@ -630,11 +630,11 @@ def check_defaults_match_preset_1(presets_src):
     print(f"  - {len(p0)} preset-01 sliders checked, {len(bad)} mismatches")
     if bad:
         raise AssertionError(f"slider defaults differ from preset 01: {bad}")
-    # Round 67: also verify UI double-click defaults (ui_hslider dflt_v) match sepulchre_sound.jsfx slider defaults
+    # Round 67: also verify UI double-click defaults (ui_hslider / ui_hslider_db dflt_v) match slider defaults
     with open(os.path.join(ROOT, "sepulchre_ui_panels.jsfx-inc"), "r", encoding="utf-8") as f:
         panels_src = strip_comments_and_strings(f.read())
     ui_bad, ui_cnt = [], 0
-    for m in re.finditer(r"ui_hslider\(\s*(\d+)\s*,(?:[^,]+,){7}\s*([-0-9.]+)\s*,", panels_src):
+    for m in re.finditer(r"ui_hslider(?:_db)?\(\s*(\d+)\s*,(?:[^,]+,){7}\s*([-0-9.]+)\s*,", panels_src):
         sid, dflt = int(m.group(1)), float(m.group(2))
         ui_cnt += 1
         if abs(SLIDER_DEFAULTS.get(sid, 1e9) - dflt) > 1e-9:
@@ -642,6 +642,67 @@ def check_defaults_match_preset_1(presets_src):
     print(f"  - {ui_cnt} UI double-click defaults checked, {len(ui_bad)} mismatches")
     if ui_bad:
         raise AssertionError(f"UI double-click defaults differ from slider defaults: {ui_bad}")
+
+
+def _strip_comments_only(code):
+    return re.sub(r"//[^\n]*", "", re.sub(r"/\*.*?\*/", "", code, flags=re.DOTALL))
+
+
+def check_tone_readouts_match_dsp(raw_files):
+    # Round 80 (Task 10): verify every tone-control dB readout in sepulchre_ui_panels.jsfx-inc matches the DSP gain
+    # at slider min, mid, and max (either via shared helper in ui_hslider_db or direct bip_k vs DSP expression).
+    print("[8/9] Checking UI tone-control dB readouts against DSP gain expressions...")
+    panels = _strip_comments_only(raw_files["sepulchre_ui_panels.jsfx-inc"])
+    dsp_dist = _strip_comments_only(raw_files["sepulchre_dsp_dist.jsfx-inc"])
+    dsp_amp = _strip_comments_only(raw_files["sepulchre_dsp_amp_cab.jsfx-inc"])
+    dsp_all = dsp_dist + "\n" + dsp_amp
+
+    checked = 0
+    # 1. Shared-helper sliders: ui_hslider_db(sid, ..., fn(sliderN))
+    for m in re.finditer(
+        r"ui_hslider_db\(\s*(\d+)\s*,(?:[^,]+,){5}\s*([-0-9.]+)\s*,\s*([-0-9.]+)\s*,[^,]+,[^,]+,\s*([a-zA-Z_]\w*)\(\s*slider(\d+)\s*\)\s*\)",
+        panels,
+    ):
+        sid, fn, ref_sid = int(m.group(1)), m.group(4), int(m.group(5))
+        if sid != ref_sid:
+            raise AssertionError(f"ui_hslider_db slider{sid} calls {fn}(slider{ref_sid})")
+        if not re.search(rf"\bfunction\s+{re.escape(fn)}\s*\(", dsp_all):
+            raise AssertionError(f"Shared dB helper {fn}() not defined in DSP files")
+        if not re.search(rf"\b{re.escape(fn)}\(\s*slider{sid}\s*\)", dsp_all):
+            raise AssertionError(f"DSP does not call shared helper {fn}(slider{sid})")
+        checked += 1
+
+    # 2. Direct bip_k dB sliders: ui_hslider(sid, ..., "%+.1f dB", bip_k) with bip_k > 0
+    for m in re.finditer(
+        r'ui_hslider\(\s*(\d+)\s*,(?:[^,]+,){5}\s*([-0-9.]+)\s*,\s*([-0-9.]+)\s*,[^,]+,[^,]+,\s*"%\+\.1f dB"\s*,\s*([-0-9.]+)\s*\)',
+        panels,
+    ):
+        sid, min_v, max_v, bip_k = int(m.group(1)), float(m.group(2)), float(m.group(3)), float(m.group(4))
+        if bip_k <= 0:
+            continue
+        mid_v = (min_v + max_v) * 0.5
+        m_dsp = re.search(
+            rf"(?:gyro_peak|bq_hshelf|bq_lshelf|bq_peak)\([^;]*,\s*([^,;]*\bslider{sid}\b[^,;]*)\)",
+            dsp_all,
+        ) or re.search(rf"\b[a-zA-Z_]\w*_db\s*=\s*([^;]*\bslider{sid}\b[^;]*);", dsp_all)
+        if not m_dsp:
+            raise AssertionError(f"No DSP dB expression found for UI slider{sid} (bip_k={bip_k})")
+        expr = m_dsp.group(1).strip()
+        for v in (min_v, mid_v, max_v):
+            ui_db = (v - mid_v) * bip_k
+            py_expr = re.sub(rf"\bslider{sid}\b", repr(float(v)), expr)
+            if not re.fullmatch(r"[0-9.eE+\-*/() ]+", py_expr):
+                raise AssertionError(f"Unsupported DSP dB expression for slider{sid}: {expr}")
+            dsp_db = float(eval(py_expr, {"__builtins__": {}}, {}))
+            if abs(ui_db - dsp_db) > 1e-9:
+                raise AssertionError(
+                    f"slider{sid} readout mismatch at val={v}: UI={ui_db:+.2f} dB vs DSP={dsp_db:+.2f} dB ({expr})"
+                )
+        checked += 1
+
+    if checked < 7:
+        raise AssertionError(f"Expected >= 7 tone dB readouts checked, got {checked}")
+    print(f"  - {checked} tone-control dB readouts verified against DSP (shared helpers + min/mid/max).")
 
 
 def _read_wav_mono(path):
@@ -680,7 +741,7 @@ def check_real_ir_loudness(presets_src, raw_files):
     # no chorus / reverb (the mirror has neither). Those presets must sit within 1 dB of the bank target; FX-heavy ones
     # are printed only (their loudness gate is the REAPER render test). The Ugritone IRs are NOT in the repo: they are
     # read from SEPULCHRE_IR_DIR or %APPDATA%\REAPER\Data\sepulchre_irs, and the check is skipped without them.
-    print("[8/8] Preset loudness through the real slot-0 IR (di_input.wav, BS.1770 ungated)...")
+    print("[9/9] Preset loudness through the real slot-0 IR (di_input.wav, BS.1770 ungated)...")
     try:
         import numpy as np
     except ImportError:
@@ -749,6 +810,7 @@ if __name__ == "__main__":
         check_ir_loudness_constant()
         check_distortion_gain_curve(raw_files["sepulchre_presets.jsfx-inc"])
         check_defaults_match_preset_1(raw_files["sepulchre_presets.jsfx-inc"])
+        check_tone_readouts_match_dsp(raw_files)
         check_real_ir_loudness(raw_files["sepulchre_presets.jsfx-inc"], raw_files)
         print("\nALL VERIFICATION & OFFLINE DSP CHECKS PASSED.")
     except Exception as exc:

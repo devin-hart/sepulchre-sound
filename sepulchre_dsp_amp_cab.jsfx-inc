@@ -34,13 +34,19 @@ function reset_amp_cab_state() (
   ir_ped_g_s = ir_ped_g_t;
 );
 
+// Round 80 (Task 10): shared Amp/Air dB helpers used by both DSP and UI readouts
+function amp_bass_db(v) ( (v - 50.0) * 0.20; );
+function amp_mid_db(v)  ( (v - 50.0) * 0.22 - (slider54 > 1.5 ? 2.5 : 1.0); );
+function amp_treb_db(v) ( (v - 50.0) * 0.20 + 1.5; );
+function amp_air_db(v)  ( (v - 50.0) * 0.24; );
+
 function update_amp_cab_coeffs() local(bass_db, mid_db, treb_db, pres_db) (
   // Amp Stage (Tube JCM/5150 vs Solid-State Death/Black Metal voicing)
   bq_hp(bq_amp_hp, 75.0, 0.707);
-  bass_db = (slider55 - 50.0) * 0.20;
-  mid_db  = (slider56 - 50.0) * 0.22 - (slider54 > 1.5 ? 2.5 : 1.0);
-  treb_db = (slider57 - 50.0) * 0.20 + 1.5;
-  pres_db = (slider58 - 50.0) * 0.24;
+  bass_db = amp_bass_db(slider55);
+  mid_db  = amp_mid_db(slider56);
+  treb_db = amp_treb_db(slider57);
+  pres_db = amp_air_db(slider58);
 
   bq_lshelf(bq_amp_bass, 125.0, bass_db);
   bq_peak(bq_amp_mid, slider54 > 1.5 ? 620.0 : 520.0, 1.15, mid_db);

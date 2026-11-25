@@ -158,11 +158,13 @@ function ui_power_led(x, y, on) local(hit, a0) (
 
 // Horizontal slider (30 tall). bip_k > 0: shows (val - centre) * bip_k, filled from the centre detent.
 // bip_k == -1: Metal Zone MID FREQ, shown as 300 Hz..4 kHz (log sweep of a 0..10 knob).
+// When ui_disp_use is set (by ui_hslider_db), displays ui_disp_v directly so DSP & UI share one formula.
 function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, bip_k)
   local(ty, norm, new_val, d_norm, now_t, cx, fx) (
   f_label(); c_lab(); u_text_sp(x, y + 1, label, 1.6);
   f_value(); c_bone();
-  bip_k > 0 ? sprintf(#val_str, fmt, (val - (min_v + max_v) * 0.5) * bip_k)
+  ui_disp_use ? ( ui_disp_use = 0; sprintf(#val_str, fmt, ui_disp_v); )
+  : bip_k > 0 ? sprintf(#val_str, fmt, (val - (min_v + max_v) * 0.5) * bip_k)
   : bip_k < 0 ? sprintf(#val_str, fmt, 300 * (4000 / 300) ^ (val * 0.1)) : sprintf(#val_str, fmt, val);
   u_text_r(x + w, y, #val_str);
 
@@ -203,6 +205,10 @@ function ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, fmt, 
   ) : ( c_fill(); u_rect(x + 1, ty, max(0, fx - x - 1), 3); );
   c_shade(); u_rect(fx - 1.5, ty - 5, 5, 15); c_thumb(); u_rect(fx - 2.5, ty - 6, 5, 15);   // bone chip + shadow
   new_val;
+);
+function ui_hslider_db(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, disp_db) (
+  ui_disp_use = 1; ui_disp_v = disp_db;
+  ui_hslider(id, x, y, w, label, val, min_v, max_v, dflt_v, step_v, "%+.1f dB", 1);
 );
 
 function m_x(db, x, w) ( x + w * clamp((db + 60) / 60, 0, 1); );

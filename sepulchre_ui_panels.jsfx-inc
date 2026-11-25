@@ -109,9 +109,9 @@ function panel_mod(mod_id, num_i, x, w) local(ix, iw, en, bw, a, y, p, n) (
       slider38 = ui_hslider(38, ix, lay(30), iw, "LEVEL", slider38, 0, 10, 8, 0.1, "%.1f", 0);
     ) : p == 2 ? (
       slider39 = ui_hslider(39, ix, lay(30), iw, "DIST", slider39, 0, 10, 5.5, 0.1, "%.1f", 0);
-      slider46 = ui_hslider(46, ix, lay(30), iw, "HIGH", slider46, 0, 10, 5.8, 0.1, "%+.1f dB", 4);
-      slider47 = ui_hslider(47, ix, lay(30), iw, "LOW", slider47, 0, 10, 4.2, 0.1, "%+.1f dB", 4);
-      slider48 = ui_hslider(48, ix, lay(30), iw, "MIDDLE", slider48, 0, 10, 6, 0.1, "%+.1f dB", 3);
+      slider46 = ui_hslider(46, ix, lay(30), iw, "HIGH", slider46, 0, 10, 5.8, 0.1, "%+.1f dB", 3.2);
+      slider47 = ui_hslider(47, ix, lay(30), iw, "LOW", slider47, 0, 10, 4.2, 0.1, "%+.1f dB", 3.2);
+      slider48 = ui_hslider(48, ix, lay(30), iw, "MIDDLE", slider48, 0, 10, 6, 0.1, "%+.1f dB", 2.4);
       slider59 = ui_hslider(59, ix, lay(30), iw, "MID FREQ", slider59, 0, 10, 4.8, 0.1, "%d Hz", -1);
       slider61 = ui_hslider(61, ix, lay(30), iw, "LEVEL", slider61, 0, 10, 7.0, 0.1, "%.1f", 0);
     ) : (
@@ -168,9 +168,9 @@ function panel_amp(x, w) local(ix, iw, on, bw, y, m) (
   ui_seg(ix + bw + 3, y, bw, 24, "TUBE", m == 1) ? set_param(54, 1);
   ui_seg(ix + 2 * (bw + 3), y, bw, 24, "SOLID", m == 2) ? set_param(54, 2);
   ui_alpha = on ? 1 : UI_DIM;
-  slider55 = ui_hslider(55, ix, lay(30), iw, "BASS", slider55, 0, 100, 46, 1, "%+.1f dB", 0.20);
-  slider56 = ui_hslider(56, ix, lay(30), iw, "MID", slider56, 0, 100, 52, 1, "%+.1f dB", 0.22);
-  slider57 = ui_hslider(57, ix, lay(30), iw, "TREBLE", slider57, 0, 100, 58, 1, "%+.1f dB", 0.20);
+  slider55 = ui_hslider_db(55, ix, lay(30), iw, "BASS", slider55, 0, 100, 46, 1, amp_bass_db(slider55));
+  slider56 = ui_hslider_db(56, ix, lay(30), iw, "MID", slider56, 0, 100, 52, 1, amp_mid_db(slider56));
+  slider57 = ui_hslider_db(57, ix, lay(30), iw, "TREBLE", slider57, 0, 100, 58, 1, amp_treb_db(slider57));
   ui_alpha = 1;
 );
 
@@ -230,7 +230,7 @@ function panel_cab_out(x, w) local(ix, iw, on, bw, use_ir, len) (
 
   ui_alpha = 1;
   ui_title(x + 10, 251, 7, 7);
-  slider58 = ui_hslider(58, ix, 290, iw, "AIR", slider58, 0, 100, 56, 1, "%+.1f dB", 0.24);
+  slider58 = ui_hslider_db(58, ix, 290, iw, "AIR", slider58, 0, 100, 56, 1, amp_air_db(slider58));
   slider51 = ui_hslider(51, ix, 340, iw, "MASTER", slider51, -24, 6, 2.3, 0.1, "%+.1f dB", 0);
   ui_meter(ix, 396, iw, "OUTPUT", meter_out_peak, -999, 0);
 );
